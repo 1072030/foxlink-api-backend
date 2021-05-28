@@ -22,7 +22,7 @@ jobs:
     - name: Log in to registry
       uses: docker/login-action@v1
       with:
-        registry: https://docker.pkg.github.com/
+        registry: https://docker.pkg.github.com
         username: ${{ secrets.AzureAppService_ContainerUsername_e3eba46693eb44d88097db75234e610c }}
         password: ${{ secrets.AzureAppService_ContainerPassword_448ab7fb6bd24abf86bdcb2c3ac3e1aa }}
 
