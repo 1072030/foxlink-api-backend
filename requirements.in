@@ -17,3 +17,4 @@ pyjwt
 python-dotenv
 python-multipart
 uvicorn
+sqlalchemy
