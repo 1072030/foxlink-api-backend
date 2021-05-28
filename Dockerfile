@@ -19,4 +19,4 @@ RUN pip install -r requirements.txt
 COPY . /code/
 
 # expose port
-EXPOSE 8080
+EXPOSE 80
