@@ -21,3 +21,5 @@ sqlalchemy
 databases
 pymysql
 email-validator
+aiomysql
+cryptography

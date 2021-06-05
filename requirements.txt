@@ -4,12 +4,18 @@
 #
 #    pip-compile '.\requirements.in'
 #
+aiomysql==0.0.21
+    # via -r .\requirements.in
 bcrypt==3.2.0
     # via -r .\requirements.in
 cffi==1.14.5
-    # via bcrypt
+    # via
+    #   bcrypt
+    #   cryptography
 click==7.1.2
     # via uvicorn
+cryptography==3.4.7
+    # via -r .\requirements.in
 databases==0.4.3
     # via -r .\requirements.in
 dnspython==2.1.0
@@ -36,8 +42,10 @@ pycparser==2.20
     # via cffi
 pydantic==1.8.2
     # via fastapi
-pymysql==1.0.2
-    # via -r .\requirements.in
+pymysql==0.9.3
+    # via
+    #   -r .\requirements.in
+    #   aiomysql
 python-dotenv==0.17.1
     # via -r .\requirements.in
 python-jose==3.3.0
