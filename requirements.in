@@ -13,8 +13,11 @@ bcrypt
 fastapi
 gunicorn
 passlib
-pyjwt
+python-jose
 python-dotenv
 python-multipart
 uvicorn
 sqlalchemy
+databases
+pymysql
+email-validator

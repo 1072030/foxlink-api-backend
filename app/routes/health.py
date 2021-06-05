@@ -1,10 +1,10 @@
 from typing import Dict
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 
-router = APIRouter()
+router = APIRouter(prefix="/health")
 
 
-@router.get("/api/health", tags=["health"])
+@router.get("/", tags=["health"])
 async def view_health() -> str:
     return "Health OK"
