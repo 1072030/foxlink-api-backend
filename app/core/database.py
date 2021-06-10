@@ -23,9 +23,10 @@ users = Table(
     Column("password_hash", String(100)),
     Column("full_name", String(50)),
     Column("phone", String(20)),
-    Column("is_active", Boolean, default=True),
+    Column("is_active", Boolean, server_default="1"),
 )
 
 
 engine = create_engine(DATABASE_URI)
+
 metadata.create_all(engine)

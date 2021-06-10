@@ -23,7 +23,6 @@ async def create_user(dto: UserCreate):
         password_hash=pw_hash,
         phone=dto.phone,
         full_name=dto.full_name,
-        is_active=True
     )
 
     try:
@@ -42,3 +41,14 @@ async def get_user_by_id(user_id: int) -> User:
 async def get_user_by_email(email: str) -> User:
     query = users.select().where(users.c.email == email)
     return await database.fetch_one(query)
+
+
+async def update_user(user_id: int, **kwargs):
+    query = users.update(None).where(users.c.id == user_id).values(kwargs)
+
+    try:
+        result = await database.execute(query)
+    except:
+        raise HTTPException(status_code=400, detail="cannot update user")
+
+    return result

@@ -16,3 +16,8 @@ class User(UserBase):
     id: int
     password_hash: str
     is_active: bool
+
+
+class UserChangePassword(BaseModel):
+    old_password: str
+    new_password: str
