@@ -45,7 +45,7 @@ async def update_user(user_id: int, **kwargs):
     user = await get_user_by_id(user_id)
 
     try:
-        await user.update(None, kwargs.items())
+        await user.update(None, **kwargs)
     except:
         raise HTTPException(status_code=400, detail="cannot update user")
 
