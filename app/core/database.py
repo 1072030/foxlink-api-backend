@@ -1,7 +1,12 @@
+from datetime import date
 import os
-from sqlalchemy import MetaData, create_engine, Table, Column, Integer, String, Boolean
-from sqlalchemy.ext.declarative import declarative_base
 import databases
+import ormar
+from sqlalchemy import MetaData, create_engine, Table, Column, Integer, String, Boolean
+from sqlalchemy.sql import func
+from sqlalchemy.sql.schema import ForeignKey
+from sqlalchemy.sql.sqltypes import Date, DateTime
+
 
 DATABASE_HOST = os.getenv("DATABASE_HOST")
 DATABASE_PORT = os.getenv("DATABASE_PORT")
@@ -13,18 +18,45 @@ DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DA
 
 database = databases.Database(DATABASE_URI)
 metadata = MetaData()
-Base = declarative_base()
 
-users = Table(
-    "users",
-    metadata,
-    Column("id", Integer, primary_key=True, index=True),
-    Column("email", String(100), unique=True, index=True),
-    Column("password_hash", String(100)),
-    Column("full_name", String(50)),
-    Column("phone", String(20)),
-    Column("is_active", Boolean, server_default="1"),
-)
+
+class MainMeta(ormar.ModelMeta):
+    metadata = metadata
+    database = database
+
+
+class User(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    email: str = ormar.String(max_length=100, unique=True, index=True)
+    password_hash: str = ormar.String(max_length=100)
+    full_name: str = ormar.String(max_length=50)
+    phone: str = ormar.String(max_length=20)
+    is_active: bool = ormar.Boolean(server_default="1")
+
+
+class Machine(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    name: str = ormar.String(max_length=100, nullable=False)
+    manual: str = ormar.String(max_length=512)
+
+
+class Mission(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    machine: Machine = ormar.ForeignKey(Machine)
+    name: str = ormar.String(max_length=100, nullable=False)
+    description: str = ormar.String(max_length=256)
+    created_date: date = ormar.DateTime(server_default=func.now())
+    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
+    closed_date: date = ormar.DateTime()
 
 
 engine = create_engine(DATABASE_URI)

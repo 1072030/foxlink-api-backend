@@ -1,5 +1,5 @@
 from jose.exceptions import JWTError
-from app.models.schema import User
+from app.core.database import User
 from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel

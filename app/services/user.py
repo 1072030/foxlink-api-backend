@@ -1,8 +1,8 @@
 from typing import List
 from fastapi.exceptions import HTTPException
+from app.models.schema import UserCreate
 from passlib.context import CryptContext
-from app.models.schema import User, UserCreate
-from app.core.database import users, database
+from app.core.database import User, database
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -12,43 +12,41 @@ def get_password_hash(password: str):
 
 
 async def get_users() -> List[User]:
-    query = users.select()
-    return await database.fetch_all(query)
+    users = await User.objects.select_all().all()
+    return users
 
 
 async def create_user(dto: UserCreate):
     pw_hash = get_password_hash(dto.password)
-    query = users.insert(None).values(
-        email=dto.email,
-        password_hash=pw_hash,
-        phone=dto.phone,
-        full_name=dto.full_name,
+
+    user = User(
+        email=dto.email, password_hash=pw_hash, phone=dto.phone, full_name=dto.full_name
     )
 
     try:
-        last_record_id = await database.execute(query)
+        await user.save()
     except:
         raise HTTPException(status_code=400, detail="duplicate email in database")
 
-    return {"id": last_record_id}
+    return user
 
 
 async def get_user_by_id(user_id: int) -> User:
-    query = users.select().where(users.c.id == user_id)
-    return await database.fetch_one(query)
+    user = await User.objects.filter(id=user_id).get()
+    return user
 
 
 async def get_user_by_email(email: str) -> User:
-    query = users.select().where(users.c.email == email)
-    return await database.fetch_one(query)
+    user = await User.objects.filter(email=email).get()
+    return user
 
 
 async def update_user(user_id: int, **kwargs):
-    query = users.update(None).where(users.c.id == user_id).values(kwargs)
+    user = await get_user_by_id(user_id)
 
     try:
-        result = await database.execute(query)
+        await user.update(None, kwargs.items())
     except:
         raise HTTPException(status_code=400, detail="cannot update user")
 
-    return result
+    return user
