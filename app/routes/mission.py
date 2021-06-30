@@ -1,7 +1,12 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends
 from app.core.database import User, Mission
-from app.services.mission import get_mission_by_id, get_missions, create_mission, update_mission_by_id
+from app.services.mission import (
+    get_mission_by_id,
+    get_missions,
+    create_mission,
+    update_mission_by_id,
+)
 from app.services.auth import get_current_active_user
 from app.models.schema import MissionCreate, MissionUpdate
 
@@ -12,8 +17,11 @@ router = APIRouter(prefix="/missions")
 async def read_all_missions(user: User = Depends(get_current_active_user)):
     return await get_missions()
 
-@router.get("/{mission_id}", response_model=List[Mission], tags=["missions"])
-async def get_a_mission_by_id(mission_id: int, user: User = Depends(get_current_active_user)):
+
+@router.get("/{mission_id}", response_model=Mission, tags=["missions"])
+async def get_a_mission_by_id(
+    mission_id: int, user: User = Depends(get_current_active_user)
+):
     return await get_mission_by_id(mission_id)
 
 
