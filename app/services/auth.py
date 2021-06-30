@@ -9,7 +9,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import os
 
-JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_SECRET = os.getenv("JWT_SECRET", "secret")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 

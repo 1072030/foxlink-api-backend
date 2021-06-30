@@ -1,3 +1,4 @@
+from app.models.schema import MachineCreate
 from typing import List
 from app.core.database import Machine
 from fastapi.exceptions import HTTPException
@@ -8,9 +9,14 @@ async def get_machines() -> List[Machine]:
     return machines
 
 
-async def create_machine(machine: Machine):
+async def get_machine_by_id(id: int) -> Machine:
+    item = await Machine.objects.filter(id=id).get()
+    return item
+
+
+async def create_machine(dto: MachineCreate):
     try:
-        await machine.save()
+        machine = await Machine.objects.create(name=dto.name, manual=dto.manual)
     except:
         raise HTTPException(
             status_code=400, detail="raise a error when inserting mission into databse"

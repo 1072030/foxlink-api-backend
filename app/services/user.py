@@ -2,7 +2,7 @@ from typing import List
 from fastapi.exceptions import HTTPException
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
-from app.core.database import User, database
+from app.core.database import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

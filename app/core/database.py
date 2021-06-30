@@ -1,4 +1,5 @@
 from datetime import date
+from enum import unique
 import os
 import databases
 import ormar
@@ -52,11 +53,11 @@ class Mission(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     machine: Machine = ormar.ForeignKey(Machine)
-    name: str = ormar.String(max_length=100, nullable=False)
-    description: str = ormar.String(max_length=256)
+    name: str = ormar.String(max_length=100, nullable=False, unique=True)
+    description: str = ormar.String(max_length=256, nullable=True)
     created_date: date = ormar.DateTime(server_default=func.now())
     updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
-    closed_date: date = ormar.DateTime()
+    closed_date: date = ormar.DateTime(nullable=True)
 
 
 engine = create_engine(DATABASE_URI)

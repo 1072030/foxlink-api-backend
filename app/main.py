@@ -1,9 +1,11 @@
+import logging
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from app.routes import health, machine, user, auth, mission
 from app.core.database import database
 
 load_dotenv()
+
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 app.include_router(health.router)

@@ -1,9 +1,10 @@
 from typing import List
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
+from app.core.database import User
 from app.services.user import get_users, create_user, get_password_hash, update_user
 from app.services.auth import get_current_active_user, verify_password
-from app.models.schema import User, UserCreate, UserChangePassword
+from app.models.schema import UserCreate, UserChangePassword
 
 router = APIRouter(prefix="/users")
 
