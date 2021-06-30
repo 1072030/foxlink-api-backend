@@ -9,7 +9,7 @@ router = APIRouter(prefix="/missions")
 
 
 @router.get("/", response_model=List[Mission], tags=["missions"])
-async def read_all_missions():
+async def read_all_missions(user: User = Depends(get_current_active_user)):
     return await get_missions()
 
 
