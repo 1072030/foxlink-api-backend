@@ -1,4 +1,5 @@
-from jose.exceptions import JWTError
+from jose.constants import ALGORITHMS
+from jose.exceptions import JWTError, ExpiredSignatureError
 from app.core.database import User
 from datetime import datetime, timedelta
 from typing import Optional
@@ -8,6 +9,7 @@ from .user import pwd_context, get_user_by_email
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import os
+from traceback import print_exc
 
 JWT_SECRET = os.getenv("JWT_SECRET", "secret")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -28,7 +30,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=30)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET)
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHMS.HS256)
     return encoded_jwt
 
 
@@ -55,7 +57,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
         if email is None:
             raise credentials_exception
-    except JWTError:
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Signature has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except:
         raise credentials_exception
 
     user: User = await get_user_by_email(email)
