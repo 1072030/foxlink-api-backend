@@ -88,4 +88,3 @@ async def start_mission(mission_id: int):
 
     await mission.update(start_date=datetime.utcnow())
 
-async def end_mission(m)
