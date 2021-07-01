@@ -1,9 +1,9 @@
 from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
-from app.core.database import Machine, Mission
+from app.core.database import Machine, Mission, User
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionCreate, MissionUpdate
+from app.models.schema import MissionCancel, MissionCreate, MissionUpdate
 from app.services.machine import get_machine_by_id
 import sys
 
@@ -69,7 +69,7 @@ async def create_mission(dto: MissionCreate):
     return created_mission
 
 
-async def start_mission(mission_id: int):
+async def start_mission_by_id(mission_id: int, validate_user: Optional[User]):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
@@ -80,6 +80,12 @@ async def start_mission(mission_id: int):
             404, "the assignee of this mission is missing. cannot start this mission"
         )
 
+    if validate_user is not None:
+        if mission.assignee.id != validate_user.id:
+            raise HTTPException(
+                400, "you are not this mission's assignee",
+            )
+
     if mission.end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
 
@@ -87,4 +93,55 @@ async def start_mission(mission_id: int):
         raise HTTPException(400, "this mission is starting currently")
 
     await mission.update(start_date=datetime.utcnow())
+
+
+async def finish_mission_by_id(mission_id: int, validate_user: Optional[User]):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request to start is not found")
+
+    if mission.assignee is None:
+        raise HTTPException(
+            404, "the assignee of this mission is missing. cannot finish this mission"
+        )
+
+    if validate_user is not None:
+        if mission.assignee.id != validate_user.id:
+            raise HTTPException(
+                400, "you are not this mission's assignee",
+            )
+
+    if mission.start_date is None:
+        raise HTTPException(400, "this mission hasn't started yet")
+
+    if mission.end_date is not None:
+        raise HTTPException(400, "this mission is already closed!")
+
+    await mission.update(end_date=datetime.utcnow())
+
+
+async def cancel_mission_by_id(dto: MissionCancel):
+    mission = await get_mission_by_id(dto.mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request to start is not found")
+
+    if mission.assignee is None:
+        raise HTTPException(
+            400, "this mission hasn't assigned to anyone yet",
+        )
+
+    if mission.assignee.id != dto.assignee.id:
+        raise HTTPException(
+            400, "you are not this mission's assignee",
+        )
+
+    if mission.end_date is not None:
+        raise HTTPException(400, "this mission is already closed!")
+
+    if mission.start_date is not None:
+        raise HTTPException(400, "this mission is currently starting")
+
+    await mission.update(end_date=datetime.utcnow(), reason=dto.reason)
 

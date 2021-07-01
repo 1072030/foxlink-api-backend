@@ -57,11 +57,25 @@ class Mission(ormar.Model):
     machine: Machine = ormar.ForeignKey(Machine)
     assignee: Optional[User] = ormar.ForeignKey(User)
     name: str = ormar.String(max_length=100, nullable=False, unique=True)
-    description: str = ormar.String(max_length=256, nullable=True)
+    description: Optional[str] = ormar.String(max_length=256)
     created_date: date = ormar.DateTime(server_default=func.now())
     updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
     start_date: Optional[date] = ormar.DateTime()
     end_date: Optional[date] = ormar.DateTime()
+    duration: date = ormar.DateTime(pydantic_only=True)
+
+
+class RepairHistory(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    mission: Mission = ormar.ForeignKey(Mission)
+    machine_status: Optional[str] = ormar.String(max_length=256, nullable=True)
+    cause_of_issue: Optional[str] = ormar.String(max_length=512, nullable=True)
+    issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
+    canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
+    is_cancel: bool = ormar.Boolean()
 
 
 engine = create_engine(DATABASE_URI)

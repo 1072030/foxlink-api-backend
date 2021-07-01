@@ -7,6 +7,8 @@ from app.services.mission import (
     get_missions_by_user_id,
     create_mission,
     update_mission_by_id,
+    start_mission_by_id,
+    finish_mission_by_id,
 )
 from app.services.user import get_user_by_id
 from app.services.auth import get_current_active_user, get_admin_active_user
@@ -63,15 +65,15 @@ async def assign_mission_to_user(
 # TODO: implment this
 @router.post("/{mission_id}/start", tags=["missions"])
 async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
-    pass
+    await start_mission_by_id(mission_id, user)
 
 
 # TODO: implment this
-@router.post("/{mission_id}/finish", tags=["missions"])
+@router.get("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
     mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    pass
+    await finish_mission_by_id(mission_id, user)
 
 
 # TODO: implment this

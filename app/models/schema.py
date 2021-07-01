@@ -1,3 +1,4 @@
+from app.core.database import User
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 
@@ -41,3 +42,9 @@ class MissionCreate(MissionBase):
 class MissionUpdate(MissionBase):
     name: Optional[str]
     machine_id: Optional[int]
+
+
+class MissionCancel(BaseModel):
+    mission_id: int
+    reason: str
+    assignee: User
