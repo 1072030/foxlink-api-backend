@@ -5,7 +5,7 @@ from fastapi.exceptions import HTTPException
 
 
 async def get_machines() -> List[Machine]:
-    machines = await Machine.objects.select_all().all()
+    machines = await Machine.objects.fields(["id", "name", "manual"]).all()
     return machines
 
 

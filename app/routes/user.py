@@ -11,7 +11,8 @@ router = APIRouter(prefix="/users")
 
 @router.get("/", response_model=List[User], tags=["users"])
 async def read_all_users(user: User = Depends(get_current_active_user)):
-    return await get_users()
+    users = await get_users()
+    return users
 
 
 @router.post("/", tags=["users"])

@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
 from app.core.database import Machine, Mission
@@ -15,6 +16,16 @@ async def get_missions() -> List[Mission]:
 async def get_mission_by_id(id: int) -> Optional[Mission]:
     item = await Mission.objects.get_or_none(id=id)
     return item
+
+
+async def get_missions_by_user_id(user_id: int) -> Optional[List[Mission]]:
+    missions = (
+        await Mission.objects.filter(assignee__id=user_id)
+        .order_by("created_date")
+        .all()
+    )
+
+    return missions
 
 
 async def update_mission_by_id(id: int, dto: MissionUpdate):
@@ -57,3 +68,24 @@ async def create_mission(dto: MissionCreate):
 
     return created_mission
 
+
+async def start_mission(mission_id: int):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request to start is not found")
+
+    if mission.assignee is None:
+        raise HTTPException(
+            404, "the assignee of this mission is missing. cannot start this mission"
+        )
+
+    if mission.end_date is not None:
+        raise HTTPException(400, "this mission is already closed!")
+
+    if mission.start_date is not None:
+        raise HTTPException(400, "this mission is starting currently")
+
+    await mission.update(start_date=datetime.utcnow())
+
+async def end_mission(m)

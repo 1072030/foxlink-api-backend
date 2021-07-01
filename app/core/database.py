@@ -1,6 +1,7 @@
 from datetime import date
 from enum import unique
 import os
+from typing import Optional
 import databases
 import ormar
 from sqlalchemy import MetaData, create_engine, Table, Column, Integer, String, Boolean
@@ -15,7 +16,7 @@ DATABASE_USER = os.getenv("DATABASE_USER")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 
-DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
+DATABASE_URI = f"mysql://foxlink_admin:8kFDgvdVLsvG@tonyyaovm.koreacentral.cloudapp.azure.com:5587/foxlink"
 
 database = databases.Database(DATABASE_URI)
 metadata = MetaData()
@@ -36,6 +37,7 @@ class User(ormar.Model):
     full_name: str = ormar.String(max_length=50)
     phone: str = ormar.String(max_length=20)
     is_active: bool = ormar.Boolean(server_default="1")
+    is_admin: bool = ormar.Boolean(server_default="0")
 
 
 class Machine(ormar.Model):
@@ -44,7 +46,7 @@ class Machine(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
-    manual: str = ormar.String(max_length=512)
+    manual: Optional[str] = ormar.String(max_length=512)
 
 
 class Mission(ormar.Model):
@@ -53,11 +55,13 @@ class Mission(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     machine: Machine = ormar.ForeignKey(Machine)
+    assignee: Optional[User] = ormar.ForeignKey(User)
     name: str = ormar.String(max_length=100, nullable=False, unique=True)
     description: str = ormar.String(max_length=256, nullable=True)
     created_date: date = ormar.DateTime(server_default=func.now())
     updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
-    closed_date: date = ormar.DateTime(nullable=True)
+    start_date: Optional[date] = ormar.DateTime()
+    end_date: Optional[date] = ormar.DateTime()
 
 
 engine = create_engine(DATABASE_URI)

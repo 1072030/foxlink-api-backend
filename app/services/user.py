@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi.exceptions import HTTPException
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
@@ -12,8 +12,7 @@ def get_password_hash(password: str):
 
 
 async def get_users() -> List[User]:
-    users = await User.objects.select_all().all()
-    return users
+    return await User.objects.all()
 
 
 async def create_user(dto: UserCreate):
@@ -31,8 +30,8 @@ async def create_user(dto: UserCreate):
     return user
 
 
-async def get_user_by_id(user_id: int) -> User:
-    user = await User.objects.filter(id=user_id).get()
+async def get_user_by_id(user_id: int) -> Optional[User]:
+    user = await User.objects.filter(id=user_id).get_or_none()
     return user
 
 
@@ -43,6 +42,9 @@ async def get_user_by_email(email: str) -> User:
 
 async def update_user(user_id: int, **kwargs):
     user = await get_user_by_id(user_id)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="the user by this id is not found")
 
     try:
         await user.update(None, **kwargs)
