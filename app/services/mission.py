@@ -121,7 +121,7 @@ async def finish_mission_by_id(mission_id: int, validate_user: Optional[User]):
     await mission.update(end_date=datetime.utcnow())
 
 
-async def cancel_mission_by_id(dto: MissionCancel):
+async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]):
     mission = await get_mission_by_id(dto.mission_id)
 
     if mission is None:
@@ -131,6 +131,12 @@ async def cancel_mission_by_id(dto: MissionCancel):
         raise HTTPException(
             400, "this mission hasn't assigned to anyone yet",
         )
+
+    if validate_user is not None:
+        if mission.assignee.id != validate_user.id:
+            raise HTTPException(
+                400, "you are not this mission's assignee",
+            )
 
     if mission.assignee.id != dto.assignee.id:
         raise HTTPException(

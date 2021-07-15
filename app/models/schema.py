@@ -29,6 +29,11 @@ class MachineCreate(MachineBase):
     pass
 
 
+class MachineUpdate(BaseModel):
+    name: Optional[str]
+    manual: Optional[str]
+
+
 # * Mission
 class MissionBase(BaseModel):
     description: Optional[str]
@@ -47,4 +52,3 @@ class MissionUpdate(MissionBase):
 class MissionCancel(BaseModel):
     mission_id: int
     reason: str
-    assignee: User

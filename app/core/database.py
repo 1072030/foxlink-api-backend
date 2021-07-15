@@ -16,7 +16,7 @@ DATABASE_USER = os.getenv("DATABASE_USER")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 
-DATABASE_URI = f"mysql://foxlink_admin:8kFDgvdVLsvG@tonyyaovm.koreacentral.cloudapp.azure.com:5587/foxlink"
+DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
 database = databases.Database(DATABASE_URI)
 metadata = MetaData()

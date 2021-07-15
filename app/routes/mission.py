@@ -9,10 +9,11 @@ from app.services.mission import (
     update_mission_by_id,
     start_mission_by_id,
     finish_mission_by_id,
+    cancel_mission_by_id,
 )
 from app.services.user import get_user_by_id
 from app.services.auth import get_current_active_user, get_admin_active_user
-from app.models.schema import MissionCreate, MissionUpdate
+from app.models.schema import MissionCancel, MissionCreate, MissionUpdate
 from fastapi.exceptions import HTTPException
 
 router = APIRouter(prefix="/missions")
@@ -76,12 +77,11 @@ async def finish_mission(
     await finish_mission_by_id(mission_id, user)
 
 
-# TODO: implment this
 @router.post("/{mission_id}/cancel", tags=["missions"])
 async def cancel_mission(
-    mission_id: int, user: User = Depends(get_current_active_user)
+    dto: MissionCancel, user: User = Depends(get_current_active_user)
 ):
-    pass
+    await cancel_mission_by_id(dto, user)
 
 
 @router.post("/", tags=["missions"], status_code=201)
