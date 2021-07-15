@@ -35,8 +35,8 @@ async def get_user_by_id(user_id: int) -> Optional[User]:
     return user
 
 
-async def get_user_by_email(email: str) -> User:
-    user = await User.objects.filter(email=email).get()
+async def get_user_by_email(email: str) -> Optional[User]:
+    user = await User.objects.filter(email=email).get_or_none()
     return user
 
 
