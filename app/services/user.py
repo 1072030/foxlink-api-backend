@@ -19,7 +19,11 @@ async def create_user(dto: UserCreate):
     pw_hash = get_password_hash(dto.password)
 
     user = User(
-        email=dto.email, password_hash=pw_hash, phone=dto.phone, full_name=dto.full_name
+        email=dto.email,
+        password_hash=pw_hash,
+        phone=dto.phone,
+        full_name=dto.full_name,
+        expertises=dto.expertises,
     )
 
     try:
@@ -27,7 +31,7 @@ async def create_user(dto: UserCreate):
     except:
         raise HTTPException(status_code=400, detail="duplicate email in database")
 
-    return user
+    return
 
 
 async def get_user_by_id(user_id: int) -> Optional[User]:
@@ -52,3 +56,10 @@ async def update_user(user_id: int, **kwargs):
         raise HTTPException(status_code=400, detail="cannot update user")
 
     return user
+
+
+async def delete_user_by_id(user_id: int):
+    affected_row = await User.objects.delete(id=user_id)
+
+    if affected_row != 1:
+        raise HTTPException(status_code=404, detail="user by this id is not found")

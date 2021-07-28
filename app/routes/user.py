@@ -2,8 +2,18 @@ from typing import List
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
 from app.core.database import User
-from app.services.user import get_users, create_user, get_password_hash, update_user
-from app.services.auth import get_current_active_user, verify_password
+from app.services.user import (
+    get_users,
+    create_user,
+    get_password_hash,
+    update_user,
+    delete_user_by_id,
+)
+from app.services.auth import (
+    get_current_active_user,
+    verify_password,
+    get_admin_active_user,
+)
 from app.models.schema import UserCreate, UserChangePassword
 
 router = APIRouter(prefix="/users")
@@ -15,7 +25,7 @@ async def read_all_users(user: User = Depends(get_current_active_user)):
     return users
 
 
-@router.post("/", tags=["users"])
+@router.post("/", tags=["users"], status_code=201)
 async def create_a_new_user(dto: UserCreate):
     return await create_user(dto)
 
@@ -28,3 +38,12 @@ async def change_password(
         raise HTTPException(status_code=401, detail="The old password is not matched")
 
     await update_user(user.id, password_hash=get_password_hash(dto.new_password))
+
+
+@router.delete("/{user_id}", tags=["users"])
+async def delete_a_user_by_id(
+    user_id: int, user: User = Depends(get_admin_active_user)
+):
+    await delete_user_by_id(user_id)
+    return True
+

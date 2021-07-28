@@ -26,4 +26,3 @@ async def get_the_history_with_id(
     history_id: int, user: User = Depends(get_current_active_user)
 ):
     return await get_history_by_id(history_id)
-

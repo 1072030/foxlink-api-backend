@@ -18,10 +18,11 @@ async def get_mission_by_id(id: int) -> Optional[Mission]:
     return item
 
 
-async def get_missions_by_user_id(user_id: int) -> Optional[List[Mission]]:
+async def get_missions_by_user_id(user_id: int):
     missions = (
         await Mission.objects.filter(assignee__id=user_id)
         .order_by("created_date")
+        .exclude_fields(["assignee"])
         .all()
     )
 
@@ -137,11 +138,6 @@ async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]
             raise HTTPException(
                 400, "you are not this mission's assignee",
             )
-
-    if mission.assignee.id != dto.assignee.id:
-        raise HTTPException(
-            400, "you are not this mission's assignee",
-        )
 
     if mission.end_date is not None:
         raise HTTPException(400, "this mission is already closed!")

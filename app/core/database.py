@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import date, datetime
 from enum import unique
 import os
-from typing import Optional
+from typing import List, Optional
 import databases
 import ormar
+from pydantic import Json
 from sqlalchemy import MetaData, create_engine, Table, Column, Integer, String, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.sql.schema import ForeignKey
@@ -36,6 +37,7 @@ class User(ormar.Model):
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
     phone: str = ormar.String(max_length=20)
+    expertises: Json = ormar.JSON()
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
 
@@ -60,8 +62,8 @@ class Mission(ormar.Model):
     description: Optional[str] = ormar.String(max_length=256)
     created_date: date = ormar.DateTime(server_default=func.now())
     updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
-    start_date: Optional[date] = ormar.DateTime()
-    end_date: Optional[date] = ormar.DateTime()
+    start_date: Optional[date] = ormar.DateTime(nullable=True)
+    end_date: Optional[date] = ormar.DateTime(nullable=True)
     duration: date = ormar.DateTime(pydantic_only=True)
 
 

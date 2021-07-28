@@ -1,6 +1,18 @@
+from app.models.schema import RepairHistoryCreate
 from typing import List
 from app.core.database import RepairHistory, User
 from fastapi.exceptions import HTTPException
+
+
+async def create_history_for_mission(dto: RepairHistoryCreate):
+    try:
+        history = await RepairHistory.objects.create(**dto.dict())
+
+        return history
+    except:
+        raise HTTPException(
+            status_code=400, detail="cannot create a repair history into databse"
+        )
 
 
 async def get_histories() -> List[RepairHistory]:
