@@ -14,7 +14,7 @@ from app.services.auth import (
     verify_password,
     get_admin_active_user,
 )
-from app.models.schema import UserCreate, UserChangePassword
+from app.models.schema import UserCreate, UserChangePassword, UserOut
 
 router = APIRouter(prefix="/users")
 
@@ -28,6 +28,11 @@ async def read_all_users(user: User = Depends(get_current_active_user)):
 @router.post("/", tags=["users"], status_code=201)
 async def create_a_new_user(dto: UserCreate):
     return await create_user(dto)
+
+
+@router.get("/info", response_model=UserOut, tags=["users"])
+async def get_self_user_info(user: User = Depends(get_current_active_user)):
+    return user
 
 
 @router.post("/change-password", tags=["users"])

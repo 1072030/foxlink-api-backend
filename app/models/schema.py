@@ -15,6 +15,12 @@ class UserCreate(UserBase):
     password: str
 
 
+class UserOut(UserBase):
+    id: int
+    is_active: bool
+    is_admin: bool
+
+
 class UserChangePassword(BaseModel):
     old_password: str
     new_password: str
@@ -61,6 +67,7 @@ class RepairHistoryBase(BaseModel):
     cause_of_issue: Optional[str]
     issue_solution: Optional[str]
     canceled_reason: Optional[str]
+    is_cancel: bool
 
 
 class RepairHistoryCreate(RepairHistoryBase):

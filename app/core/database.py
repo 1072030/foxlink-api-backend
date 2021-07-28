@@ -1,9 +1,10 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from enum import unique
 import os
 from typing import List, Optional
 import databases
 import ormar
+from ormar import property_field
 from pydantic import Json
 from sqlalchemy import MetaData, create_engine, Table, Column, Integer, String, Boolean
 from sqlalchemy.sql import func
@@ -64,7 +65,13 @@ class Mission(ormar.Model):
     updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
     start_date: Optional[date] = ormar.DateTime(nullable=True)
     end_date: Optional[date] = ormar.DateTime(nullable=True)
-    duration: date = ormar.DateTime(pydantic_only=True)
+    required_expertises: Json = ormar.JSON()
+
+    @property_field
+    def duration(self) -> Optional[timedelta]:
+        if self.start_date is not None and self.end_date is not None:
+            return self.end_date - self.start_date
+        return None
 
 
 class RepairHistory(ormar.Model):

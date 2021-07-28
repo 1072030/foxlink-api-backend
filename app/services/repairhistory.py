@@ -9,9 +9,10 @@ async def create_history_for_mission(dto: RepairHistoryCreate):
         history = await RepairHistory.objects.create(**dto.dict())
 
         return history
-    except:
+    except Exception as e:
         raise HTTPException(
-            status_code=400, detail="cannot create a repair history into databse"
+            status_code=400,
+            detail="cannot create a repair history into databse" + str(e),
         )
 
 
