@@ -48,12 +48,15 @@ async def update_user(user_id: int, **kwargs):
     user = await get_user_by_id(user_id)
 
     if user is None:
-        raise HTTPException(status_code=404, detail="the user by this id is not found")
+        raise HTTPException(
+            status_code=404, detail="the user with this id is not found"
+        )
 
     try:
-        await user.update(None, **kwargs)
-    except:
-        raise HTTPException(status_code=400, detail="cannot update user")
+        filtered = {k: v for k, v in kwargs.items() if v is not None}
+        await user.update(None, **filtered)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="cannot update user:" + str(e))
 
     return user
 

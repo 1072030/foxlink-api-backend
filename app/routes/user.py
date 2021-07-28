@@ -8,13 +8,14 @@ from app.services.user import (
     get_password_hash,
     update_user,
     delete_user_by_id,
+    update_user,
 )
 from app.services.auth import (
     get_current_active_user,
     verify_password,
     get_admin_active_user,
 )
-from app.models.schema import UserCreate, UserChangePassword, UserOut
+from app.models.schema import UserCreate, UserChangePassword, UserOut, UserPatch
 
 router = APIRouter(prefix="/users")
 
@@ -43,6 +44,19 @@ async def change_password(
         raise HTTPException(status_code=401, detail="The old password is not matched")
 
     await update_user(user.id, password_hash=get_password_hash(dto.new_password))
+
+
+@router.patch("/{user_id}", tags=["users"])
+async def update_user_information(
+    user_id: int, dto: UserPatch, user: User = Depends(get_current_active_user)
+):
+    if user.is_admin is False and user_id != user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="You are not allowed to change other user's information",
+        )
+
+    return await update_user(user_id, **dto.dict())
 
 
 @router.delete("/{user_id}", tags=["users"])

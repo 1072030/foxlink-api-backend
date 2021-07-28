@@ -15,6 +15,13 @@ class UserCreate(UserBase):
     password: str
 
 
+class UserPatch(BaseModel):
+    email: Optional[EmailStr]
+    phone: Optional[str]
+    full_name: Optional[str]
+    expertises: Optional[List[str]]
+
+
 class UserOut(UserBase):
     id: int
     is_active: bool
