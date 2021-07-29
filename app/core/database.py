@@ -28,6 +28,17 @@ class MainMeta(ormar.ModelMeta):
     database = database
 
 
+class FactoryMap(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    name: str = ormar.String(max_length=100, index=True, unique=True)
+    map: Json = ormar.JSON()
+    created_date: date = ormar.DateTime(server_default=func.now())
+    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
+
+
 class User(ormar.Model):
     class Meta(MainMeta):
         pass
@@ -38,6 +49,7 @@ class User(ormar.Model):
     full_name: str = ormar.String(max_length=50)
     phone: str = ormar.String(max_length=20)
     expertises: Json = ormar.JSON()
+    location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap)
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
 
@@ -65,7 +77,7 @@ class Mission(ormar.Model):
     start_date: Optional[date] = ormar.DateTime(nullable=True)
     end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: Json = ormar.JSON()
-    
+
     @property_field
     def duration(self) -> Optional[timedelta]:
         if self.start_date is not None and self.end_date is not None:
@@ -84,17 +96,6 @@ class RepairHistory(ormar.Model):
     issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
     canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
     is_cancel: bool = ormar.Boolean()
-
-
-class FactoryMap(ormar.Model):
-    class Meta(MainMeta):
-        pass
-
-    id: int = ormar.Integer(primary_key=True, index=True)
-    name: str = ormar.String(max_length=100, index=True, unique=True)
-    map: Json = ormar.JSON()
-    created_date: date = ormar.DateTime(server_default=func.now())
-    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
 
 
 engine = create_engine(DATABASE_URI)
