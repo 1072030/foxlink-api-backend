@@ -10,6 +10,7 @@ from app.services.mission import (
     start_mission_by_id,
     finish_mission_by_id,
     cancel_mission_by_id,
+    reject_mission_by_id,
 )
 from app.services.user import get_user_by_id
 from app.services.auth import get_current_active_user, get_admin_active_user
@@ -72,6 +73,11 @@ async def assign_mission_to_user(
 @router.post("/{mission_id}/start", tags=["missions"])
 async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
     await start_mission_by_id(mission_id, user)
+
+# TODO: Implement this
+@router.get("/{mission_id}/reject", tags=["missions"])
+async def reject_a_mission(mission_id: int, user: User = Depends(get_current_active_user)):
+    return await reject_mission_by_id(mission_id, user)
 
 
 @router.get("/{mission_id}/finish", tags=["missions"])

@@ -65,7 +65,7 @@ class Mission(ormar.Model):
     start_date: Optional[date] = ormar.DateTime(nullable=True)
     end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: Json = ormar.JSON()
-
+    
     @property_field
     def duration(self) -> Optional[timedelta]:
         if self.start_date is not None and self.end_date is not None:

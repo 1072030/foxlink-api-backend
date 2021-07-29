@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
+
 from app.core.database import Machine, Mission, User
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCancel, MissionCreate, MissionUpdate
@@ -91,6 +92,24 @@ async def start_mission_by_id(mission_id: int, validate_user: Optional[User]):
         raise HTTPException(400, "this mission is starting currently")
 
     await mission.update(start_date=datetime.utcnow())
+
+
+async def reject_mission_by_id(mission_id: int, user: User):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request to start is not found")
+
+    if mission.assignee is None:
+        raise HTTPException(400, "the mission haven't assigned to anyone yet")
+
+    if mission.assignee.id != user.id:
+        raise HTTPException(404, "you are not this mission's assignee")
+
+    if mission.start_date is not None:
+        raise HTTPException(400, "this mission is starting currently")
+
+    mission.assignee.remove(mission, "missions")
 
 
 async def finish_mission_by_id(mission_id: int, validate_user: Optional[User]):
