@@ -1,5 +1,5 @@
 from app.models.schema import RepairHistoryCreate
-from typing import List
+from typing import List, Optional
 from app.core.database import RepairHistory, User
 from app.services.repairhistory import (
     create_history_for_mission,
@@ -14,8 +14,10 @@ router = APIRouter(prefix="/repair-histories")
 
 
 @router.get("/", tags=["repair-histories"])
-async def get_all_repair_histories(user: User = Depends(get_current_active_user)):
-    return await get_histories()
+async def get_all_repair_histories(
+    mission_id: Optional[int] = None, user: User = Depends(get_current_active_user)
+):
+    return await get_histories(mission__id=mission_id)
 
 
 @router.post("/", tags=["repair-histories"], status_code=201)

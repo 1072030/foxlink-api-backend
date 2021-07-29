@@ -1,5 +1,5 @@
 from app.models.schema import RepairHistoryCreate
-from typing import List
+from typing import List, Optional
 from app.core.database import RepairHistory, User
 from fastapi.exceptions import HTTPException
 
@@ -16,8 +16,10 @@ async def create_history_for_mission(dto: RepairHistoryCreate):
         )
 
 
-async def get_histories() -> List[RepairHistory]:
-    histories = await RepairHistory.objects.all()
+async def get_histories(**kwargs) -> List[RepairHistory]:
+    filtered = {k: v for k, v in kwargs.items() if v is not None}
+
+    histories = await RepairHistory.objects.filter(**filtered).all()
     return histories
 
 
