@@ -57,10 +57,7 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
 
 async def create_mission(dto: MissionCreate):
     try:
-        machine = await get_machine_by_id(dto.machine_id)
-        created_mission = await Mission.objects.create(
-            machine=machine, name=dto.name, description=dto.description
-        )
+        created_mission = await Mission.objects.create(**dto.dict())
     except:
         logging.error(sys.exc_info())
         raise HTTPException(

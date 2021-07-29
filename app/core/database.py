@@ -1,5 +1,4 @@
 from datetime import date, datetime, timedelta
-from enum import unique
 import os
 from typing import List, Optional
 import databases
@@ -85,6 +84,17 @@ class RepairHistory(ormar.Model):
     issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
     canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
     is_cancel: bool = ormar.Boolean()
+
+
+class FactoryMap(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    name: str = ormar.String(max_length=100, index=True, unique=True)
+    map: Json = ormar.JSON()
+    created_date: date = ormar.DateTime(server_default=func.now())
+    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
 
 
 engine = create_engine(DATABASE_URI)

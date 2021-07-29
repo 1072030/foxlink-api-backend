@@ -55,7 +55,8 @@ class MissionBase(BaseModel):
 
 class MissionCreate(MissionBase):
     name: str
-    machine_id: int
+    machine: int
+    required_expertises: List[str]
 
 
 class MissionUpdate(MissionBase):

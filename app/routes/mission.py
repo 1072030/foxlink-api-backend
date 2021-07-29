@@ -54,6 +54,12 @@ async def assign_mission_to_user(
                 status_code=404, detail="the user you requested is not found"
             )
         else:
+            for e in mission.required_expertises:
+                if e not in the_user.expertises:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="the user does not have the expertise this mission requires.",
+                    )
             mission.assignee = the_user
             await mission.update(assignee=the_user)
     else:
@@ -63,13 +69,11 @@ async def assign_mission_to_user(
     return
 
 
-# TODO: implment this
 @router.post("/{mission_id}/start", tags=["missions"])
 async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
     await start_mission_by_id(mission_id, user)
 
 
-# TODO: implment this
 @router.get("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
     mission_id: int, user: User = Depends(get_current_active_user)
