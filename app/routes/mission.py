@@ -74,9 +74,12 @@ async def assign_mission_to_user(
 async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
     await start_mission_by_id(mission_id, user)
 
+
 # TODO: Implement this
 @router.get("/{mission_id}/reject", tags=["missions"])
-async def reject_a_mission(mission_id: int, user: User = Depends(get_current_active_user)):
+async def reject_a_mission(
+    mission_id: int, user: User = Depends(get_current_active_user)
+):
     return await reject_mission_by_id(mission_id, user)
 
 

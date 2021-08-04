@@ -18,13 +18,7 @@ async def get_users() -> List[User]:
 async def create_user(dto: UserCreate):
     pw_hash = get_password_hash(dto.password)
 
-    user = User(
-        email=dto.email,
-        password_hash=pw_hash,
-        phone=dto.phone,
-        full_name=dto.full_name,
-        expertises=dto.expertises,
-    )
+    user = User(**dto.dict())
 
     try:
         await user.save()

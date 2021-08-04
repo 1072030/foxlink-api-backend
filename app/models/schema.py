@@ -1,3 +1,4 @@
+from pydantic.types import Json
 from app.core.database import User
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr
@@ -6,7 +7,6 @@ from pydantic import BaseModel, EmailStr
 # * User
 class UserBase(BaseModel):
     email: EmailStr
-    phone: str
     full_name: str
     expertises: List[str]
 
@@ -17,7 +17,6 @@ class UserCreate(UserBase):
 
 class UserPatch(BaseModel):
     email: Optional[EmailStr]
-    phone: Optional[str]
     full_name: Optional[str]
     expertises: Optional[List[str]]
 
@@ -80,3 +79,13 @@ class RepairHistoryBase(BaseModel):
 
 class RepairHistoryCreate(RepairHistoryBase):
     mission: int
+
+
+# * Factory Map
+class FactoryMapBase(BaseModel):
+    name: str
+    matrix: List[List[int]]
+
+
+class FactoryMapCreate(FactoryMapBase):
+    pass
