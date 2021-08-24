@@ -1,13 +1,13 @@
 from datetime import date, timedelta
-import os
 from typing import List, Optional
-import databases
-import ormar
 from ormar import property_field
 from pydantic import Json
 from sqlalchemy import MetaData, create_engine
-import sqlalchemy
 from sqlalchemy.sql import func
+import os
+import databases
+import ormar
+import sqlalchemy
 
 
 DATABASE_HOST = os.getenv("DATABASE_HOST")
@@ -59,6 +59,31 @@ class Machine(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
     manual: Optional[str] = ormar.String(max_length=512)
+
+
+class Device(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: str = ormar.String(max_length=100, primary_key=True, index=True)
+    process: str = ormar.String(max_length=100, nullable=False)
+    machine: str = ormar.String(max_length=100, nullable=False)
+    line: int = ormar.Integer(nullable=False)
+    device: int = ormar.Integer(nullable=False)
+    x_axis: float = ormar.Float(nullable=False)
+    y_axis: float = ormar.Float(nullable=False)
+    created_date: date = ormar.DateTime(server_default=func.now())
+    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
+
+
+class UserDeviceLevel(ormar.Model):
+    class Meta(MainMeta):
+        constraints = [ormar.UniqueColumns("device", "user")]
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    device: Device = ormar.ForeignKey(Device, index=True)
+    user: User = ormar.ForeignKey(User, index=True)
+    level: int = ormar.SmallInteger(minimum=0)
 
 
 class Mission(ormar.Model):

@@ -1,5 +1,5 @@
 from typing import List, Optional
-from app.core.database import User, Machine
+from app.core.database import User, Machine, Device
 from fastapi.exceptions import HTTPException
 from app.services.user import get_password_hash
 from fastapi import UploadFile
@@ -45,3 +45,36 @@ async def import_machines(csv_file: UploadFile):
         await Machine.objects.bulk_create(machines)
     except:
         raise HTTPException(400, "raise an error when parsing csv file")
+
+
+async def import_devices(csv_file: UploadFile):
+    """
+    Import device list from csv file.
+    """
+    lines: str = (await csv_file.read()).decode("utf-8")
+    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+
+    try:
+        devices: List[Device] = []
+        for row in reader:
+            if len(row) != 7:
+                raise HTTPException(400, "each row must be 7 columns long")
+            device = Device(
+                id=row[0],
+                process=row[1],
+                machine=row[2],
+                line=row[3],
+                device=row[4],
+                x_axis=row[5],
+                y_axis=row[6],
+            )
+            devices.append(device)
+
+        await Device.objects.bulk_create(devices)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
+
+async def import_employee_repair_experience_table(csv_file: UploadFile):
+    pass

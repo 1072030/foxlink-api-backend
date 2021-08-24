@@ -1,5 +1,5 @@
 from app.services.auth import get_admin_active_user
-from app.services.migration import import_users, import_machines
+from app.services.migration import import_users, import_machines, import_devices
 from fastapi import APIRouter, Depends, File, UploadFile
 from app.core.database import User
 from fastapi.exceptions import HTTPException
@@ -24,3 +24,12 @@ async def import_machines_from_csv(
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
     await import_machines(file)
+
+
+@router.post("/devices", tags=["migration"], status_code=201)
+async def import_devices_from_csv(
+    file: UploadFile = File(...), user: User = Depends(get_admin_active_user)
+):
+    if file.filename.split(".")[1] != "csv":
+        raise HTTPException(415)
+    await import_devices(file)
