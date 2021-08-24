@@ -1,11 +1,10 @@
+from app.services.device import get_device_by_id
 from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
-
-from app.core.database import Machine, Mission, User
+from app.core.database import Mission, User
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCancel, MissionCreate, MissionUpdate
-from app.services.machine import get_machine_by_id
 import sys
 
 
@@ -42,9 +41,9 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
         if dto.name is not None:
             updateDict["name"] = dto.name
 
-        if dto.machine_id is not None:
-            machine = await get_machine_by_id(dto.machine_id)
-            updateDict["machine"] = machine
+        if dto.device_id is not None:
+            device = await get_device_by_id(dto.device_id)
+            updateDict["device"] = device
 
         if dto.description is not None:
             updateDict["description"] = dto.description

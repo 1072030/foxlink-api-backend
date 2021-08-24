@@ -54,13 +54,13 @@ class MissionBase(BaseModel):
 
 class MissionCreate(MissionBase):
     name: str
-    machine: int
+    device: int
     required_expertises: List[str]
 
 
 class MissionUpdate(MissionBase):
     name: Optional[str]
-    machine_id: Optional[int]
+    device_id: Optional[str]
 
 
 class MissionCancel(BaseModel):

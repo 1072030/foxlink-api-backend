@@ -1,5 +1,5 @@
 from typing import List, Optional
-from app.core.database import User, Machine, Device
+from app.core.database import User, Machine, Device, UserDeviceLevel
 from fastapi.exceptions import HTTPException
 from app.services.user import get_password_hash
 from fastapi import UploadFile
@@ -47,34 +47,67 @@ async def import_machines(csv_file: UploadFile):
         raise HTTPException(400, "raise an error when parsing csv file")
 
 
-async def import_devices(csv_file: UploadFile):
+async def import_devices(csv_file: UploadFile, clear_all: bool = False):
     """
     Import device list from csv file.
     """
     lines: str = (await csv_file.read()).decode("utf-8")
     reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
 
+    if clear_all:
+        await UserDeviceLevel.objects.delete(each=True)
+        await Device.objects.delete(each=True)
+
     try:
-        devices: List[Device] = []
         for row in reader:
             if len(row) != 7:
                 raise HTTPException(400, "each row must be 7 columns long")
-            device = Device(
-                id=row[0],
-                process=row[1],
-                machine=row[2],
-                line=row[3],
-                device=row[4],
-                x_axis=row[5],
-                y_axis=row[6],
-            )
-            devices.append(device)
 
-        await Device.objects.bulk_create(devices)
+            d = await Device.objects.get_or_none(id=row[0])
+
+            if d is None:
+                await Device.objects.create(
+                    id=row[0],
+                    process=row[1],
+                    machine=row[2],
+                    line=row[3],
+                    device=row[4],
+                    x_axis=row[5],
+                    y_axis=row[6],
+                )
+            else:
+                await d.update(
+                    process=row[1],
+                    machine=row[2],
+                    line=row[3],
+                    device=row[4],
+                    x_axis=row[5],
+                    y_axis=row[6],
+                )
+
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
 
-async def import_employee_repair_experience_table(csv_file: UploadFile):
-    pass
+
+async def import_employee_repair_experience_table(
+    csv_file: UploadFile, clear_all: bool = False
+):
+    lines: str = (await csv_file.read()).decode("utf-8")
+    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+
+    if clear_all:
+        await UserDeviceLevel.objects.delete(each=True)
+
+    try:
+        for row in reader:
+            if len(row) != 3:
+                raise HTTPException(400, "each row must be 3 columns long")
+
+            level = UserDeviceLevel(device=row[0], user=int(row[1]), level=int(row[2]))
+            await level.upsert()
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
