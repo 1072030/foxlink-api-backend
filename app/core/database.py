@@ -1,6 +1,6 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import List, Optional
-from ormar import property_field
+from ormar import property_field, pre_update
 from pydantic import Json
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.sql import func
@@ -34,8 +34,8 @@ class FactoryMap(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, index=True, unique=True)
     map: Json = ormar.JSON()
-    created_date: date = ormar.DateTime(server_default=func.now())
-    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
+    created_date: datetime = ormar.DateTime(server_default=func.now())
+    updated_date: datetime = ormar.DateTime(server_default=func.now())
 
 
 class User(ormar.Model):
@@ -72,8 +72,8 @@ class Device(ormar.Model):
     device: int = ormar.Integer(nullable=False)
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
-    created_date: date = ormar.DateTime(server_default=func.now())
-    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class UserDeviceLevel(ormar.Model):
@@ -91,12 +91,12 @@ class Mission(ormar.Model):
         pass
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    machine: Machine = ormar.ForeignKey(Machine)
+    device: Device = ormar.ForeignKey(Device)
     assignee: Optional[User] = ormar.ForeignKey(User)
     name: str = ormar.String(max_length=100, nullable=False, unique=True)
     description: Optional[str] = ormar.String(max_length=256)
-    created_date: date = ormar.DateTime(server_default=func.now())
-    updated_date: date = ormar.DateTime(server_default=func.now(), onupdate=func.now())
+    created_date: datetime = ormar.DateTime(server_default=func.now())
+    updated_date: datetime = ormar.DateTime(server_default=func.now())
     start_date: Optional[date] = ormar.DateTime(nullable=True)
     end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: sqlalchemy.JSON = ormar.JSON()
@@ -119,6 +119,11 @@ class RepairHistory(ormar.Model):
     issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
     canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
     is_cancel: bool = ormar.Boolean()
+
+
+@pre_update([Device, FactoryMap, Mission])
+async def before_update(sender, instance, **kwargs):
+    instance.updated_date = datetime.utcnow()
 
 
 engine = create_engine(DATABASE_URI)
