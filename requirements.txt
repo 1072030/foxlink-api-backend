@@ -34,7 +34,7 @@ h11==0.12.0
     # via uvicorn
 idna==3.2
     # via email-validator
-ormar==0.10.15
+ormar==0.10.16
     # via -r requirements.in
 passlib==1.7.4
     # via -r requirements.in
