@@ -8,7 +8,9 @@ import os
 import databases
 import ormar
 import sqlalchemy
+from dotenv import load_dotenv
 
+load_dotenv()
 
 DATABASE_HOST = os.getenv("DATABASE_HOST")
 DATABASE_PORT = os.getenv("DATABASE_PORT")
@@ -100,6 +102,7 @@ class Mission(ormar.Model):
     start_date: Optional[date] = ormar.DateTime(nullable=True)
     end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: sqlalchemy.JSON = ormar.JSON()
+    done_verified: bool = ormar.Boolean(default=False)
 
     @property_field
     def duration(self) -> Optional[timedelta]:

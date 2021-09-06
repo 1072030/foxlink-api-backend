@@ -134,6 +134,9 @@ async def finish_mission_by_id(mission_id: int, validate_user: Optional[User]):
     if mission.end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
 
+    if not mission.done_verified:
+        raise HTTPException(400, "this mission is not verified as done")
+
     await mission.update(end_date=datetime.utcnow())
 
 
