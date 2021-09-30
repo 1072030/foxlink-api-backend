@@ -1,5 +1,6 @@
 from datetime import date, timedelta, datetime
-from typing import List, Optional
+from typing import Optional
+from enum import Enum
 from ormar import property_field, pre_update
 from pydantic import Json
 from sqlalchemy import MetaData, create_engine
@@ -22,6 +23,11 @@ DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DA
 
 database = databases.Database(DATABASE_URI)
 metadata = MetaData()
+
+
+class ShiftClassType(Enum):
+    day = "Day"
+    night = "Night"
 
 
 class MainMeta(ormar.ModelMeta):
@@ -86,6 +92,17 @@ class UserDeviceLevel(ormar.Model):
     device: Device = ormar.ForeignKey(Device, index=True)
     user: User = ormar.ForeignKey(User, index=True)
     level: int = ormar.SmallInteger(minimum=0)
+
+
+class UserShiftInfo(ormar.Model):
+    class Meta(MainMeta):
+        constraints = [ormar.UniqueColumns("user", "shift_date")]
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    user: User = ormar.ForeignKey(User, index=True)
+    shift_date: date = ormar.Date()
+    attend: bool = ormar.Boolean(default=True)
+    day_or_night: str = ormar.String(max_length=5, choices=list(ShiftClassType))
 
 
 class Mission(ormar.Model):
