@@ -4,6 +4,7 @@ from app.services.migration import (
     import_machines,
     import_devices,
     import_employee_repair_experience_table,
+    import_employee_shift_table,
 )
 from fastapi import APIRouter, Depends, File, UploadFile, Form
 from app.core.database import User
@@ -20,6 +21,15 @@ async def import_users_from_csv(
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
     await import_users(file)
+
+
+@router.post("/users/shift", tags=["migration"], status_code=201)
+async def import_users_shift_info_from_csv(
+    file: UploadFile = File(...), user: User = Depends(get_admin_active_user)
+):
+    if file.filename.split(".")[1] != "csv":
+        raise HTTPException(415)
+    await import_employee_shift_table(file)
 
 
 @router.post("/machines", tags=["migration"], status_code=201)

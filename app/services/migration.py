@@ -1,8 +1,9 @@
-from typing import List, Optional
-from app.core.database import User, Machine, Device, UserDeviceLevel
+from typing import List
+from app.core.database import User, Machine, Device, UserDeviceLevel, UserShiftInfo
 from fastapi.exceptions import HTTPException
 from app.services.user import get_password_hash
 from fastapi import UploadFile
+from datetime import datetime
 import csv
 
 
@@ -107,6 +108,31 @@ async def import_employee_repair_experience_table(
 
             level = UserDeviceLevel(device=row[0], user=int(row[1]), level=int(row[2]))
             await level.upsert()
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
+
+
+async def import_employee_shift_table(csv_file: UploadFile):
+    lines: str = (await csv_file.read()).decode("utf-8")
+    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+
+    try:
+        for row in reader:
+            if len(row) != 4:
+                raise HTTPException(400, "each row must be 4 columns long")
+
+            shift_type = "Day" if int(row[2]) == 0 else "Night"
+            date_of_shift = datetime.strptime(row[3], "%Y/%m/%d")
+
+            shift = UserShiftInfo(
+                user=int(row[0]),
+                attend=bool(row[1]),
+                day_or_night=shift_type,
+                shift_date=date_of_shift,
+            )
+            await shift.upsert()
     except HTTPException as e:
         raise e
     except Exception as e:
