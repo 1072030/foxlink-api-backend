@@ -75,10 +75,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user")
     return current_user
+
 
 async def get_admin_active_user(active_user: User = Depends(get_current_active_user)):
     if not active_user.is_admin:
-        raise HTTPException(status_code=400, detail="You're not admin!")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You're not admin!")
     return active_user
