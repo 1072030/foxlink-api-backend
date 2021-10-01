@@ -43,7 +43,9 @@ async def import_machines_from_csv(
 
 @router.post("/devices", tags=["migration"], status_code=201)
 async def import_devices_from_csv(
-    file: UploadFile = File(...), clear_all: bool = Form(default=False)
+    file: UploadFile = File(...),
+    clear_all: bool = Form(default=False),
+    user: User = Depends(get_admin_active_user),
 ):
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
@@ -52,7 +54,9 @@ async def import_devices_from_csv(
 
 @router.post("/repair-experiences", tags=["migration"], status_code=201)
 async def import_repair_experiences_from_csv(
-    file: UploadFile = File(...), clear_all: bool = Form(default=False)
+    file: UploadFile = File(...),
+    clear_all: bool = Form(default=False),
+    user: User = Depends(get_admin_active_user),
 ):
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
