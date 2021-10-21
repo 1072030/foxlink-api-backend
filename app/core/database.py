@@ -1,5 +1,5 @@
 from datetime import date, timedelta, datetime
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 from ormar import property_field, pre_update
 from pydantic import Json
@@ -50,8 +50,8 @@ class User(ormar.Model):
     class Meta(MainMeta):
         pass
 
-    id: int = ormar.Integer(primary_key=True, index=True)
-    email: str = ormar.String(max_length=100, unique=True, index=True)
+    id: str = ormar.String(primary_key=True, index=True)
+    username: str = ormar.String(max_length=100, unique=True, index=True)
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
     expertises: sqlalchemy.JSON = ormar.JSON()
@@ -100,6 +100,7 @@ class UserShiftInfo(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     user: User = ormar.ForeignKey(User, index=True)
+    devices: List[Device] = ormar.ManyToMany(Device)
     shift_date: date = ormar.Date()
     attend: bool = ormar.Boolean(default=True)
     day_or_night: str = ormar.String(max_length=5, choices=list(ShiftClassType))

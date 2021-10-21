@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr
 
 # * User
 class UserBase(BaseModel):
-    email: EmailStr
+    username: str
     full_name: str
     expertises: List[str]
 
@@ -16,7 +16,6 @@ class UserCreate(UserBase):
 
 
 class UserPatch(BaseModel):
-    email: Optional[EmailStr]
     full_name: Optional[str]
     expertises: Optional[List[str]]
 
