@@ -50,7 +50,7 @@ class User(ormar.Model):
     class Meta(MainMeta):
         pass
 
-    id: str = ormar.String(primary_key=True, index=True)
+    id: str = ormar.String(primary_key=True, index=True, max_length=30)
     username: str = ormar.String(max_length=100, unique=True, index=True)
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
