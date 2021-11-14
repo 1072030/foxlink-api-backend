@@ -25,10 +25,8 @@ async def create_user(dto: UserCreate):
 
     try:
         await user.save()
-    except:
-        raise HTTPException(status_code=400, detail="duplicate email in database")
-
-    return
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="cannot add user:" + str(e))
 
 
 async def get_user_by_id(user_id: int) -> Optional[User]:

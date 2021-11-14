@@ -21,7 +21,7 @@ class UserPatch(BaseModel):
 
 
 class UserOut(UserBase):
-    id: int
+    id: str
     is_active: bool
     is_admin: bool
 
