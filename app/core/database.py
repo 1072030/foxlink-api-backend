@@ -143,6 +143,8 @@ class RepairHistory(ormar.Model):
     cause_of_issue: Optional[str] = ormar.String(max_length=512, nullable=True)
     issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
     canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
+    image: bytes = ormar.LargeBinary(max_length=1024 * 1024 * 5)
+    signature: bytes = ormar.LargeBinary(max_length=1024 * 1024 * 5)
     is_cancel: bool = ormar.Boolean()
 
 
