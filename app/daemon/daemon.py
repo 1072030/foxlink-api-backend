@@ -43,4 +43,16 @@ class FoxlinkDbPool:
             (db_name),
         )
 
+        return [x[0] for x in r]
+
+    async def get_recent_events(self) -> Any:
+        r = await self.run_sql_statement(
+            # Below include recent 24hr filter
+            # "SELECT * FROM aoi.`x61 e75_event_new` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND Start_Time >= NOW() - INTERVAL 1 DAY;"
+            
+            "SELECT * FROM aoi.`x61 e75_event_new` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699));"
+        )
         return r
+
+    def __generate_device_id__(self) -> str:
+        return ""
