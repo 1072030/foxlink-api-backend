@@ -3,15 +3,17 @@ import asyncio
 import aiomysql
 import os
 
+from app.daemon.dto import Event
+
+
 FOXLINK_DB_HOST = os.getenv("FOXLINK_DB_HOST")
 FOXLINK_DB_PORT = os.getenv("FOXLINK_DB_PORT")
 FOXLINK_DB_USER = os.getenv("FOXLINK_DB_USER")
 FOXLINK_DB_PWD = os.getenv("FOXLINK_DB_PWD")
-fetch_interval = 30  # sec
 
 
 class FoxlinkDbPool:
-    pool: aiomysql.Pool
+    _pool: aiomysql.Pool
 
     def __init__(self, loop):
         task = asyncio.create_task(
@@ -26,13 +28,13 @@ class FoxlinkDbPool:
         )
 
         loop.run_until_complete(task)
-        self.pool = task.result()
+        self._pool = task.result()
 
     async def run_sql_statement(self, stat: str, args=None) -> Any:
-        if self.pool is None:
+        if self._pool is None:
             raise RuntimeError("pool is not initialized")
 
-        async with self.pool.acquire() as conn:
+        async with self._pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(stat, args)
                 return await cur.fetchall()
@@ -45,14 +47,49 @@ class FoxlinkDbPool:
 
         return [x[0] for x in r]
 
-    async def get_recent_events(self) -> Any:
-        r = await self.run_sql_statement(
-            # Below include recent 24hr filter
-            # "SELECT * FROM aoi.`x61 e75_event_new` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND Start_Time >= NOW() - INTERVAL 1 DAY;"
-            
-            "SELECT * FROM aoi.`x61 e75_event_new` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699));"
-        )
-        return r
+    async def get_recent_events(self, db_name: str) -> List[Event]:
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                stmt = f"SELECT * FROM `{db_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699));"
 
-    def __generate_device_id__(self) -> str:
+                print(stmt)
+                await cur.execute("USE aoi;")
+                await cur.execute(stmt)
+
+                r = await cur.fetchall()
+
+                return [
+                    Event(
+                        id=x[0],
+                        line=x[1],
+                        device_name=x[2],
+                        category=x[3],
+                        start_time=x[4],
+                        end_time=x[5],
+                        message=x[6],
+                        start_file_name=x[7],
+                        end_file_name=x[8],
+                    )
+                    for x in r
+                ]
+
+    def _generate_device_id(self) -> str:
         return ""
+
+
+# init foxlink db pool
+loop = asyncio.get_event_loop()
+
+try:
+    dbPool = FoxlinkDbPool(loop)
+except:
+    print("cannot initialize foxlink db pool")
+    exit(1)
+
+
+async def fetch_events_from_foxlink():
+    events = await dbPool.get_recent_events("x61 e75_event_new")
+    print(events)
+
+
+asyncio.create_task(fetch_events_from_foxlink())

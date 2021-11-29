@@ -7,6 +7,21 @@ from datetime import datetime
 import csv
 
 
+async def process_csv_file(
+    csv_file: UploadFile, callback: Callable[[List[str]], Coroutine]
+):
+    lines: str = (await csv_file.read()).decode("utf-8")
+    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+
+    try:
+        for row in reader:
+            await callback(row)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
+
+
 async def import_users(csv_file: UploadFile):
     """
     Improt user list form csv file
@@ -95,23 +110,17 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
 async def import_employee_repair_experience_table(
     csv_file: UploadFile, clear_all: bool = False
 ):
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+    async def process(row: List[str]) -> None:
+        if len(row) != 6:
+            raise HTTPException(400, "each row must be 3 columns long")
+
+        level = UserDeviceLevel(user=int(row[0]), device=row[1], level=int(row[2]))
+        await level.upsert()
 
     if clear_all:
         await UserDeviceLevel.objects.delete(each=True)
 
-    try:
-        for row in reader:
-            if len(row) != 3:
-                raise HTTPException(400, "each row must be 3 columns long")
-
-            level = UserDeviceLevel(user=int(row[0]), device=row[1], level=int(row[2]))
-            await level.upsert()
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
+    process_csv_file(csv_file, process)
 
 
 async def import_employee_shift_table(csv_file: UploadFile):
@@ -149,18 +158,3 @@ async def import_employee_table(csv_file: UploadFile):
         await user.upsert()
 
     await process_csv_file(csv_file, process)
-
-
-async def process_csv_file(
-    csv_file: UploadFile, callback: Callable[[List[str]], Coroutine]
-):
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
-
-    try:
-        for row in reader:
-            await callback(row)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))

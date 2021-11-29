@@ -1,4 +1,3 @@
-import asyncio
 from fastapi import FastAPI
 from app.routes import (
     health,
@@ -10,17 +9,9 @@ from app.routes import (
     mission,
     factory_map,
 )
+import app.daemon.daemon
 
 from app.core.database import database
-from app.daemon.daemon import FoxlinkDbPool
-
-import nest_asyncio
-
-nest_asyncio.apply()
-
-# init foxlink db pool
-loop = asyncio.get_event_loop()
-dbPool = FoxlinkDbPool(loop)
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 app.include_router(health.router)
@@ -41,4 +32,3 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await database.disconnect()
-

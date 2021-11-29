@@ -25,6 +25,7 @@ DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DA
 database = databases.Database(DATABASE_URI)
 metadata = MetaData()
 
+
 def generate_uuidv4():
     return str(uuid.uuid4())
 
@@ -54,7 +55,9 @@ class User(ormar.Model):
     class Meta(MainMeta):
         pass
 
-    id: str = ormar.String(primary_key=True, index=True, max_length=36, default=generate_uuidv4)
+    id: str = ormar.String(
+        primary_key=True, index=True, max_length=36, default=generate_uuidv4
+    )
     username: str = ormar.String(max_length=100, unique=True, index=True)
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
@@ -78,10 +81,9 @@ class Device(ormar.Model):
         pass
 
     id: str = ormar.String(max_length=100, primary_key=True, index=True)
-    process: str = ormar.String(max_length=100, nullable=False)
-    machine: str = ormar.String(max_length=100, nullable=False)
+    project: str = ormar.String(max_length=50, nullable=False)
     line: int = ormar.Integer(nullable=False)
-    device: int = ormar.Integer(nullable=False)
+    device_name: str = ormar.String(max_length=20, nullable=False)
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
@@ -125,6 +127,7 @@ class Mission(ormar.Model):
     end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     done_verified: bool = ormar.Boolean(default=False)
+    related_event_id: Optional[int] = ormar.Integer()
 
     @property_field
     def duration(self) -> Optional[timedelta]:
