@@ -53,8 +53,9 @@ class MissionBase(BaseModel):
 
 class MissionCreate(MissionBase):
     name: str
-    device: int
+    device: str
     required_expertises: List[str]
+    related_event_id: Optional[int]
 
 
 class MissionUpdate(MissionBase):

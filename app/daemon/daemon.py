@@ -4,6 +4,9 @@ import aiomysql
 import os
 
 from app.daemon.dto import Event
+from app.core.database import Device, Mission
+from app.models.schema import MissionCreate
+from app.services.mission import create_mission
 
 
 FOXLINK_DB_HOST = os.getenv("FOXLINK_DB_HOST")
@@ -30,6 +33,9 @@ class FoxlinkDbPool:
         loop.run_until_complete(task)
         self._pool = task.result()
 
+    def close(self):
+        self._pool.close()
+
     async def run_sql_statement(self, stat: str, args=None) -> Any:
         if self._pool is None:
             raise RuntimeError("pool is not initialized")
@@ -50,9 +56,8 @@ class FoxlinkDbPool:
     async def get_recent_events(self, db_name: str) -> List[Event]:
         async with self._pool.acquire() as conn:
             async with conn.cursor() as cur:
-                stmt = f"SELECT * FROM `{db_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699));"
+                stmt = f"SELECT * FROM `{db_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL;"
 
-                print(stmt)
                 await cur.execute("USE aoi;")
                 await cur.execute(stmt)
 
@@ -61,6 +66,7 @@ class FoxlinkDbPool:
                 return [
                     Event(
                         id=x[0],
+                        project=db_name,
                         line=x[1],
                         device_name=x[2],
                         category=x[3],
@@ -73,11 +79,11 @@ class FoxlinkDbPool:
                     for x in r
                 ]
 
-    def _generate_device_id(self) -> str:
-        return ""
+
+def _generate_device_id(event: Event) -> str:
+    return f"{event.project}-{event.line}-{event.device_name}"
 
 
-# init foxlink db pool
 loop = asyncio.get_event_loop()
 
 try:
@@ -89,7 +95,26 @@ except:
 
 async def fetch_events_from_foxlink():
     events = await dbPool.get_recent_events("x61 e75_event_new")
-    print(events)
+    for e in events:
+        try:
+            await Device.objects.get_or_create(
+                id=_generate_device_id(e),
+                project=e.project,
+                line=e.line,
+                device_name=e.device_name,
+                x_axis=0,
+                y_axis=0,
+            )
 
+            await create_mission(
+                MissionCreate(
+                    name="New Mission",
+                    device=_generate_device_id(e),
+                    description=e.message,
+                    related_event_id=e.id,
+                    required_expertises=[],
+                )
+            )
+        except Exception as e:
+            raise Exception("cannot create device", e)
 
-asyncio.create_task(fetch_events_from_foxlink())

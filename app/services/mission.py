@@ -18,7 +18,7 @@ async def get_mission_by_id(id: int) -> Optional[Mission]:
     return item
 
 
-async def get_missions_by_user_id(user_id: int):
+async def get_missions_by_user_id(user_id: str):
     missions = (
         await Mission.objects.filter(assignee__id=user_id)
         .order_by("created_date")

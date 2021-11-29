@@ -9,9 +9,9 @@ from app.routes import (
     mission,
     factory_map,
 )
-import app.daemon.daemon
-
+import asyncio
 from app.core.database import database
+from app.daemon.daemon import fetch_events_from_foxlink
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 app.include_router(health.router)
@@ -27,6 +27,7 @@ app.include_router(migration.router)
 @app.on_event("startup")
 async def startup():
     await database.connect()
+    await fetch_events_from_foxlink()
 
 
 @app.on_event("shutdown")

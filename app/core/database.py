@@ -119,7 +119,7 @@ class Mission(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     device: Device = ormar.ForeignKey(Device)
     assignee: Optional[User] = ormar.ForeignKey(User)
-    name: str = ormar.String(max_length=100, nullable=False, unique=True)
+    name: str = ormar.String(max_length=100, nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     updated_date: datetime = ormar.DateTime(server_default=func.now())
