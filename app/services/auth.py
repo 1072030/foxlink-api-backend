@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from jose import jwt
-from .user import pwd_context, get_user_by_email
+from .user import get_user_by_username, pwd_context, get_user_by_id
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import os
@@ -16,7 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 class TokenData(BaseModel):
-    email: Optional[str] = None
+    username: Optional[str] = None
 
 
 def verify_password(plain_password: str, hashed_password: str):
@@ -34,8 +34,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-async def authenticate_user(email: str, password: str):
-    user: User = await get_user_by_email(email)
+async def authenticate_user(username: str, password: str):
+    user = await get_user_by_username(username)
 
     if not user:
         return False
@@ -53,9 +53,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        email: str = payload.get("sub")
+        user_id: str = payload.get("sub")
 
-        if email is None:
+        if user_id is None:
             raise credentials_exception
     except ExpiredSignatureError:
         raise HTTPException(
@@ -66,7 +66,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except:
         raise credentials_exception
 
-    user: User = await get_user_by_email(email)
+    user = await get_user_by_id(user_id)
 
     if user is None:
         raise credentials_exception
@@ -75,11 +75,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
+        )
     return current_user
 
 
 async def get_admin_active_user(active_user: User = Depends(get_current_active_user)):
     if not active_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You're not admin!")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
+        )
     return active_user

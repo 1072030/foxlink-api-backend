@@ -29,17 +29,17 @@ async def create_user(dto: UserCreate):
         raise HTTPException(status_code=400, detail="cannot add user:" + str(e))
 
 
-async def get_user_by_id(user_id: int) -> Optional[User]:
+async def get_user_by_id(user_id: str) -> Optional[User]:
     user = await User.objects.filter(id=user_id).get_or_none()
     return user
 
 
-async def get_user_by_email(email: str) -> Optional[User]:
-    user = await User.objects.filter(email=email).get_or_none()
+async def get_user_by_username(username: str) -> Optional[User]:
+    user = await User.objects.filter(username=username).get_or_none()
     return user
 
 
-async def update_user(user_id: int, **kwargs):
+async def update_user(user_id: str, **kwargs):
     user = await get_user_by_id(user_id)
 
     if user is None:
