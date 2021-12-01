@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Any, Dict
 import asyncio
 import aiomysql
 import os
@@ -13,6 +13,8 @@ FOXLINK_DB_HOST = os.getenv("FOXLINK_DB_HOST")
 FOXLINK_DB_PORT = os.getenv("FOXLINK_DB_PORT")
 FOXLINK_DB_USER = os.getenv("FOXLINK_DB_USER")
 FOXLINK_DB_PWD = os.getenv("FOXLINK_DB_PWD")
+
+unfinished_event_ids: Dict[int, bool] = {}
 
 
 class FoxlinkDbPool:
@@ -94,27 +96,34 @@ except:
 
 
 async def fetch_events_from_foxlink():
-    events = await dbPool.get_recent_events("x61 e75_event_new")
-    for e in events:
-        try:
-            await Device.objects.get_or_create(
-                id=_generate_device_id(e),
-                project=e.project,
-                line=e.line,
-                device_name=e.device_name,
-                x_axis=0,
-                y_axis=0,
-            )
+    tables = await dbPool.get_db_table_list("aoi")
+    tables = [x for x in tables if x != "measure_info"]
 
-            await create_mission(
-                MissionCreate(
-                    name="New Mission",
-                    device=_generate_device_id(e),
-                    description=e.message,
-                    related_event_id=e.id,
-                    required_expertises=[],
+    for t in tables:
+        events = await dbPool.get_recent_events(t)
+
+        for e in events:
+            unfinished_event_ids[e.id] = True
+
+            try:
+                await Device.objects.get_or_create(
+                    id=_generate_device_id(e),
+                    project=e.project,
+                    line=e.line,
+                    device_name=e.device_name,
+                    x_axis=0,
+                    y_axis=0,
                 )
-            )
-        except Exception as e:
-            raise Exception("cannot create device", e)
+
+                await create_mission(
+                    MissionCreate(
+                        name="New Mission",
+                        device=_generate_device_id(e),
+                        description=e.message,
+                        related_event_id=e.id,
+                        required_expertises=[],
+                    )
+                )
+            except Exception as e:
+                raise Exception("cannot create device", e)
 
