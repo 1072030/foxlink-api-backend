@@ -9,8 +9,7 @@ import sys
 
 
 async def get_missions() -> List[Mission]:
-    missions = await Mission.objects.all()
-    return missions
+    return await Mission.objects.values()
 
 
 async def get_mission_by_id(id: int) -> Optional[Mission]:

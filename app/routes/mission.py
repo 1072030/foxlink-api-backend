@@ -39,7 +39,7 @@ async def get_a_mission_by_id(
 
 @router.post("/{mission_id}/assign", tags=["missions"])
 async def assign_mission_to_user(
-    mission_id: int, user_id: int, user: User = Depends(get_admin_active_user)
+    mission_id: int, user_id: str, user: User = Depends(get_admin_active_user)
 ):
     mission = await get_mission_by_id(mission_id)
 
