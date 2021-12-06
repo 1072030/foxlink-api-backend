@@ -5,6 +5,7 @@ from app.services.migration import (
     import_devices,
     import_employee_repair_experience_table,
     import_employee_shift_table,
+    transform_events,
 )
 from fastapi import APIRouter, Depends, File, UploadFile, Form
 from app.core.database import User
@@ -61,3 +62,12 @@ async def import_repair_experiences_from_csv(
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
     await import_employee_repair_experience_table(file, clear_all)
+
+
+@router.post("/pre-processing", tags=["migration"], status_code=201)
+async def import_transform_table(
+    file: UploadFile = File(...), clear_all: bool = Form(default=False),
+):
+    if file.filename.split(".")[1] != "csv":
+        raise HTTPException(415)
+    await transform_events(file)

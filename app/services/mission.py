@@ -2,9 +2,9 @@ from app.services.device import get_device_by_id
 from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
-from app.core.database import Mission, User
+from app.core.database import Mission, User, database
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionCancel, MissionCreate, MissionUpdate
+from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
 import sys
 
 
@@ -83,13 +83,13 @@ async def start_mission_by_id(mission_id: int, validate_user: Optional[User]):
                 400, "you are not this mission's assignee",
             )
 
-    if mission.end_date is not None:
+    if mission.repair_end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
 
-    if mission.start_date is not None:
+    if mission.repair_start_date is not None:
         raise HTTPException(400, "this mission is starting currently")
 
-    await mission.update(start_date=datetime.utcnow())
+    await mission.update(repair_start_date=datetime.utcnow())
 
 
 async def reject_mission_by_id(mission_id: int, user: User):
@@ -104,13 +104,15 @@ async def reject_mission_by_id(mission_id: int, user: User):
     if mission.assignee.id != user.id:
         raise HTTPException(404, "you are not this mission's assignee")
 
-    if mission.start_date is not None:
+    if mission.repair_start_date is not None:
         raise HTTPException(400, "this mission is starting currently")
 
     mission.assignee.remove(mission, "missions")
 
 
-async def finish_mission_by_id(mission_id: int, validate_user: Optional[User]):
+async def finish_mission_by_id(
+    mission_id: int, dto: MissionFinish, validate_user: Optional[User]
+):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
@@ -127,16 +129,32 @@ async def finish_mission_by_id(mission_id: int, validate_user: Optional[User]):
                 400, "you are not this mission's assignee",
             )
 
-    if mission.start_date is None:
+    if mission.repair_start_date is None:
         raise HTTPException(400, "this mission hasn't started yet")
 
-    if mission.end_date is not None:
+    if mission.repair_end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
 
     if not mission.done_verified:
         raise HTTPException(400, "this mission is not verified as done")
 
-    await mission.update(end_date=datetime.utcnow())
+    tx = await database.transaction()
+    try:
+        await tx.start()
+        await mission.update(
+            repair_end_date=datetime.utcnow(),
+            machine_status=dto.devcie_status,
+            cause_of_issue=dto.cause_of_issue,
+            issue_solution=dto.issue_solution,
+            image=dto.image,
+            signature=dto.signature,
+            is_cancel=False,
+        )
+    except Exception as e:
+        logging.error("cannot mark a mission as done: ", e)
+        await tx.rollback()
+    else:
+        await tx.commit()
 
 
 async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]):
@@ -156,11 +174,11 @@ async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]
                 400, "you are not this mission's assignee",
             )
 
-    if mission.end_date is not None:
+    if mission.repair_end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
 
-    if mission.start_date is not None:
+    if mission.repair_start_date is not None:
         raise HTTPException(400, "this mission is currently starting")
 
-    await mission.update(end_date=datetime.utcnow(), reason=dto.reason)
+    await mission.update(repair_end_date=datetime.utcnow(), canceled_reason=dto.reason)
 

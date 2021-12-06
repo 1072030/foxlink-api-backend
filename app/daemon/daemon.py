@@ -115,15 +115,20 @@ async def fetch_events_from_foxlink():
                     y_axis=0,
                 )
 
-                await create_mission(
-                    MissionCreate(
-                        name="New Mission",
-                        device=_generate_device_id(e),
-                        description=e.message,
-                        related_event_id=e.id,
-                        required_expertises=[],
+                is_event_id_existed = await Mission.objects.filter(
+                    related_event_id=e.id
+                ).exists()
+
+                if not is_event_id_existed:
+                    await create_mission(
+                        MissionCreate(
+                            name="New Mission",
+                            device=_generate_device_id(e),
+                            description=e.message,
+                            related_event_id=e.id,
+                            required_expertises=[],
+                        )
                     )
-                )
             except Exception as e:
                 raise Exception("cannot create device", e)
 

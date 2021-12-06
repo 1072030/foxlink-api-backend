@@ -68,17 +68,12 @@ class MissionCancel(BaseModel):
     reason: str
 
 
-# * RepairHistory
-class RepairHistoryBase(BaseModel):
-    machine_status: Optional[str]
-    cause_of_issue: Optional[str]
-    issue_solution: Optional[str]
-    canceled_reason: Optional[str]
-    is_cancel: bool
-
-
-class RepairHistoryCreate(RepairHistoryBase):
-    mission: int
+class MissionFinish(BaseModel):
+    devcie_status: str
+    cause_of_issue: str
+    issue_solution: str
+    image: bytes
+    signature: bytes
 
 
 # * Factory Map

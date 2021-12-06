@@ -82,6 +82,7 @@ class Device(ormar.Model):
 
     id: str = ormar.String(max_length=100, primary_key=True, index=True)
     project: str = ormar.String(max_length=50, nullable=False)
+    process: Optional[int] = ormar.Integer()
     line: int = ormar.Integer(nullable=False)
     device_name: str = ormar.String(max_length=20, nullable=False)
     x_axis: float = ormar.Float(nullable=False)
@@ -121,34 +122,31 @@ class Mission(ormar.Model):
     assignee: Optional[User] = ormar.ForeignKey(User)
     name: str = ormar.String(max_length=100, nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
-    created_date: datetime = ormar.DateTime(server_default=func.now())
-    updated_date: datetime = ormar.DateTime(server_default=func.now())
-    start_date: Optional[date] = ormar.DateTime(nullable=True)
-    end_date: Optional[date] = ormar.DateTime(nullable=True)
+    repair_start_date: Optional[date] = ormar.DateTime(nullable=True)
+    repair_end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     done_verified: bool = ormar.Boolean(default=False)
-    related_event_id: Optional[int] = ormar.Integer()
-
-    @property_field
-    def duration(self) -> Optional[timedelta]:
-        if self.start_date is not None and self.end_date is not None:
-            return self.end_date - self.start_date
-        return None
-
-
-class RepairHistory(ormar.Model):
-    class Meta(MainMeta):
-        pass
-
-    id: int = ormar.Integer(primary_key=True, index=True)
-    mission: Mission = ormar.ForeignKey(Mission)
+    related_event_id: int = ormar.Integer()
     machine_status: Optional[str] = ormar.String(max_length=256, nullable=True)
     cause_of_issue: Optional[str] = ormar.String(max_length=512, nullable=True)
     issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
     canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
-    image: bytes = ormar.LargeBinary(max_length=1024 * 1024 * 5)
-    signature: bytes = ormar.LargeBinary(max_length=1024 * 1024 * 5)
-    is_cancel: bool = ormar.Boolean()
+    image: Optional[bytes] = ormar.LargeBinary(
+        max_length=1024 * 1024 * 5, nullable=True
+    )
+    signature: Optional[bytes] = ormar.LargeBinary(
+        max_length=1024 * 1024 * 5, nullable=True
+    )
+    is_cancel: bool = ormar.Boolean(default=False)
+    created_date: datetime = ormar.DateTime(server_default=func.now())
+    updated_date: datetime = ormar.DateTime(server_default=func.now())
+    end_date: Optional[datetime] = ormar.DateTime(nullable=True)
+
+    @property_field
+    def duration(self) -> Optional[timedelta]:
+        if self.repair_start_date is not None and self.repair_end_date is not None:
+            return self.repair_end_date - self.repair_start_date
+        return None
 
 
 @pre_update([Device, FactoryMap, Mission])

@@ -13,8 +13,8 @@ async def get_device_by_id(id: str) -> Device:
     return d
 
 
-def get_device_id(machine: str, device_name: str, line: Optional[int]) -> str:
+def get_device_id(project_name: str, line: Optional[int], device_name: str) -> str:
     if line is None:
-        return f"{machine}-{device_name}"
+        return f"{project_name}-{device_name}"
 
-    return f"{machine}-{line}-{device_name}"
+    return f"{project_name}-{line}-{device_name}"

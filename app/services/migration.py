@@ -1,25 +1,45 @@
-from typing import List, Callable, Coroutine
-from app.core.database import User, Machine, Device, UserDeviceLevel, UserShiftInfo
+from typing import List, Callable, Coroutine, Optional, Any
+from app.core.database import (
+    User,
+    Machine,
+    Device,
+    UserDeviceLevel,
+    UserShiftInfo,
+    Mission,
+)
 from fastapi.exceptions import HTTPException
 from app.services.user import get_password_hash
+from app.services.device import get_device_id
 from fastapi import UploadFile
 from datetime import datetime
 import csv
 
 
 async def process_csv_file(
-    csv_file: UploadFile, callback: Callable[[List[str]], Coroutine]
+    csv_file: UploadFile,
+    callback: Callable[[List[str]], Coroutine],
+    ignore_header: bool = True,
 ):
     lines: str = (await csv_file.read()).decode("utf-8")
     reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
 
+    is_met_header = False
+    row_count = 0
+
     try:
         for row in reader:
-            await callback(row)
+            if not is_met_header and ignore_header:
+                is_met_header = True
+            else:
+                await callback(row)
+            row_count += 1
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
+        raise HTTPException(
+            400,
+            f"raise an error when parsing csv file: {str(e)}, row count {row_count}",
+        )
 
 
 async def import_users(csv_file: UploadFile):
@@ -67,44 +87,35 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
     """
     Import device list from csv file.
     """
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
 
-    if clear_all:
-        await UserDeviceLevel.objects.delete(each=True)
-        await Device.objects.delete(each=True)
+    async def process(row: List[str]) -> None:
+        max_length = 10
+        if len(row) != max_length:
+            raise HTTPException(400, f"each row must be {max_length} columns long")
 
-    try:
-        for row in reader:
-            if len(row) != 7:
-                raise HTTPException(400, "each row must be 7 columns long")
+        device_id = get_device_id(row[0], int(float(row[2])), row[3])
+        device = await Device.objects.get_or_none(id=device_id)
 
-            d = await Device.objects.get_or_none(id=row[0])
+        if device is None:
+            device = await Device.objects.create(
+                id=device_id,
+                project=row[0],
+                line=int(float(row[2])),
+                device_name=row[3],
+                x_axis=0,
+                y_axis=0,
+            )
 
-            if d is None:
-                await Device.objects.create(
-                    id=row[0],
-                    process=row[1],
-                    machine=row[2],
-                    line=row[3],
-                    device=row[4],
-                    x_axis=row[5],
-                    y_axis=row[6],
-                )
-            else:
-                await d.update(
-                    process=row[1],
-                    machine=row[2],
-                    line=row[3],
-                    device=row[4],
-                    x_axis=row[5],
-                    y_axis=row[6],
-                )
+        await Mission.objects.create(
+            device=device,
+            name="Mission",
+            description=row[7],
+            required_expertises=[],
+            related_event_id=int(float(row[1])),
+            is_cancel=False,
+        )
 
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(400, "raise an error when parsing csv file: " + str(e))
+    await process_csv_file(csv_file, process)
 
 
 async def import_employee_repair_experience_table(
@@ -158,3 +169,35 @@ async def import_employee_table(csv_file: UploadFile):
         await user.upsert()
 
     await process_csv_file(csv_file, process)
+
+
+async def transform_events(csv_file: UploadFile):
+    async def process(row: List[str]) -> None:
+        max_length = 10
+        if len(row) != max_length:
+            raise HTTPException(400, f"each row must be {max_length} columns long")
+
+        device_id = get_device_id(row[0], int(float(row[2])), row[3])
+        device = await Device.objects.get_or_none(id=device_id)
+
+        if device is None:
+            device = await Device.objects.create(
+                id=device_id,
+                project=row[0],
+                line=int(float(row[2])),
+                device_name=row[3],
+                x_axis=0,
+                y_axis=0,
+            )
+
+        await Mission.objects.create(
+            device=device,
+            name="Mission",
+            description=row[7],
+            required_expertises=[],
+            related_event_id=int(float(row[1])),
+            is_cancel=False,
+        )
+
+    await process_csv_file(csv_file, process)
+
