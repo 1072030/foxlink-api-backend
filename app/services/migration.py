@@ -89,31 +89,30 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
     """
 
     async def process(row: List[str]) -> None:
-        max_length = 10
+        max_length = 7
         if len(row) != max_length:
             raise HTTPException(400, f"each row must be {max_length} columns long")
 
-        device_id = get_device_id(row[0], int(float(row[2])), row[3])
+        device_id = get_device_id(row[2], int(float(row[3])), row[4])
         device = await Device.objects.get_or_none(id=device_id)
 
         if device is None:
             device = await Device.objects.create(
                 id=device_id,
                 project=row[0],
-                line=int(float(row[2])),
-                device_name=row[3],
-                x_axis=0,
-                y_axis=0,
+                process=int(float(1)),
+                line=int(float(row[3])),
+                device_name=row[4],
+                x_axis=float(row[5]),
+                y_axis=float(row[6]),
+            )
+        else:
+            await device.update(
+                process=int(float(1)), x_axis=float(row[5]), y_axis=float(row[6]),
             )
 
-        await Mission.objects.create(
-            device=device,
-            name="Mission",
-            description=row[7],
-            required_expertises=[],
-            related_event_id=int(float(row[1])),
-            is_cancel=False,
-        )
+    if clear_all is True:
+        await Device.objects.delete(each=True)
 
     await process_csv_file(csv_file, process)
 
@@ -181,14 +180,7 @@ async def transform_events(csv_file: UploadFile):
         device = await Device.objects.get_or_none(id=device_id)
 
         if device is None:
-            device = await Device.objects.create(
-                id=device_id,
-                project=row[0],
-                line=int(float(row[2])),
-                device_name=row[3],
-                x_axis=0,
-                y_axis=0,
-            )
+            return
 
         await Mission.objects.create(
             device=device,
@@ -197,6 +189,8 @@ async def transform_events(csv_file: UploadFile):
             required_expertises=[],
             related_event_id=int(float(row[1])),
             is_cancel=False,
+            event_start_date=datetime.strptime(row[5], "%Y-%m-%d %H:%M:%S"),
+            event_end_date=datetime.strptime(row[6], "%Y-%m-%d %H:%M:%S"),
         )
 
     await process_csv_file(csv_file, process)

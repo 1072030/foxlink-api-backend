@@ -140,7 +140,8 @@ class Mission(ormar.Model):
     is_cancel: bool = ormar.Boolean(default=False)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     updated_date: datetime = ormar.DateTime(server_default=func.now())
-    end_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    event_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    event_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
 
     @property_field
     def duration(self) -> Optional[timedelta]:
