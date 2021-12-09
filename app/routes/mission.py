@@ -41,33 +41,33 @@ async def get_a_mission_by_id(
 async def assign_mission_to_user(
     mission_id: int, user_id: str, user: User = Depends(get_admin_active_user)
 ):
-    mission = await get_mission_by_id(mission_id)
+    mission = await Mission.objects.select_related("assignees").get(id=mission_id)
 
     if mission is None:
         raise HTTPException(
             status_code=404, detail="the mission you requested is not found"
         )
 
-    if mission.assignee is None:
-        the_user = await get_user_by_id(user_id)
-        if the_user is None:
-            raise HTTPException(
-                status_code=404, detail="the user you requested is not found"
-            )
-        else:
-            for e in mission.required_expertises:
-                if e not in the_user.expertises:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="the user does not have the expertise this mission requires.",
-                    )
-            mission.assignee = the_user
-            await mission.update(assignee=the_user)
-    else:
+    the_user = await get_user_by_id(user_id)
+
+    if the_user is None:
         raise HTTPException(
-            status_code=404, detail="this mission is already assigned to other user"
+            status_code=404, detail="the user you requested is not found"
         )
-    return
+
+    for e in mission.required_expertises:
+        if e not in the_user.expertises:
+            raise HTTPException(
+                status_code=400,
+                detail="the user does not have the expertise this mission requires.",
+            )
+
+    filter = [u for u in mission.assignees if u.id == the_user.id]
+
+    if len(filter) == 0:
+        await mission.assignees.add(the_user)  # type: ignore
+    else:
+        raise HTTPException(400, detail="the user is already assigned to this mission")
 
 
 @router.post("/{mission_id}/start", tags=["missions"])

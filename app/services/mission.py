@@ -2,7 +2,7 @@ from app.services.device import get_device_by_id
 from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
-from app.core.database import Mission, User, database
+from app.core.database import Mission, User, Log, database, LogCategoryEnum
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
 import sys
@@ -78,7 +78,7 @@ async def start_mission_by_id(mission_id: int, validate_user: Optional[User]):
         )
 
     if validate_user is not None:
-        if mission.assignee.id != validate_user.id:
+        if mission.assignees.count(validate_user) == 0:
             raise HTTPException(
                 400, "you are not this mission's assignee",
             )
@@ -98,16 +98,28 @@ async def reject_mission_by_id(mission_id: int, user: User):
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    if mission.assignee is None:
-        raise HTTPException(400, "the mission haven't assigned to anyone yet")
+    filter = [u for u in mission.assignees if u.id == user.id]
 
-    if mission.assignee.id != user.id:
-        raise HTTPException(404, "you are not this mission's assignee")
+    if len(filter) == 0:
+        raise HTTPException(400, "the mission haven't assigned to you")
 
     if mission.repair_start_date is not None:
         raise HTTPException(400, "this mission is starting currently")
 
-    mission.assignee.remove(mission, "missions")
+    await Log.objects.create(
+        category=LogCategoryEnum.MISSION_REJECTED,
+        affected_object_key=str(mission.id),
+        related_object_key=user.id,
+    )
+
+    await mission.assignees.remove(user)  # type: ignore
+
+    related_logs_amount = await Log.objects.filter(
+        category=LogCategoryEnum.MISSION_REJECTED, affected_object_key=str(mission.id)
+    ).count()
+
+    if related_logs_amount > 2:
+        logging.warn(f"Mission {mission.id} is rejected more than 2 times")
 
 
 async def finish_mission_by_id(
