@@ -1,3 +1,4 @@
+import logging
 from typing import List, Callable, Coroutine, Optional, Any
 from app.core.database import (
     User,
@@ -8,7 +9,8 @@ from app.core.database import (
     Mission,
 )
 from fastapi.exceptions import HTTPException
-from app.services.user import get_password_hash
+from app.models.schema import UserCreate
+from app.services.user import get_password_hash, create_user
 from app.services.device import get_device_id
 from fastapi import UploadFile
 from datetime import datetime
@@ -93,23 +95,27 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
         if len(row) != max_length:
             raise HTTPException(400, f"each row must be {max_length} columns long")
 
-        device_id = get_device_id(row[2], int(float(row[3])), row[4])
-        device = await Device.objects.get_or_none(id=device_id)
+        if row[2] != "rescue":
+            # device_id = get_device_id(row[2], int(float(row[3])), row[4])
+            device = await Device.objects.get_or_none(id=row[0])
 
-        if device is None:
-            device = await Device.objects.create(
-                id=device_id,
-                project=row[0],
-                process=int(float(1)),
-                line=int(float(row[3])),
-                device_name=row[4],
-                x_axis=float(row[5]),
-                y_axis=float(row[6]),
-            )
+            if device is None:
+                device = await Device.objects.create(
+                    id=row[0],
+                    project=row[0],
+                    process=int(float(1)),
+                    line=int(float(row[3])),
+                    device_name=row[4],
+                    x_axis=float(row[5]),
+                    y_axis=float(row[6]),
+                )
+            else:
+                await device.update(
+                    process=int(float(1)), x_axis=float(row[5]), y_axis=float(row[6]),
+                )
         else:
-            await device.update(
-                process=int(float(1)), x_axis=float(row[5]), y_axis=float(row[6]),
-            )
+            # is rescue station
+            device = await Device.objects.get_or_none(id=row[0])
 
     if clear_all is True:
         await Device.objects.delete(each=True)
@@ -122,28 +128,65 @@ async def import_employee_repair_experience_table(
 ):
     async def process(row: List[str]) -> None:
         if len(row) != 6:
-            raise HTTPException(400, "each row must be 3 columns long")
+            raise HTTPException(400, "each row must be 6 columns long")
 
-        level = UserDeviceLevel(user=int(row[0]), device=row[1], level=int(row[2]))
-        await level.upsert()
+        user = await User.objects.get_or_none(username=row[0])
+
+        if user is None:
+            user = await create_user(
+                UserCreate(
+                    username=row[0],
+                    password="foxlink-password",
+                    full_name=row[1],
+                    expertises=[],
+                )
+            )
+
+        project_names = row[2].split(",")
+
+        try:
+            for p in project_names:
+                devices = await Device.objects.filter(
+                    project=p, device_name=row[3]
+                ).all()
+                for d in devices:
+                    level = UserDeviceLevel(user=user, device=d, level=int(row[5]))
+                    await level.upsert()
+        except Exception as e:
+            raise HTTPException(
+                400, f"raise an error when parsing csv file: {str(e)}",
+            )
 
     if clear_all:
         await UserDeviceLevel.objects.delete(each=True)
 
-    process_csv_file(csv_file, process)
+    await process_csv_file(csv_file, process)
 
 
 async def import_employee_shift_table(csv_file: UploadFile):
     async def process(row: List[str]) -> None:
-        if len(row) != 4:
-            raise HTTPException(400, "each row must be 4 columns long")
+        if len(row) != 7:
+            raise HTTPException(400, "each row must be 7 columns long")
 
-        shift_type = "Day" if int(row[2]) == 0 else "Night"
-        date_of_shift = datetime.strptime(row[3], "%Y/%m/%d")
+        user = await User.objects.get_or_none(full_name=row[0])
 
+        if user is None:
+            logging.error(f"user {row[0]} not found")
+            return
+
+        device_names = row[4].split(",")
+        devices: List[Device] = []
+
+        for n in device_names:
+            arr = await Device.objects.filter(device_name=n).all()
+            devices += arr
+
+        shift_type = "Night" if row[6] == "1" else "Day"
+        date_of_shift = datetime.strptime(row[5], "%Y/%m/%d hh:mm:ss")
         shift = UserShiftInfo(
-            user=int(row[0]),
-            attend=bool(row[1]),
+            user=user,
+            devices=devices,
+            attend=bool(row[7]),
             day_or_night=shift_type,
             shift_date=date_of_shift,
         )

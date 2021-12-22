@@ -98,6 +98,7 @@ class UserDeviceLevel(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     device: Device = ormar.ForeignKey(Device, index=True)
     user: User = ormar.ForeignKey(User, index=True)
+    shift: bool = ormar.Boolean(nullable=False)
     level: int = ormar.SmallInteger(minimum=0)
 
 

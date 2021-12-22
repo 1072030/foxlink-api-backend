@@ -15,7 +15,7 @@ async def get_users() -> List[User]:
     return await User.objects.all()
 
 
-async def create_user(dto: UserCreate):
+async def create_user(dto: UserCreate) -> User:
     pw_hash = get_password_hash(dto.password)
     new_dto = dto.dict()
     del new_dto["password"]
@@ -24,7 +24,7 @@ async def create_user(dto: UserCreate):
     user = User(**new_dto)
 
     try:
-        await user.save()
+        return await user.save()
     except Exception as e:
         raise HTTPException(status_code=400, detail="cannot add user:" + str(e))
 
