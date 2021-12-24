@@ -1,12 +1,12 @@
 import logging
-from typing import List, Callable, Coroutine, Optional, Any
+from typing import List, Callable, Coroutine
 from app.core.database import (
     User,
-    Machine,
     Device,
     UserDeviceLevel,
     UserShiftInfo,
     Mission,
+    FactoryMap,
 )
 from fastapi.exceptions import HTTPException
 from app.models.schema import UserCreate
@@ -67,33 +67,17 @@ async def import_users(csv_file: UploadFile):
     await User.objects.bulk_create(users)
 
 
-async def import_machines(csv_file: UploadFile):
-    """
-    Improt machines list form csv file
-    """
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
-
-    try:
-        machines: List[Machine] = []
-        for row in reader:
-            machine = Machine(name=row[0], manual=row[1])
-            machines.append(machine)
-
-        await Machine.objects.bulk_create(machines)
-    except:
-        raise HTTPException(400, "raise an error when parsing csv file")
-
-
 async def import_devices(csv_file: UploadFile, clear_all: bool = False):
     """
     Import device list from csv file.
     """
 
     async def process(row: List[str]) -> None:
-        max_length = 7
+        max_length = 8
         if len(row) != max_length:
             raise HTTPException(400, f"each row must be {max_length} columns long")
+
+        workshop = await FactoryMap.objects.get(name=row[5])
 
         if row[2] != "rescue":
             # device_id = get_device_id(row[2], int(float(row[3])), row[4])
@@ -106,16 +90,29 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
                     process=int(float(1)),
                     line=int(float(row[3])),
                     device_name=row[4],
-                    x_axis=float(row[5]),
-                    y_axis=float(row[6]),
+                    x_axis=float(row[6]),
+                    y_axis=float(row[7]),
+                    workshop=workshop,
+                    is_rescue=False,
                 )
             else:
                 await device.update(
-                    process=int(float(1)), x_axis=float(row[5]), y_axis=float(row[6]),
+                    process=int(float(1)),
+                    x_axis=float(row[6]),
+                    y_axis=float(row[7]),
+                    workshop=workshop,
                 )
         else:
             # is rescue station
-            device = await Device.objects.get_or_none(id=row[0])
+            device = await Device.objects.get_or_create(
+                id=row[0],
+                project=f"{row[3]}-{row[4]}",
+                device_name=row[4],
+                x_axis=float(row[6]),
+                y_axis=float(row[7]),
+                is_rescue=True,
+                workshop=workshop,
+            )
 
     if clear_all is True:
         await Device.objects.delete(each=True)
@@ -145,13 +142,14 @@ async def import_employee_repair_experience_table(
         project_names = row[2].split(",")
 
         try:
-            for p in project_names:
-                devices = await Device.objects.filter(
-                    project=p, device_name=row[3]
-                ).all()
-                for d in devices:
-                    level = UserDeviceLevel(user=user, device=d, level=int(row[5]))
-                    await level.upsert()
+            devices = await Device.objects.filter(
+                project__istartswith=row[2], device_name=row[3]
+            ).all()
+            for d in devices:
+                level = UserDeviceLevel(
+                    user=user, device=d, shift=bool(row[4]), level=int(row[5])
+                )
+                await level.upsert()
         except Exception as e:
             raise HTTPException(
                 400, f"raise an error when parsing csv file: {str(e)}",
@@ -165,8 +163,8 @@ async def import_employee_repair_experience_table(
 
 async def import_employee_shift_table(csv_file: UploadFile):
     async def process(row: List[str]) -> None:
-        if len(row) != 7:
-            raise HTTPException(400, "each row must be 7 columns long")
+        if len(row) != 8:
+            raise HTTPException(400, "each row must be 8 columns long")
 
         user = await User.objects.get_or_none(full_name=row[0])
 
@@ -182,15 +180,12 @@ async def import_employee_shift_table(csv_file: UploadFile):
             devices += arr
 
         shift_type = "Night" if row[6] == "1" else "Day"
-        date_of_shift = datetime.strptime(row[5], "%Y/%m/%d hh:mm:ss")
-        shift = UserShiftInfo(
-            user=user,
-            devices=devices,
-            attend=bool(row[7]),
-            day_or_night=shift_type,
-            shift_date=date_of_shift,
+        date_of_shift = datetime.strptime(row[5], "%Y-%m-%d")
+
+        shift = await UserShiftInfo.objects.get_or_create(
+            user=user, day_or_night=shift_type, shift_date=date_of_shift
         )
-        await shift.upsert()
+        await shift.devices.add(devices[0])
 
     await process_csv_file(csv_file, process)
 

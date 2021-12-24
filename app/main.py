@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from app.routes import (
     health,
-    machine,
     migration,
     user,
     auth,
@@ -19,23 +18,22 @@ app.include_router(health.router)
 app.include_router(user.router)
 app.include_router(auth.router)
 app.include_router(mission.router)
-app.include_router(machine.router)
 app.include_router(factory_map.router)
 app.include_router(migration.router)
 app.include_router(statistics.router)
 app.include_router(log.router)
 
 # fetch events ticker
-fetch_ticker = Ticker(fetch_events_from_foxlink, 10)  # per 5 secs
+# fetch_ticker = Ticker(fetch_events_from_foxlink, 10)  # per 5 secs
 
 
 @app.on_event("startup")
 async def startup():
     await database.connect()
-    await fetch_ticker.start()
+    # await fetch_ticker.start()
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    await fetch_ticker.stop()
+    # await fetch_ticker.stop()
     await database.disconnect()

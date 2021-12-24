@@ -1,7 +1,6 @@
 from app.services.auth import get_admin_active_user
 from app.services.migration import (
     import_users,
-    import_machines,
     import_devices,
     import_employee_repair_experience_table,
     import_employee_shift_table,
@@ -31,15 +30,6 @@ async def import_users_shift_info_from_csv(
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
     await import_employee_shift_table(file)
-
-
-@router.post("/machines", tags=["migration"], status_code=201)
-async def import_machines_from_csv(
-    file: UploadFile = File(...), user: User = Depends(get_admin_active_user)
-):
-    if file.filename.split(".")[1] != "csv":
-        raise HTTPException(415)
-    await import_machines(file)
 
 
 @router.post("/devices", tags=["migration"], status_code=201)

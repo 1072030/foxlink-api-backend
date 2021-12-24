@@ -67,26 +67,19 @@ class User(ormar.Model):
     is_admin: bool = ormar.Boolean(server_default="0")
 
 
-class Machine(ormar.Model):
-    class Meta(MainMeta):
-        pass
-
-    id: int = ormar.Integer(primary_key=True, index=True)
-    name: str = ormar.String(max_length=100, nullable=False)
-    manual: Optional[str] = ormar.String(max_length=512)
-
-
 class Device(ormar.Model):
     class Meta(MainMeta):
         pass
 
     id: str = ormar.String(max_length=100, primary_key=True, index=True)
     project: str = ormar.String(max_length=50, nullable=False)
-    process: Optional[int] = ormar.Integer()
-    line: int = ormar.Integer(nullable=False)
+    process: Optional[int] = ormar.Integer(nullable=True)
+    line: int = ormar.Integer(nullable=True)
     device_name: str = ormar.String(max_length=20, nullable=False)
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
+    is_rescue: bool = ormar.Boolean(default=False)
+    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
@@ -100,6 +93,8 @@ class UserDeviceLevel(ormar.Model):
     user: User = ormar.ForeignKey(User, index=True)
     shift: bool = ormar.Boolean(nullable=False)
     level: int = ormar.SmallInteger(minimum=0)
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class UserShiftInfo(ormar.Model):
@@ -169,7 +164,7 @@ class Log(ormar.Model):
     created_date: datetime = ormar.DateTime(server_default=func.now())
 
 
-@pre_update([Device, FactoryMap, Mission])
+@pre_update([Device, FactoryMap, Mission, UserDeviceLevel])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
 

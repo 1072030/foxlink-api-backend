@@ -31,21 +31,6 @@ class UserChangePassword(BaseModel):
     new_password: str
 
 
-# * Machine
-class MachineBase(BaseModel):
-    name: str
-    manual: Optional[str]
-
-
-class MachineCreate(MachineBase):
-    pass
-
-
-class MachineUpdate(BaseModel):
-    name: Optional[str]
-    manual: Optional[str]
-
-
 # * Mission
 class MissionBase(BaseModel):
     description: Optional[str]
