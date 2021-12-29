@@ -1,14 +1,14 @@
 from fastapi import APIRouter
 import datetime
-from app.core.database import LogCategoryEnum, Log
+from app.core.database import AuditActionEnum, AuditLogHeader
 
 router = APIRouter(prefix="/logs")
 
 
 @router.get("/", tags=["logs"])
 async def get_logs(
-    category: LogCategoryEnum,
+    action: AuditActionEnum,
     start_date: datetime.datetime,
     end_date: datetime.datetime,
 ):
-    data = await Log.objects.filter(category=category).all()
+    return await AuditLogHeader.objects.filter(action=action).all()

@@ -146,22 +146,33 @@ class Mission(ormar.Model):
         return None
 
 
-class LogCategoryEnum(Enum):
+class AuditActionEnum(Enum):
     MISSION_REJECTED = "MISSION_REJECTED"
 
 
-class Log(ormar.Model):
+class LogValue(ormar.Model):
     class Meta(MainMeta):
         pass
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    category: str = ormar.String(
-        max_length=50, nullable=False, index=True, choices=list(LogCategoryEnum)
+    field_name: str = ormar.String(max_length=100)
+    previous_value: str = ormar.String(max_length=512)
+    new_value: str = ormar.String(max_length=512)
+
+
+class AuditLogHeader(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    action: str = ormar.String(
+        max_length=50, nullable=False, index=True, choices=list(AuditActionEnum)
     )
-    content: sqlalchemy.JSON = ormar.JSON(nullable=True)
-    affected_object_key: Optional[str] = ormar.String(max_length=100, index=True)
-    related_object_key: Optional[str] = ormar.String(max_length=100, index=True)
+    table_name: Optional[str] = ormar.String(max_length=50, index=True)
+    record_pk: Optional[str] = ormar.String(max_length=100, index=True)
+    user: User = ormar.ForeignKey(User)
     created_date: datetime = ormar.DateTime(server_default=func.now())
+    values: List[LogValue] = ormar.ManyToMany(LogValue)
 
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel])

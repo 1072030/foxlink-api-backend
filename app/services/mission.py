@@ -2,7 +2,7 @@ from app.services.device import get_device_by_id
 from datetime import datetime
 import logging
 from typing import List, Dict, Any, Optional
-from app.core.database import Mission, User, Log, database, LogCategoryEnum
+from app.core.database import Mission, User, AuditLogHeader, database, AuditActionEnum
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
 import sys
@@ -111,17 +111,18 @@ async def reject_mission_by_id(mission_id: int, user: User):
     if mission.repair_start_date is not None:
         raise HTTPException(400, "this mission is starting currently")
 
-    await Log.objects.create(
-        category=LogCategoryEnum.MISSION_REJECTED.value,
-        affected_object_key=str(mission.id),
-        related_object_key=user.id,
+    await AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_REJECTED.value,
+        record_pk=str(mission.id),
+        user=user,
     )
 
     await mission.assignees.remove(user)  # type: ignore
 
-    related_logs_amount = await Log.objects.filter(
-        category=LogCategoryEnum.MISSION_REJECTED.value,
-        affected_object_key=str(mission.id),
+    related_logs_amount = await AuditLogHeader.objects.filter(
+        record_pk=str(mission.id),
+        action=AuditActionEnum.MISSION_REJECTED.value,
+        user=user,
     ).count()
 
     if related_logs_amount >= 2:

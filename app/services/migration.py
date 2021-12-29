@@ -86,7 +86,7 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
             if device is None:
                 device = await Device.objects.create(
                     id=row[0],
-                    project=row[0],
+                    project=row[1],
                     process=int(float(1)),
                     line=int(float(row[3])),
                     device_name=row[4],
