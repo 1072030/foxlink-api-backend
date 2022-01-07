@@ -8,6 +8,7 @@ from app.core.database import (
     Mission,
     FactoryMap,
     CategoryPriority,
+    UserLevel,
 )
 from fastapi.exceptions import HTTPException
 from app.models.schema import UserCreate
@@ -186,7 +187,8 @@ async def import_employee_shift_table(csv_file: UploadFile):
         shift = await UserShiftInfo.objects.get_or_create(
             user=user, day_or_night=shift_type, shift_date=date_of_shift
         )
-        await shift.devices.add(devices[0])
+
+        await shift.devices.add(devices[0])  # type: ignore
 
     await process_csv_file(csv_file, process)
 
@@ -203,6 +205,7 @@ async def import_employee_table(csv_file: UploadFile):
             expertises=[],
             is_active=True,
             is_admin=False,
+            level=0,
         )
         await user.upsert()
 
@@ -214,7 +217,9 @@ async def import_project_category_priority(csv_file: UploadFile):
         if len(row) != 5:
             raise HTTPException(400, "each row must be 5 columns long")
 
-        devices = await Device.objects.filter(project__istartswith=row[3], device_name=row[4]).all()
+        devices = await Device.objects.filter(
+            project__istartswith=row[3], device_name=row[4]
+        ).all()
 
         p = CategoryPriority(
             category=int(row[0]), message=row[1], priority=int(row[2]), devices=devices,
