@@ -4,6 +4,7 @@ from app.services.migration import (
     import_devices,
     import_employee_repair_experience_table,
     import_employee_shift_table,
+    import_project_category_priority,
     transform_events,
 )
 from fastapi import APIRouter, Depends, File, UploadFile, Form
@@ -52,6 +53,17 @@ async def import_repair_experiences_from_csv(
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
     await import_employee_repair_experience_table(file, clear_all)
+
+
+@router.post("/project-category-priority", tags=["migration"], status_code=201)
+async def import_project_category_priority_from_csv(
+    file: UploadFile = File(...),
+    clear_all: bool = Form(default=False),
+    user: User = Depends(get_admin_active_user),
+):
+    if file.filename.split(".")[1] != "csv":
+        raise HTTPException(415)
+    await import_project_category_priority(file)
 
 
 @router.post("/pre-processing", tags=["migration"], status_code=201)

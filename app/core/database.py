@@ -175,6 +175,21 @@ class AuditLogHeader(ormar.Model):
     values: List[LogValue] = ormar.ManyToMany(LogValue)
 
 
+class CategoryPriority(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True, index=True)
+    category: int = ormar.Integer(nullable=False)
+    priority: int = ormar.Integer(nullable=False)
+    message: Optional[str] = ormar.String(max_length=100)
+    devices: List[Device] = ormar.ManyToMany(
+        Device,
+        through_relation_name="devices",
+        through_reverse_relation_name="category",
+    )
+
+
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
