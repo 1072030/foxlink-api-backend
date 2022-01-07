@@ -30,6 +30,14 @@ def generate_uuidv4():
     return str(uuid.uuid4())
 
 
+class UserLevel(Enum):
+    maintainer = 0  # 維修人員
+    manager = 1  # 線長
+    supervisor = 2  # 組長
+    chief = 3  # 課級
+    # admin = 4 # 管理員
+
+
 class ShiftClassType(Enum):
     day = "Day"
     night = "Night"
@@ -65,6 +73,7 @@ class User(ormar.Model):
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap)
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
+    level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
 
 
 class Device(ormar.Model):
@@ -144,6 +153,14 @@ class Mission(ormar.Model):
         if self.repair_start_date is not None and self.repair_end_date is not None:
             return self.repair_end_date - self.repair_start_date
         return None
+
+    @property_field
+    def is_started(self) -> bool:
+        return self.repair_start_date is not None
+
+    @property_field
+    def is_closed(self) -> bool:
+        return self.repair_end_date is not None
 
 
 class AuditActionEnum(Enum):
