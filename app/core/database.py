@@ -118,6 +118,45 @@ class UserShiftInfo(ormar.Model):
     day_or_night: str = ormar.String(max_length=5, choices=list(ShiftClassType))
 
 
+class DeviceManageInfoManager(ormar.Model):
+    class Meta(MainMeta):
+        tablename = "deviceinfo_managers"
+
+    id: int = ormar.Integer(primary_key=True)
+
+
+class DeviceManageInfoSupervisor(ormar.Model):
+    class Meta(MainMeta):
+        tablename = "deviceinfo_supervisors"
+
+    id: int = ormar.Integer(primary_key=True)
+
+
+class DeviceManageInfoChief(ormar.Model):
+    class Meta(MainMeta):
+        tablename = "deviceinfo_chiefs"
+
+    id: int = ormar.Integer(primary_key=True)
+
+
+class DeviceManageInfo(ormar.Model):
+    class Meta(MainMeta):
+        pass
+
+    id: int = ormar.Integer(primary_key=True)
+    device: Device = ormar.ForeignKey(Device, index=True)
+    managers: List[User] = ormar.ManyToMany(
+        User, through=DeviceManageInfoManager, related_name="managers"
+    )
+    supervisors: List[User] = ormar.ManyToMany(
+        User, through=DeviceManageInfoSupervisor, related_name="supervisors"
+    )
+    chiefs: List[User] = ormar.ManyToMany(
+        User, through=DeviceManageInfoChief, related_name="chiefs"
+    )
+    date: date = ormar.Date()
+
+
 class Mission(ormar.Model):
     class Meta(MainMeta):
         pass
@@ -164,7 +203,9 @@ class Mission(ormar.Model):
 
 
 class AuditActionEnum(Enum):
+    MISSION_CREATED = "MISSION_CREATED"
     MISSION_REJECTED = "MISSION_REJECTED"
+    USER_LOGIN = "USER_LOGIN"
 
 
 class LogValue(ormar.Model):
