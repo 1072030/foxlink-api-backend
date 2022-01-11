@@ -48,6 +48,11 @@ async def assign_mission_to_user(
             status_code=404, detail="the mission you requested is not found"
         )
 
+    if mission.is_closed():
+        raise HTTPException(
+            status_code=400, detail="the mission you requested is closed"
+        )
+
     the_user = await get_user_by_id(user_id)
 
     if the_user is None:
