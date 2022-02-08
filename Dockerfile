@@ -6,7 +6,6 @@ FROM tiangolo/uvicorn-gunicorn-fastapi:python3.8-slim
 ENV PYTHONWRITEBYTECODE 1
 ENV PYTHONBUFFERED 1
 
-ENV DATABASE_HOST=gamelab-vm.eastasia.cloudapp.azure.com
 ENV DATABASE_PORT=5012
 ENV DATABASE_USER=root
 ENV DATABASE_PASSWORD=foxlink-gamelab
