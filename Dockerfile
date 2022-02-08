@@ -17,6 +17,7 @@ WORKDIR /app
 
 # copy dependencies
 COPY requirements.txt /app/
+COPY prestart.sh /app/
 
 # install dependencies
 RUN pip install -r requirements.txt

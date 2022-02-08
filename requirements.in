@@ -9,6 +9,7 @@
 
 # https://github.com/jazzband/pip-tools
 
+alembic
 bcrypt
 fastapi
 gunicorn
@@ -25,3 +26,4 @@ aiomysql
 cryptography
 ormar
 nest-asyncio
+pandas

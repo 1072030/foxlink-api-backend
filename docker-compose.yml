@@ -1,0 +1,53 @@
+services:
+  emqx:
+    image: emqx/emqx
+    restart: unless-stopped
+    ports:
+      - 18083:18083
+      - 27010:1883
+    networks:
+      - backend
+
+  foxlink-backend:
+    # image: ghcr.io/seabao/foxlink-api-backend/backend:latest
+    build: .
+    restart: unless-stopped
+    environment:
+      PY_ENV: production
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: root
+      DATABASE_PASSWORD: foxlink-gamelab
+      DATABASE_NAME: foxlink
+      FOXLINK_DB_HOST: mysql
+      FOXLINK_DB_PORT: 3306
+      FOXLINK_DB_USER: root
+      FOXLINK_DB_PWD: foxlink-gamelab
+      JWT_SECRET: secret
+    ports:
+      - 8080:80
+    depends_on:
+      - emqx
+      - mysql
+    networks:
+      - backend
+
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: foxlink
+      MYSQL_ROOT_PASSWORD: foxlink-gamelab
+    ports:
+      - 27001:3306
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  mysql-data:

@@ -10,8 +10,7 @@ from app.routes import (
     log,
 )
 from app.core.database import database
-from app.daemon.daemon import fetch_events_from_foxlink
-from app.utils.timer import Ticker
+from app.daemon.daemon import FoxlinkDbPool
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 app.include_router(health.router)
@@ -23,17 +22,18 @@ app.include_router(migration.router)
 app.include_router(statistics.router)
 app.include_router(log.router)
 
-# fetch events ticker
-# fetch_ticker = Ticker(fetch_events_from_foxlink, 10)  # per 5 secs
+
+foxlink_db = FoxlinkDbPool()
 
 
 @app.on_event("startup")
 async def startup():
     await database.connect()
-    # await fetch_ticker.start()
+    await foxlink_db.connect()
 
 
 @app.on_event("shutdown")
 async def shutdown():
     # await fetch_ticker.stop()
     await database.disconnect()
+    await foxlink_db.close()

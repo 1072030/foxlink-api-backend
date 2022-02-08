@@ -8,6 +8,8 @@ aiomysql==0.0.22
     # via -r requirements.in
 aiosqlite==0.17.0
     # via ormar
+alembic==1.7.6
+    # via -r requirements.in
 anyio==3.4.0
     # via starlette
 asgiref==3.4.1
@@ -46,9 +48,21 @@ idna==3.3
     # via
     #   anyio
     #   email-validator
+importlib-metadata==4.10.1
+    # via alembic
+importlib-resources==5.4.0
+    # via alembic
+mako==1.1.6
+    # via alembic
+markupsafe==2.0.1
+    # via mako
 nest-asyncio==1.5.4
     # via -r requirements.in
+numpy==1.22.2
+    # via pandas
 ormar==0.10.23
+    # via -r requirements.in
+pandas==1.4.0
     # via -r requirements.in
 passlib==1.7.4
     # via -r requirements.in
@@ -66,24 +80,30 @@ pymysql==0.9.3
     # via
     #   -r requirements.in
     #   aiomysql
+python-dateutil==2.8.2
+    # via pandas
 python-dotenv==0.19.2
     # via -r requirements.in
 python-jose==3.3.0
     # via -r requirements.in
 python-multipart==0.0.5
     # via -r requirements.in
+pytz==2021.3
+    # via pandas
 rsa==4.8
     # via python-jose
 six==1.16.0
     # via
     #   bcrypt
     #   ecdsa
+    #   python-dateutil
     #   python-multipart
 sniffio==1.2.0
     # via anyio
 sqlalchemy==1.4.28
     # via
     #   -r requirements.in
+    #   alembic
     #   databases
     #   ormar
 starlette==0.16.0
@@ -94,6 +114,10 @@ typing-extensions==4.0.1
     #   pydantic
 uvicorn==0.16.0
     # via -r requirements.in
+zipp==3.7.0
+    # via
+    #   importlib-metadata
+    #   importlib-resources
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

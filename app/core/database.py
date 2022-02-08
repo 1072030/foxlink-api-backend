@@ -19,6 +19,7 @@ DATABASE_PORT = os.getenv("DATABASE_PORT")
 DATABASE_USER = os.getenv("DATABASE_USER")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
+PY_ENV = os.getenv("PY_ENV")
 
 DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
@@ -248,11 +249,24 @@ class CategoryPriority(ormar.Model):
     )
 
 
-@pre_update([Device, FactoryMap, Mission, UserDeviceLevel])
+class WorkerStatus(ormar.Model):
+    class Meta(MainMeta):
+        tablename = "worker_status"
+
+    id: int = ormar.Integer(primary_key=True)
+    worker: User = ormar.ForeignKey(User)
+    at_device: Device = ormar.ForeignKey(Device)
+    last_event_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    dispatch_count: int = ormar.Integer(default=0)
+    updated_date: datetime = ormar.DateTime(server_default=func.now())
+
+
+@pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
 
 
 engine = create_engine(DATABASE_URI)
 
-metadata.create_all(engine)
+if PY_ENV == "dev":
+    metadata.create_all(engine)
