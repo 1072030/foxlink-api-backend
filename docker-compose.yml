@@ -9,8 +9,8 @@ services:
       - backend
 
   foxlink-backend:
-    # image: ghcr.io/seabao/foxlink-api-backend/backend:latest
-    build: .
+    image: ghcr.io/seabao/foxlink-api-backend/backend:latest
+    # build: .
     restart: unless-stopped
     environment:
       PY_ENV: production
