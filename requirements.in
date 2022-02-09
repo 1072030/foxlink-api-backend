@@ -25,5 +25,5 @@ email-validator
 aiomysql
 cryptography
 ormar
-nest-asyncio
 pandas
+paho-mqtt

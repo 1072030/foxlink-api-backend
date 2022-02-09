@@ -15,6 +15,7 @@ from app.services.mission import (
 from app.services.user import get_user_by_id
 from app.services.auth import get_current_active_user, get_admin_active_user
 from app.models.schema import MissionCancel, MissionCreate, MissionUpdate, MissionFinish
+from app.mqtt.main import publish
 from fastapi.exceptions import HTTPException
 
 router = APIRouter(prefix="/missions")
@@ -37,18 +38,21 @@ async def get_a_mission_by_id(
     return await get_mission_by_id(mission_id)
 
 
+# TODO: Refactor this method
 @router.post("/{mission_id}/assign", tags=["missions"])
 async def assign_mission_to_user(
     mission_id: int, user_id: str, user: User = Depends(get_admin_active_user)
 ):
-    mission = await Mission.objects.select_related("assignees").get(id=mission_id)
+    mission = await Mission.objects.select_related(["assignees", "device"]).get(
+        id=mission_id
+    )
 
     if mission is None:
         raise HTTPException(
             status_code=404, detail="the mission you requested is not found"
         )
 
-    if mission.is_closed():
+    if mission.is_closed:
         raise HTTPException(
             status_code=400, detail="the mission you requested is closed"
         )
@@ -71,6 +75,19 @@ async def assign_mission_to_user(
 
     if len(filter) == 0:
         await mission.assignees.add(the_user)  # type: ignore
+        publish(
+            f"foxlink/users/{the_user.username}/missions",
+            {
+                "type": "new",
+                "mission_id": mission.id,
+                "device": {
+                    "project": mission.device.project,
+                    "process": mission.device.process,
+                    "line": mission.device.line,
+                    "name": mission.device.device_name,
+                },
+            },
+        )
     else:
         raise HTTPException(400, detail="the user is already assigned to this mission")
 

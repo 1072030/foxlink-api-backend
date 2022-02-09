@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from app.core.database import Mission, User, AuditLogHeader, database, AuditActionEnum
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
+from app.mqtt.main import client, publish
 import sys
 
 
@@ -127,7 +128,9 @@ async def reject_mission_by_id(mission_id: int, user: User):
     ).count()
 
     if related_logs_amount >= 2:
-        logging.warn(f"Mission {mission.id} is rejected more than 2 times")
+        publish(
+            "foxlink/mission/rejected", {"id": mission.id, "worker": user.full_name, 'rejected_count': related_logs_amount}
+        )
 
 
 async def finish_mission_by_id(
@@ -201,6 +204,7 @@ async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]
         raise HTTPException(400, "this mission is currently starting")
 
     await mission.update(repair_end_date=datetime.utcnow(), canceled_reason=dto.reason)
+
 
 # TODO: to be implemented
 async def request_assistance(mission_id: int):
