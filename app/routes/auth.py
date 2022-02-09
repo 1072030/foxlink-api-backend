@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 from app.services.auth import authenticate_user, create_access_token
 from datetime import timedelta
+from app.core.database import AuditLogHeader, AuditActionEnum
 
 
 class Token(BaseModel):
@@ -28,6 +29,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.id}, expires_delta=access_token_expires
+    )
+
+    await AuditLogHeader.objects.create(
+        table_name="users",
+        record_pk=user.id,
+        action=AuditActionEnum.USER_LOGIN.value, user=user
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
