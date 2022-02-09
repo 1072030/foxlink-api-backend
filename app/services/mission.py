@@ -112,6 +112,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
         raise HTTPException(400, "this mission is starting currently")
 
     await AuditLogHeader.objects.create(
+        table_name="missions",
         action=AuditActionEnum.MISSION_REJECTED.value,
         record_pk=str(mission.id),
         user=user,
@@ -200,4 +201,16 @@ async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]
         raise HTTPException(400, "this mission is currently starting")
 
     await mission.update(repair_end_date=datetime.utcnow(), canceled_reason=dto.reason)
+
+# TODO: to be implemented
+async def request_assistance(mission_id: int):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request is not found")
+
+    if not mission.is_started() or mission.is_closed():
+        raise HTTPException(400, "this mission is not started or closed")
+
+    # TODO: complete assistant work flow
 
