@@ -6,12 +6,12 @@ from app.core.database import Device, Mission
 from app.models.schema import MissionCreate
 from app.services.mission import create_mission
 from databases import Database
-
-
-FOXLINK_DB_HOST = os.getenv("FOXLINK_DB_HOST")
-FOXLINK_DB_PORT = os.getenv("FOXLINK_DB_PORT")
-FOXLINK_DB_USER = os.getenv("FOXLINK_DB_USER")
-FOXLINK_DB_PWD = os.getenv("FOXLINK_DB_PWD")
+from app.env import (
+    FOXLINK_DB_USER,
+    FOXLINK_DB_PWD,
+    FOXLINK_DB_HOST,
+    FOXLINK_DB_PORT,
+)
 
 unfinished_event_ids: Dict[int, bool] = {}
 

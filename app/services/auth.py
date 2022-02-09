@@ -9,9 +9,8 @@ from .user import get_user_by_username, pwd_context, get_user_by_id
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import os
-from traceback import print_exc
+from app.env import JWT_SECRET
 
-JWT_SECRET = os.getenv("JWT_SECRET", "secret")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 

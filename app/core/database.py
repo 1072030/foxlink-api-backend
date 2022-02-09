@@ -5,21 +5,18 @@ from ormar import property_field, pre_update
 from pydantic import Json
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.sql import func
-import os
 import databases
 import ormar
 import sqlalchemy
-from dotenv import load_dotenv
 import uuid
-
-load_dotenv()
-
-DATABASE_HOST = os.getenv("DATABASE_HOST")
-DATABASE_PORT = os.getenv("DATABASE_PORT")
-DATABASE_USER = os.getenv("DATABASE_USER")
-DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
-DATABASE_NAME = os.getenv("DATABASE_NAME")
-PY_ENV = os.getenv("PY_ENV")
+from app.env import (
+    DATABASE_HOST,
+    DATABASE_PORT,
+    DATABASE_USER,
+    DATABASE_PASSWORD,
+    DATABASE_NAME,
+    PY_ENV,
+)
 
 DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
