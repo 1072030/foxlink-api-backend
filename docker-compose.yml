@@ -9,8 +9,8 @@ services:
       - backend
 
   foxlink-backend:
-    image: ghcr.io/seabao/foxlink-api-backend/backend:latest
-    # build: .
+    # image: ghcr.io/seabao/foxlink-api-backend/backend:latest
+    build: .
     restart: unless-stopped
     environment:
       PY_ENV: production
@@ -24,6 +24,8 @@ services:
       FOXLINK_DB_USER: root
       FOXLINK_DB_PWD: foxlink-gamelab
       JWT_SECRET: secret
+      MQTT_BROKER: emqx
+      MQTT_PORT: 1883
     ports:
       - 8080:80
     depends_on:
