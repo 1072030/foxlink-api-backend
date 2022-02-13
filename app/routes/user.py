@@ -27,7 +27,9 @@ async def read_all_users(user: User = Depends(get_current_active_user)):
 
 
 @router.post("/", tags=["users"], status_code=201)
-async def create_a_new_user(dto: UserCreate):
+async def create_a_new_user(
+    dto: UserCreate, user: User = Depends(get_admin_active_user)
+):
     return await create_user(dto)
 
 
@@ -48,7 +50,7 @@ async def change_password(
 
 @router.patch("/{user_id}", tags=["users"])
 async def update_user_information(
-    user_id: int, dto: UserPatch, user: User = Depends(get_current_active_user)
+    user_id: str, dto: UserPatch, user: User = Depends(get_current_active_user)
 ):
     if user.is_admin is False and user_id != user.id:
         raise HTTPException(

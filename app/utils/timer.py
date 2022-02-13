@@ -27,4 +27,8 @@ class Ticker:
     async def _run(self):
         while True:
             await asyncio.sleep(self.time)
-            await self.func()
+
+            try:
+                await self.func()
+            except Exception as e:
+                print(e)
