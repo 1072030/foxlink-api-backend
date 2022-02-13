@@ -87,6 +87,7 @@ async def assign_mission_to_user(
                     "name": mission.device.device_name,
                 },
             },
+            1,
         )
     else:
         raise HTTPException(400, detail="the user is already assigned to this mission")
