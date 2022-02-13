@@ -8,6 +8,7 @@ from app.core.database import (
     Mission,
     FactoryMap,
     CategoryPRI,
+    database,
 )
 from fastapi.exceptions import HTTPException
 from app.models.schema import UserCreate
@@ -125,6 +126,7 @@ def roster_file_transform(path, output_path="./"):  # 檔案讀取位置、輸�
     return df_attend
 
 
+@database.transaction()
 async def process_csv_file(
     csv_file: UploadFile,
     callback: Callable[[List[str]], Coroutine],
@@ -333,7 +335,7 @@ async def import_project_category_priority(csv_file: UploadFile):
         )
 
         for d in devices:
-            await p.devices.add(d) # type: ignore
+            await p.devices.add(d)  # type: ignore
 
     await process_csv_file(csv_file, process)
 
