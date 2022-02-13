@@ -231,7 +231,8 @@ class AuditLogHeader(ormar.Model):
     values: List[LogValue] = ormar.ManyToMany(LogValue)
 
 
-class CategoryPriority(ormar.Model):
+# Device's Category Priority
+class CategoryPRI(ormar.Model):
     class Meta(MainMeta):
         pass
 
@@ -239,11 +240,7 @@ class CategoryPriority(ormar.Model):
     category: int = ormar.Integer(nullable=False)
     priority: int = ormar.Integer(nullable=False)
     message: Optional[str] = ormar.String(max_length=100)
-    devices: List[Device] = ormar.ManyToMany(
-        Device,
-        through_relation_name="devices",
-        through_reverse_relation_name="category",
-    )
+    devices: Optional[List[Device]] = ormar.ManyToMany(Device)
 
 
 class WorkerStatus(ormar.Model):
