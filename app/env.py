@@ -1,4 +1,5 @@
-import os, sys
+import logging
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,11 +19,9 @@ FOXLINK_DB_PWD = os.getenv("FOXLINK_DB_PWD")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret")
 
 # MQTT
-MQTT_BROKER = os.getenv("MQTT_BROKER")
+MQTT_BROKER = os.getenv("MQTT_BROKER", "")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 
-if MQTT_BROKER is None:
-    print("ERROR: MQTT_BROKER is not set", file=sys.stderr)
+if MQTT_BROKER == "":
+    logging.error("MQTT_BROKER is not set")
     exit(1)
-else:
-    MQTT_BROKER = str(MQTT_BROKER)
