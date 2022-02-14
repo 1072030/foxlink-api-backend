@@ -204,6 +204,8 @@ class AuditActionEnum(Enum):
     MISSION_CREATED = "MISSION_CREATED"
     MISSION_REJECTED = "MISSION_REJECTED"
     USER_LOGIN = "USER_LOGIN"
+    DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
+    DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
 
 
 class LogValue(ormar.Model):
@@ -229,6 +231,7 @@ class AuditLogHeader(ormar.Model):
     user: User = ormar.ForeignKey(User)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     values: List[LogValue] = ormar.ManyToMany(LogValue)
+    description: Optional[str] = ormar.String(max_length=256)
 
 
 # Device's Category Priority
