@@ -31,7 +31,7 @@ class FoxlinkDbPool:
 
     async def close(self):
         await self._db.disconnect()
-        self._ticker.stop()
+        await self._ticker.stop()
 
     async def run_sql_statement(self, query: str, values) -> Any:
         return self._db.fetch_all(query=query, values=values)
