@@ -17,12 +17,12 @@ services:
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       DATABASE_USER: root
-      DATABASE_PASSWORD: foxlink-gamelab
+      DATABASE_PASSWORD: AqqhQ993VNto
       DATABASE_NAME: foxlink
       FOXLINK_DB_HOST: mysql
       FOXLINK_DB_PORT: 3306
       FOXLINK_DB_USER: root
-      FOXLINK_DB_PWD: foxlink-gamelab
+      FOXLINK_DB_PWD: AqqhQ993VNto
       JWT_SECRET: secret
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: foxlink
-      MYSQL_ROOT_PASSWORD: foxlink-gamelab
+      MYSQL_ROOT_PASSWORD: AqqhQ993VNto
     ports:
       - 27001:3306
     volumes:
