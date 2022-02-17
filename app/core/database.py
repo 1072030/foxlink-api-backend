@@ -231,7 +231,7 @@ class AuditLogHeader(ormar.Model):
     user: User = ormar.ForeignKey(User)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     values: List[LogValue] = ormar.ManyToMany(LogValue)
-    description: Optional[str] = ormar.String(max_length=256)
+    description: Optional[str] = ormar.String(max_length=256, nullable=True)
 
 
 # Device's Category Priority
