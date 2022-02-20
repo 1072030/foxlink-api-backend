@@ -11,6 +11,7 @@ from app.env import (
     FOXLINK_DB_PWD,
     FOXLINK_DB_HOST,
     FOXLINK_DB_PORT,
+    FOXLINK_DB_NAME,
 )
 
 unfinished_event_ids: Dict[int, bool] = {}
@@ -24,34 +25,37 @@ class FoxlinkDbPool:
         self._db = Database(
             f"mysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{FOXLINK_DB_HOST}:{FOXLINK_DB_PORT}"
         )
+        self._ticker = Ticker(self.fetch_events_from_foxlink, 3)
+
+    async def get_database_names(self):
+        result = await self._db.fetch_all("SHOW DATABASES")
+        return result
 
     async def connect(self):
         await self._db.connect()
-        self._ticker = Ticker(self.fetch_events_from_foxlink, 10)
+        await self._ticker.start()
 
     async def close(self):
         await self._db.disconnect()
         await self._ticker.stop()
 
-    async def run_sql_statement(self, query: str, values) -> Any:
-        return self._db.fetch_all(query=query, values=values)
-
     async def get_db_table_list(self, db_name: str) -> List[str]:
-        r = await self.run_sql_statement(
-            "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = %s",
-            (db_name),
+        r = await self._db.fetch_all(
+            "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :table_name",
+            {"table_name": db_name},
         )
 
         return [x[0] for x in r]
 
-    async def get_recent_events(self, db_name: str) -> List[Event]:
-        stmt = f"SELECT * FROM `{db_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL;"
+    async def get_recent_events(self, db_name: str, table_name: str) -> List[Event]:
+        await self._db.execute(f"USE `{db_name}`;")
+        stmt = f"SELECT * FROM `{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL;"
         rows = await self._db.fetch_all(query=stmt)
 
         return [
             Event(
                 id=x[0],
-                project=db_name,
+                project=table_name,
                 line=x[1],
                 device_name=x[2],
                 category=x[3],
@@ -65,18 +69,21 @@ class FoxlinkDbPool:
         ]
 
     async def fetch_events_from_foxlink(self):
-        tables = await self.get_db_table_list("aoi")
+        db_name = "aoi"
+
+
+        tables = await self.get_db_table_list(db_name)
         tables = [x for x in tables if x != "measure_info"]
 
-        for t in tables:
-            events = await self.get_recent_events(t)
+        for table_name in tables:
+            events = await self.get_recent_events(db_name, table_name)
 
             for e in events:
                 unfinished_event_ids[e.id] = True
 
                 try:
                     await Device.objects.get_or_create(
-                        id=_generate_device_id(e),
+                        id=self._generate_device_id(e),
                         project=e.project,
                         line=e.line,
                         device_name=e.device_name,
@@ -92,7 +99,7 @@ class FoxlinkDbPool:
                         await create_mission(
                             MissionCreate(
                                 name="New Mission",
-                                device=_generate_device_id(e),
+                                device=self._generate_device_id(e),
                                 description=e.message,
                                 related_event_id=e.id,
                                 required_expertises=[],
@@ -101,7 +108,6 @@ class FoxlinkDbPool:
                 except Exception as e:
                     raise Exception("cannot create device", e)
 
-
-def _generate_device_id(event: Event) -> str:
-    return f"{event.project}-{event.line}-{event.device_name}"
+    def _generate_device_id(self, event: Event) -> str:
+        return f"{event.project}-{event.line}-{event.device_name}"
 

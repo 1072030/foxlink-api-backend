@@ -15,6 +15,7 @@ FOXLINK_DB_HOST = os.getenv("FOXLINK_DB_HOST")
 FOXLINK_DB_PORT = os.getenv("FOXLINK_DB_PORT")
 FOXLINK_DB_USER = os.getenv("FOXLINK_DB_USER")
 FOXLINK_DB_PWD = os.getenv("FOXLINK_DB_PWD")
+FOXLINK_DB_NAME = os.getenv("FOXLINK_DB_NAME")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "secret")
 

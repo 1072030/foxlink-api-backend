@@ -41,7 +41,6 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    # await fetch_ticker.stop()
     await dispatcher.stop()
-    await database.disconnect()
     await foxlink_db.close()
+    await database.disconnect()
