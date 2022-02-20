@@ -33,7 +33,7 @@ class DeviceDto(BaseModel):
 
 
 class MissionDto(BaseModel):
-    mission_id: str
+    mission_id: int
     device: DeviceDto
     name: str
     description: str
@@ -89,24 +89,24 @@ async def get_a_mission_by_id(
         raise HTTPException(404, "the mission you request is not found")
 
     return MissionDto(
-            mission_id=m.id,
-            name=m.name,
-            device=DeviceDto(
-                device_id=m.device.id,
-                device_name=m.device.device_name,
-                project=m.device.project,
-                process=m.device.process,
-                line=m.device.line,
-            ),
-            description=m.description,
-            is_started=m.is_started,
-            is_closed=m.is_closed,
-            assignees=[u.username for u in m.assignees],
-            event_start_date=m.event_start_date,
-            event_end_date=m.event_end_date,
-            created_date=m.created_date,
-            updated_date=m.updated_date,
-        )
+        mission_id=m.id,
+        name=m.name,
+        device=DeviceDto(
+            device_id=m.device.id,
+            device_name=m.device.device_name,
+            project=m.device.project,
+            process=m.device.process,
+            line=m.device.line,
+        ),
+        description=m.description,
+        is_started=m.is_started,
+        is_closed=m.is_closed,
+        assignees=[u.username for u in m.assignees],
+        event_start_date=m.event_start_date,
+        event_end_date=m.event_end_date,
+        created_date=m.created_date,
+        updated_date=m.updated_date,
+    )
 
 
 @router.post("/{mission_id}/assign", tags=["missions"])
