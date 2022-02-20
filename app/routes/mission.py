@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from app.core.database import User, Mission
 from app.services.mission import (
     get_missions,
@@ -18,8 +19,31 @@ from app.services.auth import get_current_active_user, get_admin_active_user
 from app.models.schema import MissionCancel, MissionCreate, MissionUpdate, MissionFinish
 from app.mqtt.main import publish
 from fastapi.exceptions import HTTPException
+import datetime
 
 router = APIRouter(prefix="/missions")
+
+
+class DeviceDto(BaseModel):
+    device_id: str
+    device_name: str
+    project: str
+    process: int
+    line: int
+
+
+class MissionDto(BaseModel):
+    mission_id: str
+    device: DeviceDto
+    name: str
+    description: str
+    assignees: List[str]
+    is_started: bool
+    is_closed: bool
+    event_start_date: Optional[datetime.datetime]
+    event_end_date: Optional[datetime.datetime]
+    created_date: datetime.datetime
+    updated_date: datetime.datetime
 
 
 @router.get("/", response_model=List[Mission], tags=["missions"])
@@ -27,16 +51,62 @@ async def read_all_missions(user: User = Depends(get_current_active_user)):
     return await get_missions()
 
 
-@router.get("/self", response_model=List[Mission], tags=["missions"])
+@router.get("/self", response_model=List[MissionDto], tags=["missions"])
 async def get_self_mission(user: User = Depends(get_current_active_user)):
-    return await get_missions_by_user_id(user.id)
+    missions = await get_missions_by_user_id(user.id)
+
+    return [
+        MissionDto(
+            mission_id=x.id,
+            name=x.name,
+            device=DeviceDto(
+                device_id=x.device.id,
+                device_name=x.device.device_name,
+                project=x.device.project,
+                process=x.device.process,
+                line=x.device.line,
+            ),
+            description=x.description,
+            is_started=x.is_started,
+            is_closed=x.is_closed,
+            assignees=[u.username for u in x.assignees],
+            event_start_date=x.event_start_date,
+            event_end_date=x.event_end_date,
+            created_date=x.created_date,
+            updated_date=x.updated_date,
+        )
+        for x in missions
+    ]
 
 
-@router.get("/{mission_id}", response_model=Mission, tags=["missions"])
+@router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
 async def get_a_mission_by_id(
     mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    return await get_mission_by_id(mission_id)
+    m = await get_mission_by_id(mission_id)
+
+    if m is None:
+        raise HTTPException(404, "the mission you request is not found")
+
+    return MissionDto(
+            mission_id=m.id,
+            name=m.name,
+            device=DeviceDto(
+                device_id=m.device.id,
+                device_name=m.device.device_name,
+                project=m.device.project,
+                process=m.device.process,
+                line=m.device.line,
+            ),
+            description=m.description,
+            is_started=m.is_started,
+            is_closed=m.is_closed,
+            assignees=[u.username for u in m.assignees],
+            event_start_date=m.event_start_date,
+            event_end_date=m.event_end_date,
+            created_date=m.created_date,
+            updated_date=m.updated_date,
+        )
 
 
 @router.post("/{mission_id}/assign", tags=["missions"])

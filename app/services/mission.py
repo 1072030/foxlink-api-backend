@@ -107,18 +107,17 @@ async def get_missions() -> List[Mission]:
 
 
 async def get_mission_by_id(id: int) -> Optional[Mission]:
-    item = await Mission.objects.get_or_none(id=id)
+    item = await Mission.objects.select_all().get_or_none(id=id)
     return item
 
 
 async def get_missions_by_user_id(user_id: str):
     missions = (
-        await Mission.objects.filter(assignee__id=user_id)
+        await Mission.objects.select_related(["assignees", "device"])
+        .filter(assignees__id=user_id)
         .order_by("created_date")
-        .exclude_fields(["assignee"])
         .all()
     )
-
     return missions
 
 
