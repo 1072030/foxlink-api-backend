@@ -109,7 +109,7 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("action", sa.String(length=50), nullable=False),
         sa.Column("table_name", sa.String(length=50), nullable=False),
-        sa.Column("record_pk", sa.String(length=100), nullable=False),
+        sa.Column("record_pk", sa.String(length=100), nullable=True),
         sa.Column("user", sa.String(length=36), nullable=True),
         sa.Column("description", sa.String(length=256), nullable=True),
         sa.Column(
