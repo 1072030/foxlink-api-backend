@@ -9,9 +9,13 @@ router = APIRouter(prefix="/logs")
 @router.get("/", tags=["logs"])
 async def get_logs(
     action: AuditActionEnum,
+    limit: int = 20,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ):
+    if limit <= 0:
+        raise ValueError("limit must be greater than 0")
+
     params = {
         "action": action.value,
         "created_date__gte": start_date,
@@ -19,4 +23,4 @@ async def get_logs(
     }
     params = {k: v for k, v in params.items() if v is not None}
 
-    return await AuditLogHeader.objects.filter(**params).all() # type: ignore
+    return await AuditLogHeader.objects.filter(**params).all()  # type: ignore
