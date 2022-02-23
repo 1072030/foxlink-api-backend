@@ -19,11 +19,11 @@ async def get_top_most_reject_mission_employee(limit: int):
     return query
 
 
-async def get_login_users_percentage_today() -> float:
+async def get_login_users_percentage_by_week() -> float:
     total_user_count = await User.objects.filter(is_active=True, is_admin=False).count()
 
     result = await database.fetch_all(
-        f"SELECT count(DISTINCT user) FROM `auditlogheaders` WHERE action='USER_LOGIN' AND created_date >= DATE(NOW()) AND created_date <= DATE(NOW()) + INTERVAL 1 DAY;"
+        f"SELECT count(DISTINCT user) FROM `auditlogheaders` WHERE action='USER_LOGIN' AND created_date >= DATE(NOW()) - INTERVAL 6 DAY AND created_date <= DATE(NOW()) + INTERVAL 1 DAY;"
     )
 
     return round(result[0][0] / total_user_count, 3)
