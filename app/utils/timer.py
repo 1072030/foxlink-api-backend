@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import traceback
 from typing import Callable
 from contextlib import suppress
 
@@ -31,4 +33,5 @@ class Ticker:
             try:
                 await self.func()
             except Exception as e:
-                print(e)
+                print(traceback.format_exc())
+                logging.error(e)
