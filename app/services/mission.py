@@ -48,9 +48,10 @@ async def worker_monitor_routine():
             .get_or_none()
         )
 
+        # if worker is still working on mission, then we should not modify its state
         working_mission_count = (
             await Mission.objects.select_related("assignees")
-            .filter(repair_end_date__isnull=False, assignees__id=w.id)
+            .filter(repair_end_date__isnull=True, assignees__id=w.id)
             .count()
         )
 
@@ -391,18 +392,18 @@ async def finish_mission_by_id(
         is_cancel=False,
     )
 
-    # set each assignee's status to 'rest'
-    # for w in mission.assignees:
-    #     await WorkerStatus.objects.filter(worker=w.id).update(
-    #         status=WorkerStatusEnum.idle.value
-    #     )
+    # set each assignee's last_event_end_date
+    for w in mission.assignees:
+        await WorkerStatus.objects.filter(worker=w.id).update(
+            last_event_end_date=mission.event_end_date
+        )
 
     # record this operation
     await AuditLogHeader.objects.create(
         table_name="missions",
         action=AuditActionEnum.MISSION_FINISHED.value,
         record_pk=str(mission.id),
-        user=validate_user
+        user=validate_user,
     )
 
 
