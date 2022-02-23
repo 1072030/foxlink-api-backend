@@ -340,6 +340,48 @@ async def import_project_category_priority(csv_file: UploadFile):
     await process_csv_file(csv_file, process)
 
 
+@database.transaction()
+async def import_factory_map_table(name: str, csv_file: UploadFile):
+    factory_m = await FactoryMap.objects.get_or_none(name=name)
+
+    if factory_m is None:
+        raise HTTPException(404, "the factory map you request is not found")
+
+    lines: str = (await csv_file.read()).decode("utf-8")
+    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+
+    first_row: List[str] = []
+    matrix: List[List[float]] = []
+
+    row_idx = 0  # rows
+    col_idx = 0  # columns
+    for row in reader:
+        col_idx = 0
+        if row_idx == 0:
+            first_row = row
+            row_idx += 1
+            continue
+        m = []
+        for col in row:
+            if col_idx == 0:
+                col_idx += 1
+                continue
+
+            m.append(float(col))
+            col_idx += 1
+
+        if len(m) != len(first_row):
+            raise HTTPException(400, "each row must be the same length")
+
+        matrix.append(m)
+        row_idx += 1
+
+    if len(matrix) != len(first_row):
+        raise HTTPException(400, "each column must be the same length")
+        
+    await factory_m.update(map=matrix, related_devices=first_row[1:])
+
+
 async def transform_events(csv_file: UploadFile):
     async def process(row: List[str]) -> None:
         max_length = 10
