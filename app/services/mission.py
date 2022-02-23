@@ -1,14 +1,20 @@
+import json
 import random
 from app.services.device import get_device_by_id
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from app.core.database import (
     CategoryPRI,
+    FactoryMap,
     Mission,
     User,
     AuditLogHeader,
     AuditActionEnum,
     UserDeviceLevel,
+    WorkerStatus,
+    WorkerStatusEnum,
+    UserLevel,
+    Device,
     database,
 )
 from fastapi.exceptions import HTTPException
@@ -22,7 +28,73 @@ from app.services.user import get_user_by_username
 dispatch = FoxlinkDispatch()
 
 
+def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
+    try:
+        return factory_map.related_devices.index(device_id)
+    except ValueError as e:
+        msg = f"{device_id} device is not in the map {factory_map.name}"
+        raise ValueError(msg)
+
+
+async def worker_monitor_routine():
+    workers = await User.objects.filter(
+        level=UserLevel.maintainer.value, is_admin=False
+    ).all()
+
+    for w in workers:
+        status = (
+            await WorkerStatus.objects.select_related("worker")
+            .filter(worker=w)
+            .get_or_none()
+        )
+
+        working_mission_count = (
+            await Mission.objects.select_related("assignees")
+            .filter(repair_end_date__isnull=False, assignees__id=w.id)
+            .count()
+        )
+
+        if working_mission_count > 0:
+            continue
+
+        rescue_stations = await Device.objects.filter(
+            workshop=w.location, is_rescue=True
+        ).all()
+
+        if status is None:
+            await WorkerStatus.objects.create(
+                worker=w,
+                status=WorkerStatusEnum.idle.value,
+                at_device=rescue_stations[0],
+                last_event_end_date=datetime.utcnow(),
+            )
+        else:
+            factory_map = await FactoryMap.objects.filter(id=w.location).get()
+            rescue_distances = []
+
+            worker_device_idx = find_idx_in_factory_map(
+                factory_map, status.at_device.id
+            )
+
+            for r in rescue_stations:
+                rescue_idx = find_idx_in_factory_map(factory_map, r.id)
+                rescue_distances.append(
+                    {
+                        "rescueID": r.id,
+                        "distance": factory_map.map[worker_device_idx][rescue_idx],
+                    }
+                )
+
+            await status.update(
+                status=WorkerStatusEnum.idle.value,
+                at_device=dispatch.move_to_rescue(rescue_distances),
+            )
+
+
+@database.transaction()
 async def dispatch_routine():
+    await worker_monitor_routine()
+
     avaliable_missions = (
         await Mission.objects.select_related(["device", "assignees"])
         .filter(is_cancel=False, repair_start_date__isnull=True)
@@ -43,10 +115,14 @@ async def dispatch_routine():
             .get_or_none()
         )
 
+        reject_count = await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
+        ).count()
+
         item = {
             "missionID": m.id,
             "event_count": 1,  # TODO
-            "refuse_count": 1,  # TODO
+            "refuse_count": reject_count,
             "device": m.device.device_name,
             "process": m.device.process,
             "create_date": m.created_date,
@@ -62,15 +138,15 @@ async def dispatch_routine():
 
     dispatch.get_missions(m_list)
     mission_1st_id = dispatch.mission_priority().item()
-    mission_1st = (
-        await Mission.objects.filter(id=mission_1st_id).select_related("device").get()
-    )
+    mission_1st = await Mission.objects.filter(id=mission_1st_id).select_all().get()
 
     can_dispatch_workers = (
-        await UserDeviceLevel.objects.filter(
-            device__id=mission_1st.device.id, level__gt=0
+        await UserDeviceLevel.objects.select_related("user")
+        .filter(
+            device__id=mission_1st.device.id,
+            level__gt=0,
+            user__location=mission_1st.device.workshop.id,
         )
-        .select_related("user")
         .all()
     )
 
@@ -78,14 +154,49 @@ async def dispatch_routine():
         logging.warn(f"No workers available to dispatch for mission {mission_1st}")
         return
 
-    w_list = []
+    factory_map = await FactoryMap.objects.filter(
+        id=mission_1st.device.workshop.id
+    ).get()
 
+    distance_matrix: List[List[float]] = factory_map.map
+    mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id)
+
+    w_list = []
     for w in can_dispatch_workers:
+        if w.user.level != UserLevel.maintainer.value:
+            continue
+
+        # if worker has already working on other mission, skip
+        if (
+            await Mission.objects.filter(
+                assignees__id=w.user.id, repair_start_date__isnull=True
+            ).count()
+            > 0
+        ):
+            continue
+
+        worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
+
+        if worker_status.status != WorkerStatusEnum.idle.value:
+            continue
+
+        daily_count = await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_ASSIGNED.value,
+            user=w.user,
+            created_date__gte=datetime.utcnow().date(),
+        ).count()
+
+        worker_device_idx = find_idx_in_factory_map(
+            factory_map, worker_status.at_device.id
+        )
+
         item = {
             "workerID": w.user.username,
-            "distance": random.randint(1, 22),  # TODO
-            "idle_time": 0,  # TODO
-            "daily_count": 0,  # TODO
+            "distance": distance_matrix[mission_device_idx][worker_device_idx],
+            "idle_time": (
+                datetime.utcnow() - worker_status.last_event_end_date
+            ).total_seconds(),
+            "daily_count": daily_count,
             "level": w.level,
         }
         w_list.append(item)
@@ -98,6 +209,32 @@ async def dispatch_routine():
 
     try:
         await assign_mission(mission_1st.id, worker_1st)
+
+        status = (
+            await WorkerStatus.objects.select_related("worker")
+            .filter(worker__username=worker_1st)
+            .get_or_none()
+        )
+
+        w = await User.objects.filter(username=worker_1st).get()
+
+        if status is None:
+            status = await WorkerStatus.objects.create(
+                worker=w,
+                status=WorkerStatusEnum.working.value,
+                at_device=mission_1st.device.id,
+            )
+        else:
+            await status.update(
+                status=WorkerStatusEnum.working.value, at_device=mission_1st.device.id
+            )
+
+        await AuditLogHeader.objects.create(
+            table_name="missions",
+            record_pk=mission_1st.id,
+            action=AuditActionEnum.MISSION_ASSIGNED.value,
+            user=w,
+        )
     except Exception as e:
         logging.error("cannot assign to worker {}".format(worker_1st))
 
@@ -160,7 +297,7 @@ async def create_mission(dto: MissionCreate):
     return created_mission
 
 
-async def start_mission_by_id(mission_id: int, validate_user: Optional[User]):
+async def start_mission_by_id(mission_id: int, validate_user: User):
     mission = await Mission.objects.select_related("assignees").get_or_none(
         id=mission_id
     )
@@ -168,17 +305,8 @@ async def start_mission_by_id(mission_id: int, validate_user: Optional[User]):
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    if mission.assignee is None:
-        raise HTTPException(
-            404, "the assignee of this mission is missing. cannot start this mission"
-        )
-
-    if validate_user is not None:
-        filter = [u for u in mission.assignees if u.id == validate_user.id]
-        if len(filter) == 0:
-            raise HTTPException(
-                400, "you are not this mission's assignee",
-            )
+    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
+        raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.repair_end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
@@ -232,24 +360,17 @@ async def reject_mission_by_id(mission_id: int, user: User):
         )
 
 
+@database.transaction()
 async def finish_mission_by_id(
-    mission_id: int, dto: MissionFinish, validate_user: Optional[User]
+    mission_id: int, dto: MissionFinish, validate_user: User
 ):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    if mission.assignee is None:
-        raise HTTPException(
-            404, "the assignee of this mission is missing. cannot finish this mission"
-        )
-
-    if validate_user is not None:
-        if mission.assignee.id != validate_user.id:
-            raise HTTPException(
-                400, "you are not this mission's assignee",
-            )
+    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
+        raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.repair_start_date is None:
         raise HTTPException(400, "this mission hasn't started yet")
@@ -260,23 +381,38 @@ async def finish_mission_by_id(
     if not mission.done_verified:
         raise HTTPException(400, "this mission is not verified as done")
 
-    tx = await database.transaction()
-    try:
-        await tx.start()
-        await mission.update(
-            repair_end_date=datetime.utcnow(),
-            machine_status=dto.devcie_status,
-            cause_of_issue=dto.cause_of_issue,
-            issue_solution=dto.issue_solution,
-            image=dto.image,
-            signature=dto.signature,
-            is_cancel=False,
-        )
-    except Exception as e:
-        logging.error("cannot mark a mission as done: ", e)
-        await tx.rollback()
-    else:
-        await tx.commit()
+    await mission.update(
+        repair_end_date=datetime.utcnow(),
+        machine_status=dto.devcie_status,
+        cause_of_issue=dto.cause_of_issue,
+        issue_solution=dto.issue_solution,
+        image=dto.image,
+        signature=dto.signature,
+        is_cancel=False,
+    )
+
+    # set each assignee's status to 'rest'
+    # for w in mission.assignees:
+    #     await WorkerStatus.objects.filter(worker=w.id).update(
+    #         status=WorkerStatusEnum.idle.value
+    #     )
+
+    # record this operation
+    await AuditLogHeader.objects.create(
+        table_name="missions",
+        action=AuditActionEnum.MISSION_FINISHED.value,
+        record_pk=str(mission.id),
+        user=validate_user
+    )
+
+
+async def delete_mission_by_id(mission_id: int):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request to delete is not found")
+
+    await mission.delete()
 
 
 async def assign_mission(mission_id: int, username: str):

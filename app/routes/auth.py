@@ -3,7 +3,13 @@ from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 from app.services.auth import authenticate_user, create_access_token
 from datetime import timedelta
-from app.core.database import AuditLogHeader, AuditActionEnum
+from app.core.database import (
+    AuditLogHeader,
+    AuditActionEnum,
+    UserLevel,
+    WorkerStatus,
+    WorkerStatusEnum,
+)
 
 
 class Token(BaseModel):
@@ -11,7 +17,7 @@ class Token(BaseModel):
     token_type: str
 
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
 router = APIRouter(prefix="/auth")
 
 
@@ -34,7 +40,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     await AuditLogHeader.objects.create(
         table_name="users",
         record_pk=user.id,
-        action=AuditActionEnum.USER_LOGIN.value, user=user
+        action=AuditActionEnum.USER_LOGIN.value,
+        user=user,
     )
+
+    # if user is a maintainer, then we should mark his status as idle
+    if user.level == UserLevel.maintainer.value:
+        await WorkerStatus.objects.filter(worker=user).update(
+            status=WorkerStatusEnum.idle.value
+        )
 
     return {"access_token": access_token, "token_type": "bearer"}

@@ -66,7 +66,7 @@ class FoxlinkDispatch:
 
     """員工派工，優先順序；Rule_Based"""
 
-    def worker_dispatch(self):
+    def worker_dispatch(self) -> str:
         # Rule-Based：移動距離、指派次數、閒置時間、技能等級...
         self.worker_rank = self.event_worker_info.sort_values(
             by=["distance", "level", "idle_time", "daily_count"],

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from app.core.database import User, Mission
+from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
     get_missions,
     get_mission_by_id,
@@ -12,6 +12,7 @@ from app.services.mission import (
     finish_mission_by_id,
     cancel_mission_by_id,
     reject_mission_by_id,
+    delete_mission_by_id,
     assign_mission,
 )
 from app.services.user import get_user_by_id
@@ -156,3 +157,14 @@ async def update_mission(
 ):
     return await update_mission_by_id(mission_id, dto)
 
+@router.delete("/{mission_id}", tags=["missions"])
+async def delete_mission(
+    mission_id: int, user: User = Depends(get_admin_active_user)
+):
+    await delete_mission_by_id(mission_id)
+    await AuditLogHeader.objects.create(
+        table_name="missions",
+        action=AuditActionEnum.MISSION_DELETED.value,
+        record_pk=str(mission_id),
+        user=user
+    )

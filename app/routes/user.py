@@ -1,7 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
-from app.core.database import User
+from app.core.database import User, UserLevel, WorkerStatus, WorkerStatusEnum
 from app.services.user import (
     get_users,
     create_user,
@@ -47,6 +47,10 @@ async def change_password(
 
     await update_user(user.id, password_hash=get_password_hash(dto.new_password))
 
+@router.get("/offwork", tags=["users"])
+async def get_offwork(user: User = Depends(get_current_active_user)):
+    if user.level == UserLevel.maintainer.value:
+        await WorkerStatus.objects.filter(worker=user).update(status=WorkerStatusEnum.leave.value)
 
 @router.patch("/{user_id}", tags=["users"])
 async def update_user_information(
