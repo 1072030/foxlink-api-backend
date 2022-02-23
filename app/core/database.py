@@ -41,6 +41,12 @@ class ShiftClassType(Enum):
     night = "Night"
 
 
+class WorkerStatusEnum(Enum):
+    working = "Working"
+    idle = "Idle"
+    leave = "Leave"
+
+
 class MainMeta(ormar.ModelMeta):
     metadata = metadata
     database = database
@@ -53,6 +59,7 @@ class FactoryMap(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, index=True, unique=True)
     map: Json = ormar.JSON()
+    related_devices: Json = ormar.JSON()
     created_date: datetime = ormar.DateTime(server_default=func.now())
     updated_date: datetime = ormar.DateTime(server_default=func.now())
 
@@ -203,6 +210,9 @@ class Mission(ormar.Model):
 class AuditActionEnum(Enum):
     MISSION_CREATED = "MISSION_CREATED"
     MISSION_REJECTED = "MISSION_REJECTED"
+    MISSION_ACCEPTED = "MISSION_ACCEPTED"
+    MISSION_ASSIGNED = "MISSION_ASSIGNED"
+    MISSION_FINISHED = "MISSION_FINISHED"
     USER_LOGIN = "USER_LOGIN"
     DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
     DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
@@ -227,8 +237,8 @@ class AuditLogHeader(ormar.Model):
         max_length=50, nullable=False, index=True, choices=list(AuditActionEnum)
     )
     table_name: Optional[str] = ormar.String(max_length=50, index=True)
-    record_pk: Optional[str] = ormar.String(max_length=100, index=True)
-    user: User = ormar.ForeignKey(User)
+    record_pk: Optional[str] = ormar.String(max_length=100, index=True, nullable=True)
+    user: Optional[User] = ormar.ForeignKey(User, nullable=True)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     values: List[LogValue] = ormar.ManyToMany(LogValue)
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
@@ -253,7 +263,8 @@ class WorkerStatus(ormar.Model):
     id: int = ormar.Integer(primary_key=True)
     worker: User = ormar.ForeignKey(User)
     at_device: Device = ormar.ForeignKey(Device)
-    last_event_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
+    last_event_end_date: datetime = ormar.DateTime()
     dispatch_count: int = ormar.Integer(default=0)
     updated_date: datetime = ormar.DateTime(server_default=func.now())
 
