@@ -472,22 +472,14 @@ async def assign_mission(mission_id: int, username: str):
         raise HTTPException(400, detail="the user is already assigned to this mission")
 
 
-async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]):
+async def cancel_mission_by_id(dto: MissionCancel, validate_user: User):
     mission = await get_mission_by_id(dto.mission_id)
 
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    if mission.assignee is None:
-        raise HTTPException(
-            400, "this mission hasn't assigned to anyone yet",
-        )
-
-    if validate_user is not None:
-        if mission.assignee.id != validate_user.id:
-            raise HTTPException(
-                400, "you are not this mission's assignee",
-            )
+    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
+        raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.repair_end_date is not None:
         raise HTTPException(400, "this mission is already closed!")
@@ -498,15 +490,26 @@ async def cancel_mission_by_id(dto: MissionCancel, validate_user: Optional[User]
     await mission.update(repair_end_date=datetime.utcnow(), canceled_reason=dto.reason)
 
 
-# TODO: to be implemented
-async def request_assistance(mission_id: int):
+async def request_assistance(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
         raise HTTPException(404, "the mission you request is not found")
 
+    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
+        raise HTTPException(400, "you are not this mission's assignee")
+
+    if mission.is_emergency:
+        raise HTTPException(400, "this mission is already in emergency")
+
     if not mission.is_started() or mission.is_closed():
         raise HTTPException(400, "this mission is not started or closed")
 
-    # TODO: complete assistant work flow
+    await mission.update(is_emergency=True)
+
+    publish(
+        "foxlink/mission/emergency",
+        {"id": mission.id, "worker": validate_user.full_name,},
+        1,
+    )
 

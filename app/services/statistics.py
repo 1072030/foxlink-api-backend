@@ -1,4 +1,4 @@
-from app.core.database import database, User
+from app.core.database import Mission, database, User
 
 
 async def get_top_most_crashed_devices(limit: int):
@@ -28,3 +28,8 @@ async def get_login_users_percentage_by_week() -> float:
 
     return round(result[0][0] / total_user_count, 3)
 
+
+async def get_emergency_missions():
+    return await Mission.objects.filter(
+        is_emergency=True, repair_end_date__isnull=True
+    ).all()

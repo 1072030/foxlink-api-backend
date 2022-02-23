@@ -187,6 +187,7 @@ class Mission(ormar.Model):
         max_length=1024 * 1024 * 5, default=bytes(0)
     )
     is_cancel: bool = ormar.Boolean(default=False)
+    is_emergency: bool = ormar.Boolean(default=False)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     updated_date: datetime = ormar.DateTime(server_default=func.now())
     event_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
