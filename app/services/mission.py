@@ -317,6 +317,11 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
 
     await mission.update(repair_start_date=datetime.utcnow())
 
+    for worker in mission.assignees:
+        worker_status = await WorkerStatus.objects.filter(worker=worker).get()
+        worker_status.dispatch_count += 1
+        await worker_status.save()
+
 
 async def reject_mission_by_id(mission_id: int, user: User):
     mission = await Mission.objects.select_related("assignees").get_or_none(
