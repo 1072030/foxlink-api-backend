@@ -187,7 +187,7 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
         if len(row) != max_length:
             raise HTTPException(400, f"each row must be {max_length} columns long")
 
-        workshop = await FactoryMap.objects.get_or_create(name=row[5])
+        workshop = await FactoryMap.objects.get_or_create(name=row[5], related_devices=[], map=[])
 
         if row[2] != "rescue":
             # device_id = get_device_id(row[2], int(float(row[3])), row[4])
