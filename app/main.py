@@ -29,7 +29,7 @@ app.include_router(device.router)
 
 
 foxlink_db = FoxlinkDbPool()
-dispatcher = Ticker(dispatch_routine, 1)
+dispatcher = Ticker(dispatch_routine, 10)
 
 
 @app.on_event("startup")

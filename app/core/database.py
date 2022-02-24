@@ -264,7 +264,7 @@ class WorkerStatus(ormar.Model):
         tablename = "worker_status"
 
     id: int = ormar.Integer(primary_key=True)
-    worker: User = ormar.ForeignKey(User)
+    worker: User = ormar.ForeignKey(User, unique=True)
     at_device: Device = ormar.ForeignKey(Device)
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime()
