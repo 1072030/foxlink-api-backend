@@ -13,6 +13,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
+    workshop: Optional[int]
     password: str
 
 

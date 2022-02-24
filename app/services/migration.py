@@ -244,26 +244,26 @@ async def import_employee_repair_experience_table(
         if len(row) != 6:
             raise HTTPException(400, "each row must be 6 columns long")
 
-        user = await User.objects.get_or_none(username=row[0])
-
-        if user is None:
-            user = await create_user(
-                UserCreate(
-                    username=row[0],
-                    password="foxlink",
-                    full_name=row[1],
-                    expertises=[],
-                    level=UserLevel.maintainer.value,
-                )
-            )
-
-        project_names = row[2].split(",")
-
         try:
             devices = await Device.objects.filter(
                 project__istartswith=row[2], device_name=row[3]
             ).all()
+
+            user = await User.objects.get_or_none(username=row[0])
+
             for d in devices:
+                if user is None:
+                    user = await create_user(
+                        UserCreate(
+                            username=row[0],
+                            password="foxlink",
+                            full_name=row[1],
+                            expertises=[],
+                            workshop=d.workshop.id,
+                            level=UserLevel.maintainer.value,
+                        )
+                    )
+
                 level = UserDeviceLevel(
                     user=user, device=d, shift=bool(row[4]), level=int(row[5])
                 )

@@ -122,7 +122,6 @@ async def start_mission(mission_id: int, user: User = Depends(get_current_active
     await start_mission_by_id(mission_id, user)
 
 
-# TODO: Implement this
 @router.get("/{mission_id}/reject", tags=["missions"])
 async def reject_a_mission(
     mission_id: int, user: User = Depends(get_current_active_user)
@@ -157,14 +156,13 @@ async def update_mission(
 ):
     return await update_mission_by_id(mission_id, dto)
 
+
 @router.delete("/{mission_id}", tags=["missions"])
-async def delete_mission(
-    mission_id: int, user: User = Depends(get_admin_active_user)
-):
+async def delete_mission(mission_id: int, user: User = Depends(get_admin_active_user)):
     await delete_mission_by_id(mission_id)
     await AuditLogHeader.objects.create(
         table_name="missions",
         action=AuditActionEnum.MISSION_DELETED.value,
         record_pk=str(mission_id),
-        user=user
+        user=user,
     )
