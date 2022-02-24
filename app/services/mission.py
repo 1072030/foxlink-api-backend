@@ -62,6 +62,11 @@ async def worker_monitor_routine():
             workshop=w.location, is_rescue=True
         ).all()
 
+        if len(rescue_stations) == 0:
+            logging.error(f"there's no rescue station in workshop {w.location.id}")
+            logging.error(f"you should create a rescue station as soon as possible")
+            return
+
         if status is None:
             await WorkerStatus.objects.create(
                 worker=w,
