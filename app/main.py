@@ -9,6 +9,7 @@ from app.routes import (
     statistics,
     log,
     device,
+    factorymap,
 )
 from app.core.database import database
 from app.daemon.daemon import FoxlinkDbPool
@@ -26,6 +27,7 @@ app.include_router(migration.router)
 app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
+app.include_router(factorymap.router)
 
 
 foxlink_db = FoxlinkDbPool()
