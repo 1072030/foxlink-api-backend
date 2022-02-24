@@ -1,9 +1,10 @@
 import logging
-from typing import List, Callable, Coroutine
+from typing import List, Callable, Coroutine, Dict, Any
 from app.core.database import (
     User,
     Device,
     UserDeviceLevel,
+    UserLevel,
     UserShiftInfo,
     Mission,
     FactoryMap,
@@ -129,7 +130,8 @@ def roster_file_transform(path, output_path="./"):  # 檔案讀取位置、輸�
 @database.transaction()
 async def process_csv_file(
     csv_file: UploadFile,
-    callback: Callable[[List[str]], Coroutine],
+    callback: Callable[..., Coroutine],
+    params: Dict[str, Any] = {},
     ignore_header: bool = True,
 ):
     lines: str = (await csv_file.read()).decode("utf-8")
@@ -143,7 +145,7 @@ async def process_csv_file(
             if not is_met_header and ignore_header:
                 is_met_header = True
             else:
-                await callback(row)
+                await callback(row, **params)
             row_count += 1
     except HTTPException as e:
         raise e
@@ -154,27 +156,27 @@ async def process_csv_file(
         )
 
 
-async def import_users(csv_file: UploadFile):
-    """
-    Improt user list form csv file
-    """
+# async def import_users(csv_file: UploadFile):
+#     """
+#     Improt user list form csv file
+#     """
 
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
+#     lines: str = (await csv_file.read()).decode("utf-8")
+#     reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
 
-    users: List[User] = []
-    for row in reader:
-        user = User(
-            username=row[0],
-            password_hash=get_password_hash(row[1]),
-            full_name=row[2],
-            expertises=row[3],
-            is_active=row[4],
-            is_admin=row[5],
-        )
-        users.append(user)
+#     users: List[User] = []
+#     for row in reader:
+#         user = User(
+#             username=row[0],
+#             password_hash=get_password_hash(row[1]),
+#             full_name=row[2],
+#             expertises=row[3],
+#             is_active=row[4],
+#             is_admin=row[5],
+#         )
+#         users.append(user)
 
-    await User.objects.bulk_create(users)
+#     await User.objects.bulk_create(users)
 
 
 async def import_devices(csv_file: UploadFile, clear_all: bool = False):
@@ -187,7 +189,12 @@ async def import_devices(csv_file: UploadFile, clear_all: bool = False):
         if len(row) != max_length:
             raise HTTPException(400, f"each row must be {max_length} columns long")
 
-        workshop = await FactoryMap.objects.get_or_create(name=row[5])
+        workshop = await FactoryMap.objects.get_or_none(name=row[5])
+
+        if workshop is None:
+            workshop = await FactoryMap.objects.create(
+                name=row[5], related_devices="[]", map="[]"
+            )
 
         if row[2] != "rescue":
             # device_id = get_device_id(row[2], int(float(row[3])), row[4])
@@ -243,9 +250,10 @@ async def import_employee_repair_experience_table(
             user = await create_user(
                 UserCreate(
                     username=row[0],
-                    password="foxlink-password",
+                    password="foxlink",
                     full_name=row[1],
                     expertises=[],
+                    level=UserLevel.maintainer.value,
                 )
             )
 
@@ -321,6 +329,7 @@ async def import_employee_table(csv_file: UploadFile):
 
 
 # 匯入 Device's Category & Priority
+@database.transaction()
 async def import_project_category_priority(csv_file: UploadFile):
     async def process(row: List[str]) -> None:
         if len(row) != 5:
@@ -370,13 +379,13 @@ async def import_factory_map_table(name: str, csv_file: UploadFile):
             m.append(float(col))
             col_idx += 1
 
-        if len(m) != len(first_row):
+        if len(m) != len(first_row) - 1:  # -1 becuase first cell(1,1) is 'id' text
             raise HTTPException(400, "each row must be the same length")
 
         matrix.append(m)
         row_idx += 1
 
-    if len(matrix) != len(first_row):
+    if len(matrix) != len(first_row) - 1:
         raise HTTPException(400, "each column must be the same length")
 
     await factory_m.update(map=matrix, related_devices=first_row[1:])

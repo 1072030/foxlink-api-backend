@@ -1,6 +1,6 @@
 from app.services.auth import get_admin_active_user
 from app.services.migration import (
-    import_users,
+    # import_users,
     import_devices,
     import_employee_repair_experience_table,
     import_employee_shift_table,
@@ -16,21 +16,21 @@ from fastapi.exceptions import HTTPException
 router = APIRouter(prefix="/migration")
 
 
-@router.post("/users", tags=["migration"], status_code=201)
-async def import_users_from_csv(
-    file: UploadFile = File(...), user: User = Depends(get_admin_active_user)
-):
-    if file.filename.split(".")[1] != "csv":
-        raise HTTPException(415)
+# @router.post("/users", tags=["migration"], status_code=201)
+# async def import_users_from_csv(
+#     file: UploadFile = File(...), user: User = Depends(get_admin_active_user)
+# ):
+#     if file.filename.split(".")[1] != "csv":
+#         raise HTTPException(415)
 
-    try:
-        await import_users(file)
-    except:
-        await AuditLogHeader.objects.create(
-            table_name="users",
-            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
-            user=user,
-        )
+#     try:
+#         await import_users(file)
+#     except:
+#         await AuditLogHeader.objects.create(
+#             table_name="users",
+#             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
+#             user=user,
+#         )
 
 
 @router.post("/users/shift", tags=["migration"], status_code=201)
@@ -64,7 +64,7 @@ async def import_devices_from_csv(
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
-        raise HTTPException(400, e.__str__())
+        raise e
 
 
 @router.post("/repair-experiences", tags=["migration"], status_code=201)
@@ -75,7 +75,17 @@ async def import_repair_experiences_from_csv(
 ):
     if file.filename.split(".")[1] != "csv":
         raise HTTPException(415)
-    await import_employee_repair_experience_table(file, clear_all)
+
+    try:
+        await import_employee_repair_experience_table(file, clear_all)
+    except Exception as e:
+        await AuditLogHeader.objects.create(
+            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
+            table_name="userdevicelevels",
+            description="Import category priority failed",
+            user=user,
+        )
+        raise e
 
 
 @router.post("/project-category-priority", tags=["migration"], status_code=201)
@@ -89,12 +99,13 @@ async def import_project_category_priority_from_csv(
 
     try:
         await import_project_category_priority(file)
-    except:
+    except Exception as e:
         await AuditLogHeader.objects.create(
             table_name="categorypris",
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
+        raise e
 
 
 @router.post("/factory-map", tags=["migration"], status_code=201)
@@ -117,19 +128,20 @@ async def import_factory_map(
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
             user=user,
         )
-    except:
+    except Exception as e:
         await AuditLogHeader.objects.create(
             table_name="factorymap",
             record_pk=name,
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
+        raise e
 
 
-@router.post("/pre-processing", tags=["migration"], status_code=201)
-async def import_transform_table(
-    file: UploadFile = File(...), clear_all: bool = Form(default=False),
-):
-    if file.filename.split(".")[1] != "csv":
-        raise HTTPException(415)
-    await transform_events(file)
+# @router.post("/pre-processing", tags=["migration"], status_code=201)
+# async def import_transform_table(
+#     file: UploadFile = File(...), clear_all: bool = Form(default=False),
+# ):
+#     if file.filename.split(".")[1] != "csv":
+#         raise HTTPException(415)
+#     await transform_events(file)

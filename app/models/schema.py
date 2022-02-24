@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     username: str
     full_name: str
     expertises: List[str]
+    level: int
 
 
 class UserCreate(UserBase):
