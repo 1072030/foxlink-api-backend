@@ -27,3 +27,4 @@ cryptography
 ormar
 pandas
 paho-mqtt
+openpyxl
