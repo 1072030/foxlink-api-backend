@@ -42,6 +42,7 @@ class FoxlinkDbPool:
             f"mysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{FOXLINK_DB_HOST}:{FOXLINK_DB_PORT}"
         )
         self._ticker = Ticker(self.fetch_events_from_foxlink, 3)
+        self._2ndticker = Ticker(self.check_events_is_complete, 10)
 
     async def get_database_names(self):
         result = await self._db.fetch_all("SHOW DATABASES")
@@ -50,10 +51,12 @@ class FoxlinkDbPool:
     async def connect(self):
         await self._db.connect()
         await self._ticker.start()
+        await self._2ndticker.start()
 
     async def close(self):
         await self._db.disconnect()
         await self._ticker.stop()
+        await self._2ndticker.stop()
 
     async def get_db_table_list(self, db_name: str) -> List[str]:
         r = await self._db.fetch_all(
@@ -62,6 +65,25 @@ class FoxlinkDbPool:
         )
 
         return [x[0] for x in r]
+
+    async def get_a_event_from_table(
+        self, db_name: str, table_name: str, id: int
+    ) -> Optional[Event]:
+        stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ID = :id"
+        row: list = await self._db.fetch_one(query=stmt, values={"id": id})
+
+        return Event(
+            id=row[0],
+            project=table_name,
+            line=row[1],
+            device_name=row[2],
+            category=row[3],
+            start_time=row[4],
+            end_time=row[5],
+            message=row[6],
+            start_file_name=row[7],
+            end_file_name=row[8],
+        )
 
     async def get_recent_events(self, db_name: str, table_name: str) -> List[Event]:
         stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL ORDER BY Start_Time DESC;"
@@ -82,6 +104,24 @@ class FoxlinkDbPool:
             )
             for x in rows
         ]
+
+    async def check_events_is_complete(self):
+        missions = (
+            await Mission.objects.filter(repair_end_date=None)
+            .select_related("device")
+            .all()
+        )
+
+        for m in missions:
+            event = await self.get_a_event_from_table(
+                db_name, m.device.id.split("-")[0], m.related_event_id
+            )
+
+            if event is None:
+                continue
+
+            if event.end_time is not None:
+                await m.update(event_end_date=event.end_time, done_verified=True)
 
     async def fetch_events_from_foxlink(self):
         tables = await self.get_db_table_list(db_name)
