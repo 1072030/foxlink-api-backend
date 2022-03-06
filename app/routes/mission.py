@@ -48,7 +48,7 @@ class MissionDto(BaseModel):
 
 
 @router.get("/", response_model=List[Mission], tags=["missions"])
-async def read_all_missions(user: User = Depends(get_current_active_user)):
+async def read_all_missions(user: User = Depends(get_admin_active_user)):
     return await get_missions()
 
 
