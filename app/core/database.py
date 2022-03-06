@@ -170,6 +170,7 @@ class Mission(ormar.Model):
     device: Device = ormar.ForeignKey(Device)
     assignees: List[User] = ormar.ManyToMany(User)
     name: str = ormar.String(max_length=100, nullable=False)
+    category: int = ormar.Integer(nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
     repair_start_date: Optional[date] = ormar.DateTime(nullable=True)
     repair_end_date: Optional[date] = ormar.DateTime(nullable=True)

@@ -1,20 +1,36 @@
-from typing import List, Any, Dict
-import os
+import datetime
+from typing import List, Dict, Optional
+
+from pydantic import BaseModel
 from app.utils.timer import Ticker
-from app.daemon.dto import Event
 from app.core.database import Device, Mission
 from app.models.schema import MissionCreate
 from app.services.mission import create_mission
+from app.core.database import Mission
 from databases import Database
 from app.env import (
     FOXLINK_DB_USER,
     FOXLINK_DB_PWD,
     FOXLINK_DB_HOST,
     FOXLINK_DB_PORT,
-    FOXLINK_DB_NAME,
 )
 
 unfinished_event_ids: Dict[int, bool] = {}
+
+db_name = "aoi"
+
+
+class Event(BaseModel):
+    id: int
+    project: str
+    line: str
+    device_name: str
+    category: int
+    start_time: datetime.datetime
+    end_time: Optional[datetime.datetime]
+    message: Optional[str]
+    start_file_name: Optional[str]
+    end_file_name: Optional[str]
 
 
 class FoxlinkDbPool:
@@ -48,8 +64,7 @@ class FoxlinkDbPool:
         return [x[0] for x in r]
 
     async def get_recent_events(self, db_name: str, table_name: str) -> List[Event]:
-        await self._db.execute(f"USE `{db_name}`;")
-        stmt = f"SELECT * FROM `{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL;"
+        stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL ORDER BY Start_Time DESC;"
         rows = await self._db.fetch_all(query=stmt)
 
         return [
@@ -69,9 +84,6 @@ class FoxlinkDbPool:
         ]
 
     async def fetch_events_from_foxlink(self):
-        db_name = "aoi"
-
-
         tables = await self.get_db_table_list(db_name)
         tables = [x for x in tables if x != "measure_info"]
 
@@ -79,35 +91,25 @@ class FoxlinkDbPool:
             events = await self.get_recent_events(db_name, table_name)
 
             for e in events:
-                unfinished_event_ids[e.id] = True
+                m = await Mission.objects.filter(related_event_id=e.id).get_or_none()
 
-                try:
-                    await Device.objects.get_or_create(
-                        id=self._generate_device_id(e),
-                        project=e.project,
-                        line=e.line,
-                        device_name=e.device_name,
-                        x_axis=0,
-                        y_axis=0,
-                    )
+                if m is not None:
+                    continue
 
-                    is_event_id_existed = await Mission.objects.filter(
-                        related_event_id=e.id
-                    ).exists()
+                device = await Device.objects.filter(
+                    id=self.generate_device_id(e)
+                ).get()
 
-                    if not is_event_id_existed:
-                        await create_mission(
-                            MissionCreate(
-                                name="New Mission",
-                                device=self._generate_device_id(e),
-                                description=e.message,
-                                related_event_id=e.id,
-                                required_expertises=[],
-                            )
-                        )
-                except Exception as e:
-                    raise Exception("cannot create device", e)
+                await Mission.objects.create(
+                    device=device,
+                    related_event_id=e.id,
+                    category=e.category,
+                    event_start_date=e.start_time,
+                    name=f"{device.id} 故障",
+                    required_expertises=[],
+                    description=e.message,
+                )
 
-    def _generate_device_id(self, event: Event) -> str:
+    def generate_device_id(self, event: Event) -> str:
         return f"{event.project}-{event.line}-{event.device_name}"
 
