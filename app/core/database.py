@@ -29,10 +29,10 @@ def generate_uuidv4():
 
 
 class UserLevel(Enum):
-    maintainer = 0  # 維修人員
-    manager = 1  # 線長
-    supervisor = 2  # 組長
-    chief = 3  # 課級
+    maintainer = 1  # 維修人員
+    manager = 2  # 線長
+    supervisor = 3  # 組長
+    chief = 4  # 課級
     # admin = 4 # 管理員
 
 
@@ -87,7 +87,7 @@ class Device(ormar.Model):
 
     id: str = ormar.String(max_length=100, primary_key=True, index=True)
     project: str = ormar.String(max_length=50, nullable=False)
-    process: Optional[int] = ormar.Integer(nullable=True)
+    process: Optional[str] = ormar.String(max_length=50, nullable=True)
     line: int = ormar.Integer(nullable=True)
     device_name: str = ormar.String(max_length=20, nullable=False)
     x_axis: float = ormar.Float(nullable=False)

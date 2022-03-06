@@ -28,6 +28,7 @@ app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(factorymap.router)
+# app.include_router(testing.router)
 
 
 foxlink_db = FoxlinkDbPool()

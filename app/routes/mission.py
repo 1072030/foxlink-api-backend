@@ -29,7 +29,7 @@ class DeviceDto(BaseModel):
     device_id: str
     device_name: str
     project: str
-    process: int
+    process: str
     line: int
 
 

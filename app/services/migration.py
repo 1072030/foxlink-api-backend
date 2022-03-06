@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import List, Callable, Coroutine, Dict, Any
 from app.core.database import (
     User,
@@ -6,7 +7,6 @@ from app.core.database import (
     UserDeviceLevel,
     UserLevel,
     UserShiftInfo,
-    Mission,
     FactoryMap,
     CategoryPRI,
     database,
@@ -19,112 +19,9 @@ from fastapi import UploadFile
 from datetime import datetime
 import csv
 import pandas as pd
+from app.dispatch import data_convert
 
-# TODO: integration
-def roster_file_transform(path, output_path="./"):  # 檔案讀取位置、輸出位置(預設為本py檔下)；檔案格式限制 .xlsx
-    file = pd.read_excel(path, sheet_name=None, header=None)
-    key = file.keys()
-    df_attend = pd.DataFrame()  # 預備儲存新的排班資料
-    for d in key:  # 白班(0)夜班(1)
-        df = file[d]
-        df = df.dropna(how="all")  # 去除空白row
-        df = df.dropna(
-            thresh=len(df) / 2, axis=1
-        )  # 去除 nan 太多的 column (excel讀取問題)；thresh：非nan值 的數量大於此參數值，則保留row/column
-        "儲存員工出勤資訊的新結構資料表"
-        df_trans = pd.DataFrame(
-            columns=[
-                "Worker_Name",
-                "project",
-                "Process",
-                "Line",
-                "Device_Name",
-                "date",
-                "day_or_night",
-                "attend",
-                "线长",
-                "组长",
-                "課級",
-            ]
-        )
-        "資料切成四塊；日期(date_info)、產線資訊(process_info)、員工(worker_info)、管理階層(manager_info)；經過一日期一個循環"
-        r = 0
-        while r < len(df):
-            "判斷是否為日期"
-            if isinstance(df.iloc[r, 0], datetime.date):  #  檢查是不是日期資料
-                date_info = df.iloc[r, 0]  # 儲存日期
-                process_info = df.iloc[r + 1 : r + 3, :]  # 儲存產線資訊；自動機製程段、班別機種
-                r += 3  # 跳到各班別機種員工資訊row
-                # 進入一循環
-                for w in range(r, len(df)):
-                    if df.iloc[w, 0] == "线长":  # 以"线长"資訊欄未作為判斷，是否為非指派之員工
-                        worker_info = df.iloc[r:w, :]  # 儲存員工資訊
-                        manager_info = df.iloc[w : w + 3, :]  # 儲存 线长, 组长, 課級資訊
-                        r = w + 3  # 理論上會跳到下一日期之 row
-                        break
-                    else:
-                        pass
-                "處理所得之四項 info 進行資料轉換"
-                # nan 填補
-                process_info = process_info.fillna(
-                    method="ffill", axis=1
-                )  # 填補 column；向右填補
-                manager_info = manager_info.fillna(
-                    method="ffill", axis=1
-                )  # 填補 column；向右填補
-                for wr in range(0, len(worker_info)):  # worker_info row 長度；注意是iloc
-                    for wc in range(
-                        2, len(worker_info.columns), 2
-                    ):  # worker_info column 長度；wc 從 2 開始，間隔 1 (注意是iloc)
-                        df_trans = df_trans.append(
-                            {
-                                "Worker_Name": worker_info.iloc[wr, wc],
-                                "Process": process_info.iloc[0, wc].strip(
-                                    "M段"
-                                ),  # 只保留數字部分
-                                "project": worker_info.iloc[wr, 0],
-                                "Line": worker_info.iloc[wr, 1].strip(
-                                    "Line"
-                                ),  # 只保留數字部分
-                                "Device_Name": process_info.iloc[1, wc],
-                                "date": date_info,
-                                "day_or_night": d,
-                                "attend": worker_info.iloc[wr, wc + 1],
-                                "线长": manager_info.iloc[0, wc],
-                                "组长": manager_info.iloc[1, wc],
-                                "課級": manager_info.iloc[2, wc],
-                            },
-                            ignore_index=1,
-                        )
-            else:
-                r += 1
-        df_attend = df_attend.append(df_trans)  # 合併白夜班
-    "去除依舊有 nan 的 row"
-    df_attend = df_attend.dropna(how="any")
-    "相關欄位轉小寫"
-    df_attend["project"] = df_attend["project"].str.lower()
-    df_attend["Device_Name"] = df_attend["Device_Name"].str.lower()
-    "切割 Device, 线长, 组长, 課級 資訊"
-    df_attend["Device_Name"] = df_attend["Device_Name"].str.split(",")
-    df_attend["线长"] = df_attend["线长"].str.split(",")
-    df_attend["组长"] = df_attend["组长"].str.split(",")
-    df_attend["課級"] = df_attend["課級"].str.split(",")
-    "根據日期和班別排序"
-    df_attend = df_attend.sort_values(by=["date", "day_or_night"]).reset_index(
-        drop=True
-    )
-    "輸出、另存新檔csv,excel"
-    df_attend.to_csv(
-        output_path + "table_Roster_" + str(datetime.datetime.now().date()) + ".csv",
-        encoding="utf-8",
-        index=0,
-    )
-    df_attend.to_excel(
-        output_path + "table_Roster_" + str(datetime.datetime.now().date()) + ".xlsx",
-        encoding="utf-8",
-        index=0,
-    )
-    return df_attend
+data_converter = data_convert()
 
 
 @database.transaction()
@@ -156,85 +53,40 @@ async def process_csv_file(
         )
 
 
-# async def import_users(csv_file: UploadFile):
-#     """
-#     Improt user list form csv file
-#     """
-
-#     lines: str = (await csv_file.read()).decode("utf-8")
-#     reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
-
-#     users: List[User] = []
-#     for row in reader:
-#         user = User(
-#             username=row[0],
-#             password_hash=get_password_hash(row[1]),
-#             full_name=row[2],
-#             expertises=row[3],
-#             is_active=row[4],
-#             is_admin=row[5],
-#         )
-#         users.append(user)
-
-#     await User.objects.bulk_create(users)
-
-
-async def import_devices(csv_file: UploadFile, clear_all: bool = False):
-    """
-    Import device list from csv file.
-    """
-
-    async def process(row: List[str]) -> None:
-        max_length = 8
-        if len(row) != max_length:
-            raise HTTPException(400, f"each row must be {max_length} columns long")
-
-        workshop = await FactoryMap.objects.get_or_none(name=row[5])
-
-        if workshop is None:
-            workshop = await FactoryMap.objects.create(
-                name=row[5], related_devices="[]", map="[]"
-            )
-
-        if row[2] != "rescue":
-            # device_id = get_device_id(row[2], int(float(row[3])), row[4])
-            device = await Device.objects.get_or_none(id=row[0])
-
-            if device is None:
-                device = await Device.objects.create(
-                    id=row[0],
-                    project=row[1],
-                    process=int(float(1)),
-                    line=int(float(row[3])),
-                    device_name=row[4],
-                    x_axis=float(row[6]),
-                    y_axis=float(row[7]),
-                    workshop=workshop,
-                    is_rescue=False,
-                )
-            else:
-                await device.update(
-                    process=int(float(1)),
-                    x_axis=float(row[6]),
-                    y_axis=float(row[7]),
-                    workshop=workshop,
-                )
-        else:
-            # is rescue station
-            device = await Device.objects.get_or_create(
-                id=row[0],
-                project=f"{row[3]}-{row[4]}",
-                device_name=row[4],
-                x_axis=float(row[6]),
-                y_axis=float(row[7]),
-                is_rescue=True,
-                workshop=workshop,
-            )
-
+@database.transaction()
+async def import_devices(excel_file: UploadFile, clear_all: bool = False):
     if clear_all is True:
         await Device.objects.delete(each=True)
 
-    await process_csv_file(csv_file, process)
+    raw_excel: bytes = await excel_file.read()
+    frame = pd.read_excel(raw_excel, sheet_name=0)
+
+    bulk: List[Device] = []
+    for index, row in frame.iterrows():
+        workshop = await FactoryMap.objects.get_or_none(name=row["workshop"])
+
+        if workshop is None:
+            workshop = await FactoryMap.objects.create(
+                name=row["workshop"], related_devices="[]", map="[]"
+            )
+
+        is_rescue: bool = row["project"] == "rescue"
+
+        device = Device(
+            id=row["id"],
+            project=row["project"],
+            process=row["process"] if type(row["process"]) is str else None,
+            device_name=row["device_name"],
+            line=int(row["line"]) if math.isnan(row["line"]) == False else None,
+            x_axis=float(row["x_axis"]),
+            y_axis=float(row["y_axis"]),
+            is_rescue=is_rescue,
+            workshop=workshop,
+        )
+
+        bulk.append(device)
+
+    await Device.objects.bulk_create(bulk)
 
 
 async def import_employee_repair_experience_table(
@@ -391,28 +243,61 @@ async def import_factory_map_table(name: str, csv_file: UploadFile):
     await factory_m.update(map=matrix, related_devices=first_row[1:])
 
 
-async def transform_events(csv_file: UploadFile):
-    async def process(row: List[str]) -> None:
-        max_length = 10
-        if len(row) != max_length:
-            raise HTTPException(400, f"each row must be {max_length} columns long")
+@database.transaction()
+async def calcuate_factory_layout_matrix(excel_file: UploadFile):
+    raw_excel: bytes = await excel_file.read()
+    data = data_converter.fn_factorymap(raw_excel)
+    print(data)
 
-        device_id = get_device_id(row[0], int(float(row[2])), row[3])
-        device = await Device.objects.get_or_none(id=device_id)
+    matrix: List[List[float]] = []
 
-        if device is None:
-            return
+    for index, row in data.iterrows():
+        matrix.append(row.values.tolist())
 
-        await Mission.objects.create(
-            device=device,
-            name="Mission",
-            description=row[7],
-            required_expertises=[],
-            related_event_id=int(float(row[1])),
-            is_cancel=False,
-            event_start_date=datetime.strptime(row[5], "%Y-%m-%d %H:%M:%S"),
-            event_end_date=datetime.strptime(row[6], "%Y-%m-%d %H:%M:%S"),
-        )
+    await FactoryMap.objects.filter(name="第九車間").update(
+        related_devices=data.columns.values.tolist(), map=matrix
+    )
 
-    await process_csv_file(csv_file, process)
+
+@database.transaction()
+async def import_factory_worker_infos(excel_file: UploadFile):
+    raw_excel: bytes = await excel_file.read()
+    data = data_converter.fn_factory_worker_info(raw_excel)
+    print(data)
+
+    for index, row in data.iterrows():
+        worker = await User.objects.filter(username=row["worker_id"]).get_or_none()
+        workshop = await FactoryMap.objects.filter(name="第九車間").get()
+
+        if worker is None:
+            worker = await User.objects.create(
+                username=row["worker_id"],
+                full_name=row["worker_name"],
+                password_hash=get_password_hash("foxlink"),
+                expertises=[],
+                is_active=True,
+                is_admin=False,
+                location=workshop,
+                level=row["job"],
+            )
+
+        # if worker is not maintainer(維修人員), we shouldn't create a device exp. for them.
+        if row["job"] != UserLevel.maintainer.value:
+            continue
+
+        related_devices = await Device.objects.filter(
+            workshop=workshop.id,
+            process=row["process"],
+            project__iexact=row["project"],
+            device_name=row["device_name"],
+        ).all()
+
+        bulk = []
+        for d in related_devices:
+            bulk.append(
+                UserDeviceLevel(
+                    device=d, user=worker, shift=row["shift"], level=row["level"]
+                )
+            )
+        await UserDeviceLevel.objects.bulk_create(bulk)
 

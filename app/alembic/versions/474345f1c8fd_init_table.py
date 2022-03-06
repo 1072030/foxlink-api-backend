@@ -61,7 +61,7 @@ def upgrade():
         "devices",
         sa.Column("id", sa.String(length=100), nullable=False),
         sa.Column("project", sa.String(length=50), nullable=False),
-        sa.Column("process", sa.Integer(), nullable=True),
+        sa.Column("process", sa.String(length=50), nullable=True),
         sa.Column("line", sa.Integer(), nullable=True),
         sa.Column("device_name", sa.String(length=20), nullable=False),
         sa.Column("x_axis", sa.Float(), nullable=False),
