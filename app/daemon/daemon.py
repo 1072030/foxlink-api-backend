@@ -70,7 +70,7 @@ class FoxlinkDbPool:
         self, db_name: str, table_name: str, id: int
     ) -> Optional[Event]:
         stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ID = :id"
-        row: list = await self._db.fetch_one(query=stmt, values={"id": id})
+        row: list = await self._db.fetch_one(query=stmt, values={"id": id})  # type: ignore
 
         return Event(
             id=row[0],
