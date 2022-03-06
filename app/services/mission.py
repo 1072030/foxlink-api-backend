@@ -117,7 +117,7 @@ async def dispatch_routine():
     for m in avaliable_missions:
         p = (
             await CategoryPRI.objects.select_all()
-            .filter(devices__id=m.device.id)
+            .filter(devices__id=m.device.id, category=m.category)
             .get_or_none()
         )
 
