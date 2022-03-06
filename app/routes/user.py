@@ -21,7 +21,7 @@ router = APIRouter(prefix="/users")
 
 
 @router.get("/", response_model=List[User], tags=["users"])
-async def read_all_users(user: User = Depends(get_current_active_user)):
+async def read_all_users(user: User = Depends(get_admin_active_user)):
     users = await get_users()
     return users
 
@@ -47,10 +47,14 @@ async def change_password(
 
     await update_user(user.id, password_hash=get_password_hash(dto.new_password))
 
+
 @router.get("/offwork", tags=["users"])
 async def get_offwork(user: User = Depends(get_current_active_user)):
     if user.level == UserLevel.maintainer.value:
-        await WorkerStatus.objects.filter(worker=user).update(status=WorkerStatusEnum.leave.value)
+        await WorkerStatus.objects.filter(worker=user).update(
+            status=WorkerStatusEnum.leave.value
+        )
+
 
 @router.patch("/{user_id}", tags=["users"])
 async def update_user_information(
