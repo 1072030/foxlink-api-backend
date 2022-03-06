@@ -65,7 +65,7 @@ async def get_logs(
                 table_name=log.table_name,
                 record_pk=log.record_pk,
                 values=log.values,
-                username=log.user.username,
+                username=log.user.username if log.user is not None else None,
                 created_date=log.created_date,
             )
             for log in logs
