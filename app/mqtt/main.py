@@ -3,7 +3,7 @@ import logging
 import json
 
 
-mqtt_client: client
+mqtt_client: client.Client
 
 
 def connect_mqtt(broker: str, port: int, client_id: str):
@@ -13,6 +13,7 @@ def connect_mqtt(broker: str, port: int, client_id: str):
         else:
             logging.error("Failed to connect to MQTT, returnee code: ", rc)
 
+    global mqtt_client
     mqtt_client = client.Client(client_id)
     mqtt_client.on_connect = on_connect
     mqtt_client.connect(broker, port=port)
