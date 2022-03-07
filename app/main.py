@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.routes import (
     health,
     migration,
+    mock,
     user,
     auth,
     mission,
@@ -28,7 +29,7 @@ app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(factorymap.router)
-# app.include_router(testing.router)
+app.include_router(mock.router)
 
 
 foxlink_db = FoxlinkDbPool()
@@ -40,10 +41,15 @@ async def startup():
     await database.connect()
     await foxlink_db.connect()
     await dispatcher.start()
+    # mock, test usage
+    await mock._db.connect()
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    # mock, test usage
+    await mock._db.disconnect()
+
     await dispatcher.stop()
     await foxlink_db.close()
     await database.disconnect()

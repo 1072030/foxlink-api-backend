@@ -15,7 +15,6 @@ from app.env import (
     FOXLINK_DB_PORT,
 )
 
-unfinished_event_ids: Dict[int, bool] = {}
 
 db_name = "aoi"
 
