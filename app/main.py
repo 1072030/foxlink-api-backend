@@ -1,5 +1,6 @@
 import logging
 from fastapi import FastAPI
+from app.env import MQTT_BROKER, MQTT_PORT
 from app.routes import (
     health,
     migration,
@@ -16,6 +17,7 @@ from app.core.database import database
 from app.daemon.daemon import FoxlinkDbPool
 from app.services.mission import dispatch_routine
 from app.utils.timer import Ticker
+from app.mqtt.main import connect_mqtt, disconnect_mqtt
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
@@ -38,6 +40,7 @@ dispatcher = Ticker(dispatch_routine, 10)
 
 @app.on_event("startup")
 async def startup():
+    connect_mqtt(MQTT_BROKER, MQTT_PORT, "foxlink-api-server")
     await database.connect()
     await foxlink_db.connect()
     await dispatcher.start()
@@ -47,9 +50,11 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
+
     # mock, test usage
     await mock._db.disconnect()
 
     await dispatcher.stop()
     await foxlink_db.close()
     await database.disconnect()
+    disconnect_mqtt()

@@ -1,31 +1,33 @@
-from paho.mqtt import client as mqtt_client
-from app.env import MQTT_PORT, MQTT_BROKER
+from paho.mqtt import client
 import logging
 import json
 
 
+mqtt_client: client
+
+
 def connect_mqtt(broker: str, port: int, client_id: str):
-    def on_connect(client, user_data, flags, rc):
+    def on_connect(c, user_data, flags, rc):
         if rc == 0:
             logging.log("Connected to MQTT broker")
         else:
             logging.error("Failed to connect to MQTT, returnee code: ", rc)
 
-    c = mqtt_client.Client(client_id)
-    c.on_connect = on_connect
-    c.connect(broker, port=port)
-
-    return c
+    mqtt_client = client.Client(client_id)
+    mqtt_client.on_connect = on_connect
+    mqtt_client.connect(broker, port=port)
 
 
-client = connect_mqtt(MQTT_BROKER, MQTT_PORT, "foxlink_api_server")
+def disconnect_mqtt():
+    if mqtt_client is not None:
+        mqtt_client.disconnect()
 
 
 def publish(topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
-    if client is None:
+    if mqtt_client is None:
         raise Exception("MQTT client is not initialized")
 
     json_str = json.dumps(payload)
-    result = client.publish(topic, payload=json_str, qos=qos, retain=retain)
+    result = mqtt_client.publish(topic, payload=json_str, qos=qos, retain=retain)
     # if result[0] is 0, then publish successfully
     return result[0] == 0
