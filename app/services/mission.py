@@ -489,6 +489,8 @@ async def assign_mission(mission_id: int, username: str):
                     "line": mission.device.line,
                     "name": mission.device.device_name,
                 },
+                "name": mission.name,
+                "description": mission.description,
             },
             qos=1,
             retain=True,
