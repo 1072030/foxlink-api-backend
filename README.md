@@ -16,8 +16,8 @@
 範例：
 ```jsonc
 {
-  "type" : "new",
-  "mission_id" : 12,
+  "type" : "new", # 該事件的類別：new 為新增任務
+  "mission_id" : 12, # 新增任務的 ID
   "device" : {
     "project" : "n104",
     "process" : "M3段",
@@ -31,11 +31,19 @@
 - foxlink/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
 範例：
 ```jsonc
-{"id": "任務的 ID", "worker": "員工姓名", "rejected_count": "該任務總拒絕次數"}}
+{
+    "id": 1, # 被拒絕超過兩次的任務 id
+    "worker": "員工姓名",
+    "rejected_count": "該任務總拒絕次數"
+}
 ```
-- foxlink/messages - 發送相關重要錯誤訊息。下為範例，當沒有可指派的員工時：
+- foxlink/no-available-worker - 當有任務無人可以指派時，會推送這個訊息
 ```jsonc
-{"type": "error", "message": "no worker available to fix devices"}
+{
+  "mission_id" : 12, # 沒有人可以指派的任務 ID
+  "device_id": "string", # DeviceID
+  "description": "任務的敘述，目前是放故障的問題原因"
+}
 ```
 
 # Related Infos
