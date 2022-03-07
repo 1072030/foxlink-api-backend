@@ -37,3 +37,10 @@
 ```jsonc
 {"type": "error", "message": "no worker available to fix devices"}
 ```
+
+# Related Infos
+- NTUST MQTT Broker: 140.118.157.9:27010
+- Foxlink online API docs: http://140.118.157.9:8080/docs
+- Default admin login credential:
+  - username: admin
+  - password: foxlink
