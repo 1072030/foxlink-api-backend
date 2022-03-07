@@ -87,6 +87,8 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False):
         bulk.append(device)
 
     await Device.objects.bulk_create(bulk)
+    # calcuate factroy map matrix
+    await calcuate_factory_layout_matrix(raw_excel)
 
 
 async def import_employee_repair_experience_table(
@@ -161,94 +163,28 @@ async def import_employee_shift_table(csv_file: UploadFile):
     await process_csv_file(csv_file, process)
 
 
-async def import_employee_table(csv_file: UploadFile):
-    async def process(row: List[str]) -> None:
-        if len(row) != 2:
-            raise HTTPException(400, "each row must be 2 columns long")
-        user = User(
-            id=row[0],
-            username=row[0],
-            full_name=row[1],
-            password_hash=get_password_hash("foxlink"),
-            expertises=[],
-            is_active=True,
-            is_admin=False,
-            level=0,
-        )
-        await user.upsert()
-
-    await process_csv_file(csv_file, process)
-
-
 # 匯入 Device's Category & Priority
 @database.transaction()
-async def import_project_category_priority(csv_file: UploadFile):
-    async def process(row: List[str]) -> None:
-        if len(row) != 5:
-            raise HTTPException(400, "each row must be 5 columns long")
+async def import_workshop_events(excel_file: UploadFile):
+    raw_excel: bytes = await excel_file.read()
+    data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
 
+    for index, row in data.iterrows():
         devices = await Device.objects.filter(
-            project__istartswith=row[3].lower(), device_name=row[4]
+            project__iexact=row["project"],
+            device_name=row["Device_Name"].replace(" ", "_"),
         ).all()
 
         p = await CategoryPRI.objects.create(
-            category=int(row[0]), message=row[1], priority=int(row[2])
+            category=row["Category"], message=row["MESSAGE"], priority=row["优先顺序"],
         )
 
         for d in devices:
             await p.devices.add(d)  # type: ignore
 
-    await process_csv_file(csv_file, process)
 
-
-@database.transaction()
-async def import_factory_map_table(name: str, csv_file: UploadFile):
-    factory_m = await FactoryMap.objects.get_or_none(name=name)
-
-    if factory_m is None:
-        raise HTTPException(404, "the factory map you request is not found")
-
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
-
-    first_row: List[str] = []
-    matrix: List[List[float]] = []
-
-    row_idx = 0  # rows
-    col_idx = 0  # columns
-    for row in reader:
-        col_idx = 0
-        if row_idx == 0:
-            first_row = row
-            row_idx += 1
-            continue
-        m = []
-        for col in row:
-            if col_idx == 0:
-                col_idx += 1
-                continue
-
-            m.append(float(col))
-            col_idx += 1
-
-        if len(m) != len(first_row) - 1:  # -1 becuase first cell(1,1) is 'id' text
-            raise HTTPException(400, "each row must be the same length")
-
-        matrix.append(m)
-        row_idx += 1
-
-    if len(matrix) != len(first_row) - 1:
-        raise HTTPException(400, "each column must be the same length")
-
-    await factory_m.update(map=matrix, related_devices=first_row[1:])
-
-
-@database.transaction()
-async def calcuate_factory_layout_matrix(excel_file: UploadFile):
-    raw_excel: bytes = await excel_file.read()
+async def calcuate_factory_layout_matrix(raw_excel: bytes):
     data = data_converter.fn_factorymap(raw_excel)
-    print(data)
-
     matrix: List[List[float]] = []
 
     for index, row in data.iterrows():

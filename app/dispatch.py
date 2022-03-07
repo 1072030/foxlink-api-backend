@@ -181,11 +181,13 @@ class data_convert:
 
     """車間機種事件簿"""
     # 一次處理一個機種事件簿 excel表； e.g. D5X device事件簿.xlsx
-    def fn_proj_eventbooks(self, excel_file_path):  # 輸入資料路徑與名稱；須注意資料名稱格式
+    def fn_proj_eventbooks(
+        self, filename: str, raw_excel: bytes
+    ):  # 輸入資料路徑與名稱；須注意資料名稱格式
         print("轉換中...")
-        _project_name_ = excel_file_path.split("/")[-1].split(" ")[0]  # 抓取 project 檔案名稱
+        _project_name_ = filename.split(" ")[0]  # 抓取 project 檔案名稱
         self.df_proj_eventbooks = pd.read_excel(
-            excel_file_path, sheet_name=None
+            raw_excel, sheet_name=None
         )  # 讀 excel 資料
         _devices_ = list(self.df_proj_eventbooks.keys())  # 根據"工作表"名稱進行抓取device名稱
 

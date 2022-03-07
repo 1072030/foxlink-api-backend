@@ -118,6 +118,8 @@ typing-extensions==4.0.1
     #   pydantic
 uvicorn==0.16.0
     # via -r requirements.in
+xlrd==2.0.1
+    # via -r requirements.in
 zipp==3.7.0
     # via
     #   importlib-metadata

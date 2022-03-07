@@ -28,3 +28,4 @@ ormar
 pandas
 paho-mqtt
 openpyxl
+xlrd
