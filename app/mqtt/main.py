@@ -9,7 +9,7 @@ mqtt_client: client.Client
 def connect_mqtt(broker: str, port: int, client_id: str):
     def on_connect(c, user_data, flags, rc):
         if rc == 0:
-            logging.log("Connected to MQTT broker")
+            logging.info("Connected to MQTT broker")
         else:
             logging.error("Failed to connect to MQTT, returnee code: ", rc)
 
@@ -17,6 +17,7 @@ def connect_mqtt(broker: str, port: int, client_id: str):
     mqtt_client = client.Client(client_id)
     mqtt_client.on_connect = on_connect
     mqtt_client.connect(broker, port=port)
+    mqtt_client.loop_start()
 
 
 def disconnect_mqtt():
