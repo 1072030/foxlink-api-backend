@@ -11,7 +11,7 @@ def connect_mqtt(broker: str, port: int, client_id: str):
         else:
             logging.error("Failed to connect to MQTT, returnee code: ", rc)
 
-    c = mqtt_client.Client(client_id, protocol=mqtt_client.MQTTv5)
+    c = mqtt_client.Client(client_id)
     c.on_connect = on_connect
     c.connect(broker, port=port)
 

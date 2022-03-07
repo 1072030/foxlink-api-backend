@@ -1,7 +1,5 @@
-import json
-import random
 from app.services.device import get_device_by_id
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from app.core.database import (
     CategoryPRI,
@@ -172,6 +170,15 @@ async def dispatch_routine():
         if w.user.level != UserLevel.maintainer.value:
             continue
 
+        user_login_logs = await AuditLogHeader.objects.filter(
+            user=w.user.id,
+            action=AuditActionEnum.USER_LOGIN.value,
+            created_date__gte=datetime.utcnow() - timedelta(hours=12),
+        ).count()
+
+        if user_login_logs == 0:
+            continue
+
         # if worker has already working on other mission, skip
         if (
             await Mission.objects.filter(
@@ -206,6 +213,17 @@ async def dispatch_routine():
             "level": w.level,
         }
         w_list.append(item)
+
+    if len(w_list) == 0:
+        logging.error("no worker available to fix devices")
+        publish(
+            "foxlink/messages",
+            {"type": "error", "message": "no worker available to fix devices"},
+            qos=1,
+            retain=True,
+        )
+        return
+
     dispatch.get_dispatch_info(w_list)
     worker_1st = dispatch.worker_dispatch()
 
@@ -367,7 +385,8 @@ async def reject_mission_by_id(mission_id: int, user: User):
                 "worker": user.full_name,
                 "rejected_count": related_logs_amount,
             },
-            1,
+            qos=1,
+            retain=True,
         )
 
 
@@ -471,7 +490,8 @@ async def assign_mission(mission_id: int, username: str):
                     "name": mission.device.device_name,
                 },
             },
-            1,
+            qos=1,
+            retain=True,
         )
     else:
         raise HTTPException(400, detail="the user is already assigned to this mission")
@@ -515,6 +535,7 @@ async def request_assistance(mission_id: int, validate_user: User):
     publish(
         "foxlink/mission/emergency",
         {"id": mission.id, "worker": validate_user.full_name,},
-        1,
+        qos=1,
+        retain=True,
     )
 
