@@ -7,6 +7,7 @@ services:
     ports:
       - 18083:18083
       - 27010:1883
+      - 8083:8083
     networks:
       - backend
 
