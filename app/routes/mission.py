@@ -47,9 +47,32 @@ class MissionDto(BaseModel):
     updated_date: datetime.datetime
 
 
-@router.get("/", response_model=List[Mission], tags=["missions"])
+@router.get("/", response_model=List[MissionDto], tags=["missions"])
 async def read_all_missions(user: User = Depends(get_admin_active_user)):
-    return await get_missions()
+    missions = await get_missions()
+
+    return [
+        MissionDto(
+            mission_id=x.id,
+            name=x.name,
+            device=DeviceDto(
+                device_id=x.device.id,
+                device_name=x.device.device_name,
+                project=x.device.project,
+                process=x.device.process,
+                line=x.device.line,
+            ),
+            description=x.description,
+            is_started=x.is_started,
+            is_closed=x.is_closed,
+            assignees=[u.username for u in x.assignees],
+            event_start_date=x.event_start_date,
+            event_end_date=x.event_end_date,
+            created_date=x.created_date,
+            updated_date=x.updated_date,
+        )
+        for x in missions
+    ]
 
 
 @router.get("/self", response_model=List[MissionDto], tags=["missions"])

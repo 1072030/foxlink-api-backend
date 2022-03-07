@@ -217,8 +217,12 @@ async def dispatch_routine():
     if len(w_list) == 0:
         logging.error("no worker available to fix devices")
         publish(
-            "foxlink/messages",
-            {"type": "error", "message": "no worker available to fix devices"},
+            "foxlink/no-available-worker",
+            {
+                "mission_id": mission_1st.id,
+                "device_id": mission_1st.device.id,
+                "description": mission_1st.description,
+            },
             qos=1,
             retain=True,
         )
@@ -264,7 +268,7 @@ async def dispatch_routine():
 
 
 async def get_missions() -> List[Mission]:
-    return await Mission.objects.values()
+    return await Mission.objects.select_all().all()
 
 
 async def get_mission_by_id(id: int) -> Optional[Mission]:
