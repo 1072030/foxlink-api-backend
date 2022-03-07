@@ -15,7 +15,18 @@
 - foxlink/users/{username}/missions - 當用戶受指派新任務，會觸發這一事件
 範例：
 ```jsonc
-{"type": "new", "mission_id": 12, "device": {"project": "n104", "process": "M3段", "line": 4, "name": "Device_11"}}
+{
+  "type" : "new",
+  "mission_id" : 12,
+  "device" : {
+    "project" : "n104",
+    "process" : "M3段",
+    "line" : 4,
+    "name" : "Device_11"
+  },
+  "name": "任務名稱",
+  "description": "任務的敘述，目前是放故障的問題原因"
+}
 ```
 - foxlink/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
 範例：
