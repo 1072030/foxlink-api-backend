@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from app.core.database import Mission, database, User
 import datetime
 
+
 class UserInfo(BaseModel):
     username: str
     full_name: str
+
 
 class EmergencyMissionInfo(BaseModel):
     mission_id: str
@@ -34,7 +36,16 @@ async def get_top_abnormal_missions(limit: int):
     return query
 
 
-async def get_top_most_reject_mission_employee(limit: int):
+async def get_top_most_accept_mission_employees(limit: int):
+    query = await database.fetch_all(
+        f"SELECT u.username, u.full_name, count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_ACCEPTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",
+        {"limit": limit},
+    )
+
+    return query
+
+
+async def get_top_most_reject_mission_employees(limit: int):
     query = await database.fetch_all(
         f"SELECT u.username, u.full_name, count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",
         {"limit": limit},
@@ -67,7 +78,10 @@ async def get_emergency_missions() -> List[EmergencyMissionInfo]:
         EmergencyMissionInfo(
             mission_id=m.id,
             device_id=m.device.id,
-            assignees=[UserInfo(username=a.username, full_name=a.full_name) for a in m.assignees],
+            assignees=[
+                UserInfo(username=a.username, full_name=a.full_name)
+                for a in m.assignees
+            ],
             category=m.category,
             description=m.description,
             event_start_date=m.event_start_date,
