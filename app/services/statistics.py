@@ -1,4 +1,16 @@
+from typing import List, Optional
+from pydantic import BaseModel
 from app.core.database import Mission, database, User
+import datetime
+
+
+class EmergencyMissionInfo(BaseModel):
+    mission_id: str
+    device_id: str
+    assignees: List[str]
+    description: Optional[str]
+    category: str
+    event_start_date: datetime.datetime
 
 
 async def get_top_most_crashed_devices(limit: int):
@@ -41,7 +53,21 @@ async def get_login_users_percentage_by_week() -> float:
     return round(result[0][0] / total_user_count, 3)
 
 
-async def get_emergency_missions():
-    return await Mission.objects.filter(
-        is_emergency=True, repair_end_date__isnull=True
-    ).all()
+async def get_emergency_missions() -> List[EmergencyMissionInfo]:
+    missions = (
+        await Mission.objects.filter(is_emergency=True, repair_end_date__isnull=True)
+        .select_related("assignees")
+        .all()
+    )
+
+    return [
+        EmergencyMissionInfo(
+            mission_id=m.id,
+            device_id=m.device.id,
+            assignees=[a.username for a in m.assignees],
+            category=m.category,
+            description=m.description,
+            event_start_date=m.event_start_date,
+        )
+        for m in missions
+    ]

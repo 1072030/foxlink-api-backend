@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.core.database import WorkerStatus, WorkerStatusEnum
 
 from app.services.statistics import (
+    EmergencyMissionInfo,
     get_top_most_crashed_devices,
     get_login_users_percentage_by_week,
     get_top_most_reject_mission_employee,
@@ -20,7 +21,7 @@ class Stats(BaseModel):
     top_most_reject_mission_employee: List[Any]
     top_abnormal_missions: List[Any]
     login_users_percentage_this_week: float
-    current_emergency_mission: List[Any]
+    current_emergency_mission: List[EmergencyMissionInfo]
 
 
 @router.get("/", response_model=Stats, tags=["statistics"])
