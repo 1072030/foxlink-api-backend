@@ -36,7 +36,7 @@ async def get_top_abnormal_missions(limit: int):
 
 async def get_top_most_reject_mission_employee(limit: int):
     query = await database.fetch_all(
-        f"SELECT u.username , count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",
+        f"SELECT u.username, u.full_name, count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",
         {"limit": limit},
     )
 
