@@ -3,11 +3,14 @@ from pydantic import BaseModel
 from app.core.database import Mission, database, User
 import datetime
 
+class UserInfo(BaseModel):
+    username: str
+    full_name: str
 
 class EmergencyMissionInfo(BaseModel):
     mission_id: str
     device_id: str
-    assignees: List[str]
+    assignees: List[UserInfo]
     description: Optional[str]
     category: str
     event_start_date: datetime.datetime
@@ -64,7 +67,7 @@ async def get_emergency_missions() -> List[EmergencyMissionInfo]:
         EmergencyMissionInfo(
             mission_id=m.id,
             device_id=m.device.id,
-            assignees=[a.username for a in m.assignees],
+            assignees=[UserInfo(username=a.username, full_name=a.full_name) for a in m.assignees],
             category=m.category,
             description=m.description,
             event_start_date=m.event_start_date,
