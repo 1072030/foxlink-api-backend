@@ -10,6 +10,15 @@ async def get_top_most_crashed_devices(limit: int):
     return query
 
 
+async def get_top_abnormal_missions(limit: int):
+    query = await database.fetch_all(
+        "SELECT id, device, description, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration FROM missions WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL ORDER BY duration DESC LIMIT :limit;",
+        {"limit": limit},
+    )
+
+    return query
+
+
 async def get_top_most_reject_mission_employee(limit: int):
     query = await database.fetch_all(
         f"SELECT u.username , count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",

@@ -8,7 +8,8 @@ from app.services.statistics import (
     get_top_most_crashed_devices,
     get_login_users_percentage_by_week,
     get_top_most_reject_mission_employee,
-    get_emergency_missions
+    get_top_abnormal_missions,
+    get_emergency_missions,
 )
 
 router = APIRouter(prefix="/stats")
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/stats")
 class Stats(BaseModel):
     top_most_crashed_devices: List[Any]
     top_most_reject_mission_employee: List[Any]
+    top_abnormal_missions: List[Any]
     login_users_percentage_this_week: float
     current_emergency_mission: List[Any]
 
@@ -25,16 +27,18 @@ class Stats(BaseModel):
 async def get_overall_statistics():
     limit = 10
 
-    top_devices = await get_top_most_crashed_devices(limit)
+    top_crashed_devices = await get_top_most_crashed_devices(limit)
+    top_abnormal_missions = await get_top_abnormal_missions(limit)
     login_users_percentage = await get_login_users_percentage_by_week()
     top_mission_reject_employees = await get_top_most_reject_mission_employee(limit)
     emergency_missions = await get_emergency_missions()
 
     return Stats(
-        top_most_crashed_devices=top_devices,
+        top_most_crashed_devices=top_crashed_devices,
+        top_abnormal_missions=top_abnormal_missions,
         login_users_percentage_this_week=login_users_percentage,
         top_most_reject_mission_employee=top_mission_reject_employees,
-        current_emergency_mission=emergency_missions
+        current_emergency_mission=emergency_missions,
     )
 
 
