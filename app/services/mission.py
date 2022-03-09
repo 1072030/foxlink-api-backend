@@ -238,33 +238,34 @@ async def dispatch_routine():
     try:
         await assign_mission(mission_1st.id, worker_1st)
 
-        status = (
-            await WorkerStatus.objects.select_related("worker")
-            .filter(worker__username=worker_1st)
-            .get_or_none()
-        )
+        # status = (
+        #     await WorkerStatus.objects.select_related("worker")
+        #     .filter(worker__username=worker_1st)
+        #     .get_or_none()
+        # )
 
-        w = await User.objects.filter(username=worker_1st).get()
+        # w = await User.objects.filter(username=worker_1st).get()
 
-        if status is None:
-            status = await WorkerStatus.objects.create(
-                worker=w,
-                status=WorkerStatusEnum.working.value,
-                at_device=mission_1st.device.id,
-            )
-        else:
-            await status.update(
-                status=WorkerStatusEnum.working.value, at_device=mission_1st.device.id
-            )
+        # if status is None:
+        #     status = await WorkerStatus.objects.create(
+        #         worker=w,
+        #         status=WorkerStatusEnum.working.value,
+        #         at_device=mission_1st.device.id,
+        #     )
+        # else:
+        #     await status.update(
+        #         status=WorkerStatusEnum.working.value, at_device=mission_1st.device.id
+        #     )
 
         await AuditLogHeader.objects.create(
             table_name="missions",
             record_pk=mission_1st.id,
             action=AuditActionEnum.MISSION_ASSIGNED.value,
-            user=w,
+            user=w.user.id,
         )
     except Exception as e:
         logging.error("cannot assign to worker {}".format(worker_1st))
+        raise e
 
 
 async def get_missions() -> List[Mission]:
@@ -347,7 +348,8 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
     for worker in mission.assignees:
         worker_status = await WorkerStatus.objects.filter(worker=worker).get()
         worker_status.dispatch_count += 1
-        await worker_status.save()
+        worker_status.status = WorkerStatusEnum.working.value
+        await worker_status.update()
 
 
 async def reject_mission_by_id(mission_id: int, user: User):
