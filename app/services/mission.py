@@ -325,7 +325,7 @@ async def create_mission(dto: MissionCreate):
     await dispatch_routine()
     return created_mission
 
-
+@database.transaction()
 async def start_mission_by_id(mission_id: int, validate_user: User):
     mission = await Mission.objects.select_related("assignees").get_or_none(
         id=mission_id
@@ -350,6 +350,7 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
         worker_status.dispatch_count += 1
         worker_status.status = WorkerStatusEnum.working.value
         await worker_status.update()
+        await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_ACCEPTED.value, user=worker.id, table_name="missions", record_pk=mission.id)
 
 
 async def reject_mission_by_id(mission_id: int, user: User):
