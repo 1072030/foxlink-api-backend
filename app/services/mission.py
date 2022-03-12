@@ -19,8 +19,11 @@ from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
 from app.mqtt.main import publish
 from app.dispatch import FoxlinkDispatch
-import sys, logging
+import logging
 from app.services.user import get_user_by_username
+from app.my_log_conf import LOGGER_NAME
+
+logger = logging.getLogger(LOGGER_NAME)
 
 
 dispatch = FoxlinkDispatch()
@@ -61,8 +64,8 @@ async def worker_monitor_routine():
         ).all()
 
         if len(rescue_stations) == 0:
-            logging.error(f"there's no rescue station in workshop {w.location.id}")
-            logging.error(f"you should create a rescue station as soon as possible")
+            logger.error(f"there's no rescue station in workshop {w.location.id}")
+            logger.error(f"you should create a rescue station as soon as possible")
             return
 
         if status is None:
@@ -155,7 +158,7 @@ async def dispatch_routine():
     )
 
     if len(can_dispatch_workers) == 0:
-        logging.warn(f"No workers available to dispatch for mission {mission_1st}")
+        logger.warn(f"No workers available to dispatch for mission {mission_1st}")
         return
 
     factory_map = await FactoryMap.objects.filter(
@@ -215,7 +218,7 @@ async def dispatch_routine():
         w_list.append(item)
 
     if len(w_list) == 0:
-        logging.error("no worker available to fix devices")
+        logger.error("no worker available to fix devices")
         publish(
             "foxlink/no-available-worker",
             {
@@ -231,7 +234,7 @@ async def dispatch_routine():
     dispatch.get_dispatch_info(w_list)
     worker_1st = dispatch.worker_dispatch()
 
-    logging.info(
+    logger.info(
         "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
     )
 
@@ -264,7 +267,7 @@ async def dispatch_routine():
             user=w.user.id,
         )
     except Exception as e:
-        logging.error("cannot assign to worker {}".format(worker_1st))
+        logger.error("cannot assign to worker {}".format(worker_1st))
         raise e
 
 
@@ -317,13 +320,13 @@ async def create_mission(dto: MissionCreate):
     try:
         created_mission = await Mission.objects.create(**dto.dict())
     except:
-        logging.error(sys.exc_info())
         raise HTTPException(
             status_code=400, detail="raise a error when inserting mission into databse",
         )
 
     await dispatch_routine()
     return created_mission
+
 
 @database.transaction()
 async def start_mission_by_id(mission_id: int, validate_user: User):
@@ -350,7 +353,12 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
         worker_status.dispatch_count += 1
         worker_status.status = WorkerStatusEnum.working.value
         await worker_status.update()
-        await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_ACCEPTED.value, user=worker.id, table_name="missions", record_pk=mission.id)
+        await AuditLogHeader.objects.create(
+            action=AuditActionEnum.MISSION_ACCEPTED.value,
+            user=worker.id,
+            table_name="missions",
+            record_pk=mission.id,
+        )
 
 
 async def reject_mission_by_id(mission_id: int, user: User):

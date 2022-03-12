@@ -1,17 +1,18 @@
 from paho.mqtt import client
-import logging
 import json
+import logging
+from app.my_log_conf import LOGGER_NAME
 
-
+logger = logging.getLogger(LOGGER_NAME)
 mqtt_client: client.Client
 
 
 def connect_mqtt(broker: str, port: int, client_id: str):
     def on_connect(c, user_data, flags, rc):
         if rc == 0:
-            logging.info("Connected to MQTT broker")
+            logger.info("Connected to MQTT broker")
         else:
-            logging.error("Failed to connect to MQTT, returnee code: ", rc)
+            logger.error("Failed to connect to MQTT, returnee code: ", rc)
 
     global mqtt_client
     mqtt_client = client.Client(client_id)
