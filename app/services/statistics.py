@@ -9,6 +9,10 @@ class UserInfo(BaseModel):
     full_name: str
 
 
+class UserInfoWithDuration(UserInfo):
+    duration: int
+
+
 class EmergencyMissionInfo(BaseModel):
     mission_id: str
     device_id: str
@@ -16,6 +20,14 @@ class EmergencyMissionInfo(BaseModel):
     description: Optional[str]
     category: str
     event_start_date: datetime.datetime
+
+
+class AbnormalMissionInfo(BaseModel):
+    device_id: str
+    description: Optional[str]
+    category: int
+    duration: int
+    top_assignees: Optional[List[UserInfoWithDuration]]
 
 
 async def get_top_most_crashed_devices(limit: int):
@@ -28,17 +40,55 @@ async def get_top_most_crashed_devices(limit: int):
 
 
 async def get_top_abnormal_missions(limit: int):
-    query = await database.fetch_all(
-        "SELECT id, device, description, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration FROM missions WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL ORDER BY duration DESC LIMIT :limit;",
+    abnormal_missions: List[AbnormalMissionInfo] = await database.fetch_all(
+        """
+        SELECT DISTINCT device as device_id, description, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration
+        FROM missions
+        WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL
+        ORDER BY duration DESC
+        LIMIT :limit;
+        """,
         {"limit": limit},
-    )
+    )  # type: ignore
 
-    return query
+    abnormal_missions = [AbnormalMissionInfo(**m) for m in abnormal_missions]  # type: ignore
+
+    for m in abnormal_missions:
+        # fetch top 3 assignees that deal with device out-of-order issue most quickly
+        top_assignees_in_mission = await database.fetch_all(
+            """
+            SELECT DISTINCT u.username, u.full_name, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration
+            FROM missions
+            LEFT OUTER JOIN missions_users mu ON missions.id=mu.mission
+            INNER JOIN users u ON u.id = mu.user 
+            WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
+            ORDER BY duration ASC
+            LIMIT 3;
+            """,
+            {"device_id": m.device_id, "category": m.category},
+        )
+
+        m.top_assignees = [
+            UserInfoWithDuration(
+                username=x["username"], full_name=x["full_name"], duration=x["duration"]
+            )
+            for x in top_assignees_in_mission
+        ]
+
+    return abnormal_missions
 
 
 async def get_top_most_accept_mission_employees(limit: int):
     query = await database.fetch_all(
-        f"SELECT u.username, u.full_name, count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_ACCEPTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",
+        """
+        SELECT u.username, u.full_name, count(*) AS count
+        FROM `auditlogheaders`
+        INNER JOIN users u ON u.id = auditlogheaders.`user`
+        WHERE action='MISSION_ACCEPTED' AND MONTH(created_date) = MONTH(CURRENT_DATE())
+        GROUP BY u.username
+        ORDER BY count DESC
+        LIMIT :limit;
+        """,
         {"limit": limit},
     )
 
@@ -47,7 +97,15 @@ async def get_top_most_accept_mission_employees(limit: int):
 
 async def get_top_most_reject_mission_employees(limit: int):
     query = await database.fetch_all(
-        f"SELECT u.username, u.full_name, count(*) AS count FROM `auditlogheaders` INNER JOIN users u ON u.id = auditlogheaders.`user` WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE()) GROUP BY u.username ORDER BY count DESC LIMIT :limit;",
+        """
+        SELECT u.username, u.full_name, count(*) AS count
+        FROM `auditlogheaders`
+        INNER JOIN users u ON u.id = auditlogheaders.`user`
+        WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE())
+        GROUP BY u.username
+        ORDER BY count DESC
+        LIMIT :limit;
+        """,
         {"limit": limit},
     )
 
