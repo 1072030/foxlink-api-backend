@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.core.database import Mission, WorkerStatus, WorkerStatusEnum
 
 from app.services.statistics import (
+    AbnormalMissionInfo,
     EmergencyMissionInfo,
     get_top_most_crashed_devices,
     get_login_users_percentage_by_week,
@@ -21,7 +22,7 @@ class Stats(BaseModel):
     top_most_crashed_devices: List[Any]
     top_most_reject_mission_employees: List[Any]
     top_most_accept_mission_employees: List[Any]
-    top_abnormal_missions: List[Any]
+    top_abnormal_missions: List[AbnormalMissionInfo]
     login_users_percentage_this_week: float
     current_emergency_mission: List[EmergencyMissionInfo]
 
