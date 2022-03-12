@@ -154,7 +154,7 @@ async def get_top_most_reject_mission_employees(limit: int):
 async def get_login_users_percentage_by_recent_24_hours() -> float:
     """取得最近 24 小時登入系統員工的百分比"""
     total_user_count = await User.objects.filter(
-        is_active=True, level=UserLevel.maintainer
+        is_active=True, level=UserLevel.maintainer.value
     ).count()
 
     if total_user_count == 0:
