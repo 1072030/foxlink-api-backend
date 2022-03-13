@@ -1,56 +1,20 @@
-import logging
 import math
-from typing import List, Callable, Coroutine, Dict, Any
+from typing import List, Optional
 from app.core.database import (
     User,
     Device,
     UserDeviceLevel,
-    UserLevel,
-    UserShiftInfo,
     FactoryMap,
     CategoryPRI,
     database,
 )
 from fastapi.exceptions import HTTPException
-from app.models.schema import UserCreate
-from app.services.user import get_password_hash, create_user
-from app.services.device import get_device_id
+from app.services.user import get_password_hash
 from fastapi import UploadFile
-from datetime import datetime
-import csv
 import pandas as pd
-from app.dispatch import data_convert
+from foxlink_dispatch.dispatch_20220313_v2 import data_convert
 
 data_converter = data_convert()
-
-
-@database.transaction()
-async def process_csv_file(
-    csv_file: UploadFile,
-    callback: Callable[..., Coroutine],
-    params: Dict[str, Any] = {},
-    ignore_header: bool = True,
-):
-    lines: str = (await csv_file.read()).decode("utf-8")
-    reader = csv.reader(lines.splitlines(), delimiter=",", quotechar='"')
-
-    is_met_header = False
-    row_count = 0
-
-    try:
-        for row in reader:
-            if not is_met_header and ignore_header:
-                is_met_header = True
-            else:
-                await callback(row, **params)
-            row_count += 1
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            400,
-            f"raise an error when parsing csv file: {str(e)}, row count {row_count}",
-        )
 
 
 @database.transaction()
@@ -91,78 +55,6 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False):
     await calcuate_factory_layout_matrix(raw_excel)
 
 
-async def import_employee_repair_experience_table(
-    csv_file: UploadFile, clear_all: bool = False
-):
-    async def process(row: List[str]) -> None:
-        if len(row) != 6:
-            raise HTTPException(400, "each row must be 6 columns long")
-
-        try:
-            devices = await Device.objects.filter(
-                project__istartswith=row[2], device_name=row[3]
-            ).all()
-
-            user = await User.objects.get_or_none(username=row[0])
-
-            for d in devices:
-                if user is None:
-                    user = await create_user(
-                        UserCreate(
-                            username=row[0],
-                            password="foxlink",
-                            full_name=row[1],
-                            expertises=[],
-                            workshop=d.workshop.id,
-                            level=UserLevel.maintainer.value,
-                        )
-                    )
-
-                level = UserDeviceLevel(
-                    user=user, device=d, shift=bool(row[4]), level=int(row[5])
-                )
-                await level.upsert()
-        except Exception as e:
-            raise HTTPException(
-                400, f"raise an error when parsing csv file: {str(e)}",
-            )
-
-    if clear_all:
-        await UserDeviceLevel.objects.delete(each=True)
-
-    await process_csv_file(csv_file, process)
-
-
-async def import_employee_shift_table(csv_file: UploadFile):
-    async def process(row: List[str]) -> None:
-        if len(row) != 8:
-            raise HTTPException(400, "each row must be 8 columns long")
-
-        user = await User.objects.get_or_none(full_name=row[0])
-
-        if user is None:
-            logging.error(f"user {row[0]} not found")
-            return
-
-        device_names = row[4].split(",")
-        devices: List[Device] = []
-
-        for n in device_names:
-            arr = await Device.objects.filter(device_name=row[4]).all()
-            devices += arr
-
-        shift_type = "Night" if row[6] == "1" else "Day"
-        date_of_shift = datetime.strptime(row[5], "%Y-%m-%d")
-
-        shift = await UserShiftInfo.objects.get_or_create(
-            user=user, day_or_night=shift_type, shift_date=date_of_shift
-        )
-
-        await shift.devices.add(devices[0])  # type: ignore
-
-    await process_csv_file(csv_file, process)
-
-
 # 匯入 Device's Category & Priority
 @database.transaction()
 async def import_workshop_events(excel_file: UploadFile):
@@ -196,14 +88,62 @@ async def calcuate_factory_layout_matrix(raw_excel: bytes):
 
 
 @database.transaction()
-async def import_factory_worker_infos(excel_file: UploadFile):
+async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile):
     raw_excel: bytes = await excel_file.read()
-    data = data_converter.fn_factory_worker_info(raw_excel)
-    print(data)
 
-    for index, row in data.iterrows():
+    try:
+        factory_woker_info, worker_info = data_converter.fn_factory_worker_info(
+            excel_file.filename, raw_excel
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=repr(e))
+
+    create_user_bulk = []
+    update_user_bulk = []
+    for index, row in worker_info.iterrows():
+        workshop = (
+            await FactoryMap.objects.filter(name=row["車間"])
+            .fields(["id", "name"])
+            .get_or_none()
+        )
+
+        if workshop is None:
+            raise HTTPException(
+                status_code=400, detail=f"unknown workshop name: {row['車間']}"
+            )
+
+        worker = await User.objects.get_or_none(username=row["員工工號"])
+
+        superior_id: Optional[str] = None
+        if row["員工名字"] != row["負責人"]:
+            superior_id = worker_info[worker_info["員工名字"] == row["負責人"]]["員工工號"].item()
+
+        if worker is None:
+            worker = User(
+                username=row["員工工號"],
+                full_name=row["員工名字"],
+                password_hash=get_password_hash("foxlink"),
+                location=workshop.id,
+                is_active=True,
+                expertises=[],
+                level=row["職務"],
+                shift=row["班別"],
+                superior=superior_id,
+            )
+            create_user_bulk.append(worker)
+        else:
+            worker.full_name = row["員工名字"]
+            worker.level = row["職務"]
+            worker.shift = row["班別"]
+            worker.location = workshop
+            worker.superior = superior_id
+            update_user_bulk.append(worker)
+
+    await User.objects.bulk_create(create_user_bulk)
+    await User.objects.bulk_update(update_user_bulk)
+
+    for index, row in factory_woker_info.iterrows():
         worker = await User.objects.filter(username=row["worker_id"]).get_or_none()
-        workshop = await FactoryMap.objects.filter(name="第九車間").get()
 
         if worker is None:
             worker = await User.objects.create(
@@ -214,12 +154,9 @@ async def import_factory_worker_infos(excel_file: UploadFile):
                 is_active=True,
                 is_admin=False,
                 location=workshop,
+                shift=row["shift"],
                 level=row["job"],
             )
-
-        # if worker is not maintainer(維修人員), we shouldn't create a device exp. for them.
-        if row["job"] != UserLevel.maintainer.value:
-            continue
 
         related_devices = await Device.objects.filter(
             workshop=workshop.id,
