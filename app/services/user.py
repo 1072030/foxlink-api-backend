@@ -29,13 +29,18 @@ async def create_user(dto: UserCreate) -> User:
         raise HTTPException(status_code=400, detail="cannot add user:" + str(e))
 
 
+async def get_user_by_id(user_id: str) -> Optional[User]:
+    user = await User.objects.filter(id=user_id).get_or_none()
+    return user
+
+
 async def get_user_by_username(username: str) -> Optional[User]:
     user = await User.objects.filter(username=username).get_or_none()
     return user
 
 
-async def update_user(username: str, **kwargs):
-    user = await get_user_by_username(username)
+async def update_user(user_id: str, **kwargs):
+    user = await get_user_by_id(user_id)
 
     if user is None:
         raise HTTPException(
@@ -51,8 +56,8 @@ async def update_user(username: str, **kwargs):
     return user
 
 
-async def delete_user_by_username(username: str):
-    affected_row = await User.objects.delete(username=username)
+async def delete_user_by_id(user_id: int):
+    affected_row = await User.objects.delete(id=user_id)
 
     if affected_row != 1:
         raise HTTPException(status_code=404, detail="user by this id is not found")

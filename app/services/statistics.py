@@ -95,7 +95,7 @@ async def get_top_abnormal_devices(limit: int):
             SELECT DISTINCT u.username, u.full_name, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration
             FROM missions
             LEFT OUTER JOIN missions_users mu ON missions.id=mu.mission
-            INNER JOIN users u ON u.username = mu.user 
+            INNER JOIN users u ON u.id = mu.user 
             WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
             ORDER BY duration ASC
             LIMIT 3;
@@ -120,7 +120,7 @@ async def get_top_most_accept_mission_employees(limit: int):
         """
         SELECT u.username, u.full_name, count(*) AS count
         FROM `auditlogheaders`
-        INNER JOIN users u ON u.username = auditlogheaders.`user`
+        INNER JOIN users u ON u.id = auditlogheaders.`user`
         WHERE action='MISSION_ACCEPTED' AND MONTH(created_date) = MONTH(CURRENT_DATE())
         GROUP BY u.username
         ORDER BY count DESC
@@ -139,7 +139,7 @@ async def get_top_most_reject_mission_employees(limit: int):
         """
         SELECT u.username, u.full_name, count(*) AS count
         FROM `auditlogheaders`
-        INNER JOIN users u ON u.username = auditlogheaders.`user`
+        INNER JOIN users u ON u.id = auditlogheaders.`user`
         WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE())
         GROUP BY u.username
         ORDER BY count DESC

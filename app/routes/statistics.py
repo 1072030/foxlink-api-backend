@@ -102,7 +102,7 @@ async def get_all_worker_status():
         }
 
         missions = await Mission.objects.filter(
-            assignees__username=s.worker.username,
+            assignees__id=s.worker.id,
             repair_start_date__isnull=False,
             event_end_date__isnull=True,
         ).all()
