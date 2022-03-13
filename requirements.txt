@@ -30,6 +30,8 @@ databases==0.5.3
     # via
     #   -r requirements.in
     #   ormar
+decorator==5.1.1
+    # via validators
 dnspython==2.1.0
     # via email-validator
 ecdsa==0.17.0
@@ -102,6 +104,7 @@ six==1.16.0
     #   ecdsa
     #   python-dateutil
     #   python-multipart
+    #   validators
 sniffio==1.2.0
     # via anyio
 sqlalchemy==1.4.28
@@ -117,6 +120,8 @@ typing-extensions==4.0.1
     #   aiosqlite
     #   pydantic
 uvicorn==0.16.0
+    # via -r requirements.in
+validators==0.18.2
     # via -r requirements.in
 xlrd==2.0.1
     # via -r requirements.in
