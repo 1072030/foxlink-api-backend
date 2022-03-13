@@ -5,7 +5,7 @@ from logging.config import dictConfig
 from app.routes import (
     health,
     migration,
-    mock,
+    # mock,
     user,
     auth,
     mission,
@@ -34,7 +34,7 @@ app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(factorymap.router)
-app.include_router(mock.router)
+# app.include_router(mock.router)
 
 
 foxlink_db = FoxlinkDbPool()
@@ -48,14 +48,14 @@ async def startup():
     await foxlink_db.connect()
     await dispatcher.start()
     # mock, test usage
-    await mock._db.connect()
+    # await mock._db.connect()
     logger.info("Foxlink API Server startup complete.")
 
 
 @app.on_event("shutdown")
 async def shutdown():
     # mock, test usage
-    await mock._db.disconnect()
+    # await mock._db.disconnect()
 
     await dispatcher.stop()
     await foxlink_db.close()

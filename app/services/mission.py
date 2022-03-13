@@ -158,7 +158,7 @@ async def dispatch_routine():
     )
 
     if len(can_dispatch_workers) == 0:
-        logger.warn(f"No workers available to dispatch for mission {mission_1st}")
+        logger.warn(f"No workers available to dispatch for mission {mission_1st.id}")
         return
 
     factory_map = await FactoryMap.objects.filter(
@@ -174,7 +174,7 @@ async def dispatch_routine():
             continue
 
         user_login_logs = await AuditLogHeader.objects.filter(
-            user=w.user.id,
+            user=w.user.username,
             action=AuditActionEnum.USER_LOGIN.value,
             created_date__gte=datetime.utcnow() - timedelta(hours=12),
         ).count()
@@ -185,7 +185,7 @@ async def dispatch_routine():
         # if worker has already working on other mission, skip
         if (
             await Mission.objects.filter(
-                assignees__id=w.user.id, repair_start_date__isnull=True
+                assignees__id=w.user.username, repair_start_date__isnull=True
             ).count()
             > 0
         ):
@@ -264,7 +264,7 @@ async def dispatch_routine():
             table_name="missions",
             record_pk=mission_1st.id,
             action=AuditActionEnum.MISSION_ASSIGNED.value,
-            user=w.user.id,
+            user=w.user.username,
         )
     except Exception as e:
         logger.error("cannot assign to worker {}".format(worker_1st))
@@ -280,10 +280,10 @@ async def get_mission_by_id(id: int) -> Optional[Mission]:
     return item
 
 
-async def get_missions_by_user_id(user_id: str):
+async def get_missions_by_username(username: str):
     missions = (
         await Mission.objects.select_related(["assignees", "device"])
-        .filter(assignees__id=user_id)
+        .filter(assignees__username=username)
         .order_by("created_date")
         .all()
     )
@@ -355,7 +355,7 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
         await worker_status.update()
         await AuditLogHeader.objects.create(
             action=AuditActionEnum.MISSION_ACCEPTED.value,
-            user=worker.id,
+            user=worker.username,
             table_name="missions",
             record_pk=mission.id,
         )
@@ -369,7 +369,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    filter = [u for u in mission.assignees if u.id == user.id]
+    filter = [u for u in mission.assignees if u.username == user.username]
 
     if len(filter) == 0:
         raise HTTPException(400, "the mission haven't assigned to you")
@@ -489,7 +489,7 @@ async def assign_mission(mission_id: int, username: str):
                 detail="the user does not have the expertise this mission requires.",
             )
 
-    filter = [u for u in mission.assignees if u.id == the_user.id]
+    filter = [u for u in mission.assignees if u.username == the_user.username]
 
     if len(filter) == 0:
         await mission.assignees.add(the_user)  # type: ignore
