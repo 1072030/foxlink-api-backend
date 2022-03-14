@@ -455,7 +455,9 @@ class data_convert:
                     value = set(self.df_proj_eventbooks[j].columns).difference(
                         ["Category", "MESSAGE", "优先顺序"]
                     )
-                    raise Error_FileContent(detail=value)
+                    raise Error_FileContent(
+                        msg=f"在 {filename} 的 Worksheet: {j} 的內容值可能不對喔", detail=value
+                    )
                 _events_ = self.df_proj_eventbooks[j][
                     ["Category", "MESSAGE", "优先顺序"]
                 ]  # 事件簿使用的資訊欄位；
