@@ -5,6 +5,7 @@ from app.core.database import (
     CategoryPRI,
     FactoryMap,
     Mission,
+    ShiftType,
     User,
     AuditLogHeader,
     AuditActionEnum,
@@ -22,10 +23,11 @@ from app.dispatch import FoxlinkDispatch
 import logging
 from app.services.user import get_user_by_username
 from app.my_log_conf import LOGGER_NAME
+import pytz
+from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
+from app.utils.utils import get_shift_type_now, CST_TIMEZONE
 
 logger = logging.getLogger(LOGGER_NAME)
-
-
 dispatch = FoxlinkDispatch()
 
 
@@ -386,23 +388,46 @@ async def reject_mission_by_id(mission_id: int, user: User):
 
     await mission.assignees.remove(user)  # type: ignore
 
-    related_logs_amount = await AuditLogHeader.objects.filter(
+    mission_reject_amount = await AuditLogHeader.objects.filter(
         record_pk=str(mission.id),
         action=AuditActionEnum.MISSION_REJECTED.value,
         user=user,
     ).count()
 
-    if related_logs_amount >= 2:
+    if mission_reject_amount >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
         publish(
             "foxlink/mission/rejected",
             {
                 "id": mission.id,
                 "worker": user.full_name,
-                "rejected_count": related_logs_amount,
+                "rejected_count": mission_reject_amount,
             },
             qos=1,
             retain=True,
         )
+
+    worker_reject_amount_today = await AuditLogHeader.objects.filter(
+        user=user,
+        action=AuditActionEnum.MISSION_REJECTED.value,
+        created_date__gte=datetime.now(CST_TIMEZONE).date(),
+    ).count()
+
+    if worker_reject_amount_today >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
+        worker_device_info = await UserDeviceLevel.objects.filter(
+            user=user, device=mission.device.id, shift=get_shift_type_now().value,
+        ).get()
+
+        if worker_device_info.superior is not None:
+            publish(
+                f"foxlink/users/{worker_device_info.superior.username}/subordinate-rejected",
+                {
+                    "subordinate_id": user.username,
+                    "subordinate_name": user.full_name,
+                    "total_rejected_count": worker_reject_amount_today,
+                },
+                qos=1,
+                retain=True,
+            )
 
 
 @database.transaction()

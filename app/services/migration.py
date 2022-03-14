@@ -75,7 +75,7 @@ async def import_workshop_events(excel_file: UploadFile):
     for index, row in data.iterrows():
         devices = await Device.objects.filter(
             project__iexact=row["project"],
-            device_name=row["Device_Name"].replace(" ", "_"),
+            device_name__iexact=row["Device_Name"].replace(" ", "_"),
         ).all()
 
         p = await CategoryPRI.objects.create(

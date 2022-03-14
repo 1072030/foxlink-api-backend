@@ -45,6 +45,14 @@
   "description": "任務的敘述，目前是放故障的問題原因"
 }
 ```
+- foxlink/users/{username}/subordinate-rejected - 當天如果有下屬拒絕任務兩次以上，就會推送這則訊息
+```jsonc
+{
+    "subordinate_id": '145287', # 下屬的 ID
+    "subordinate_name": 'string', # 下屬姓名
+    "total_rejected_count": 2 # 下屬當日總拒絕次數
+},
+```
 
 # Related Infos
 - NTUST MQTT Broker: 140.118.157.9:27010
