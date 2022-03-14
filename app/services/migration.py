@@ -1,5 +1,5 @@
 import math
-from typing import List, Optional
+from typing import Dict, List, Optional
 from app.core.database import (
     User,
     Device,
@@ -109,9 +109,9 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
 
+    full_name_mapping: Dict[str, str] = {}
     create_user_bulk: List[User] = []
     for index, row in factory_worker_info.iterrows():
-        print(row)
         workshop = (
             await FactoryMap.objects.filter(name=row["workshop"])
             .fields(["id", "name"])
@@ -123,6 +123,7 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
                 status_code=400, detail=f"unknown workshop name: {row['workshop']}"
             )
 
+        full_name_mapping[row["worker_name"]] = str(row["worker_id"])
         worker = await User.objects.get_or_none(username=row["worker_id"])
 
         # superior_id: Optional[str] = None
@@ -175,6 +176,7 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
                 UserDeviceLevel(
                     device=d,
                     user=row["worker_id"],
+                    superior=full_name_mapping.get(row["superior"]),
                     shift=row["shift"],
                     level=row["level"],
                 )
