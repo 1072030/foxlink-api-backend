@@ -185,7 +185,7 @@ async def dispatch_routine():
         # if worker has already working on other mission, skip
         if (
             await Mission.objects.filter(
-                assignees__id=w.user.username, repair_start_date__isnull=True
+                assignees__username=w.user.username, repair_start_date__isnull=True
             ).count()
             > 0
         ):

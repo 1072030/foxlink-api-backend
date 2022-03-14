@@ -9,7 +9,6 @@ class UserBase(BaseModel):
     username: str
     full_name: str
     expertises: List[str]
-    shift: ShiftType
     level: int
 
 
