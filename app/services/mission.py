@@ -52,7 +52,7 @@ async def worker_monitor_routine():
         # if worker is still working on mission, then we should not modify its state
         working_mission_count = (
             await Mission.objects.select_related("assignees")
-            .filter(repair_end_date__isnull=True, assignees__id=w.id)
+            .filter(repair_end_date__isnull=True, assignees__username=w.username)
             .count()
         )
 

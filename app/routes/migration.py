@@ -35,7 +35,7 @@ async def import_devices_from_excel(
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
-        raise e
+        raise HTTPException(status_code=400, detail=repr(e))
 
 
 @router.post("/workshop-eventbook", tags=["migration"], status_code=201)
@@ -55,7 +55,7 @@ async def import_workshop_eventbooks_from_excel(
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
-        raise e
+        raise HTTPException(status_code=400, detail=repr(e))
 
 
 @router.post("/factory-worker-infos", tags=["migration"], status_code=201)

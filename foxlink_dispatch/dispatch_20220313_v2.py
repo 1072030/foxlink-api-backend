@@ -226,6 +226,7 @@ class data_convert:
     """
     車間員工資訊表
     """
+
     def fn_factory_worker_info(
         self, filename: str, raw_excel: bytes
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -505,11 +506,11 @@ class data_convert:
     生成車間移動距離表
     """
     # 目前為針對 第九車間 layout 客製化計算，layout 無更動 (僅是換機台名稱、座標值) 則可使用； 無法針對 layout 變動後做計算
-    def fn_factorymap(self, raw_excel: bytes):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
+    def fn_factorymap(self, dataframe: pd.DataFrame):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
         print("轉換中...")
         self.df_movingMatrix = None  #  空白資料表，準備儲存使用
         try:
-            self.df_device_xy = pd.read_excel(raw_excel, sheet_name=0)  # 讀取車間機台座標表
+            self.df_device_xy = dataframe  # 讀取車間機台座標表
             if (
                 self.df_device_xy[["id", "workshop", "project", "x_axis", "y_axis"]]
                 .isnull()
