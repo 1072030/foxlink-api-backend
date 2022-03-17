@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
 import ormar
-from pyparsing import NoMatch
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
 from app.core.database import AuditActionEnum, AuditLogHeader, User
