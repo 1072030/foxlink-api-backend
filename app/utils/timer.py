@@ -37,4 +37,8 @@ class Ticker:
             try:
                 await self.func()
             except Exception as e:
-                logger.error(repr(e))
+                logger.error(
+                    f"""
+                    Ticker error: {repr(e)}
+                    Traceback: {traceback.format_exc()}
+                    """)
