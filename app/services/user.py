@@ -78,5 +78,5 @@ async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]
             .first()
         )
         return first_login_record.created_date
-    except ormar.NoMatch:
+    except Exception:
         return None
