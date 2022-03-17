@@ -53,6 +53,21 @@
     "total_rejected_count": 2 // 下屬當日總拒絕次數
 }
 ```
+- foxlink/overtime-workers - 如果有員工超過上班時間（例如早班員工到了晚班時段還在處理任務），就會推送這則訊息
+```jsonc
+[
+  {
+    "worker_id": '145287', // 員工的 ID
+    "worker_name": 'string', // 員工姓名
+    "working_on_mission": {
+      "mission_id": 0, // Mission ID
+      "mission_name": "string", // 任務名稱
+      "device_id": "string", // 機台的 ID
+      "mission_start_date": "2022-03-17T08:19:07.169" // 任務創建的時間 (UTC Time)
+    }
+  }
+]
+```
 
 # Related Infos
 - NTUST MQTT Broker: 140.118.157.9:27010
