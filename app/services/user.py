@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
+import ormar
+from pyparsing import NoMatch
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
-from app.core.database import User
+from app.core.database import AuditActionEnum, AuditLogHeader, User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -56,3 +59,25 @@ async def delete_user_by_username(username: str):
 
     if affected_row != 1:
         raise HTTPException(status_code=404, detail="user by this id is not found")
+
+
+async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]:
+    """
+    Get a employee's first login record past 12 hours (today)
+    If the employee has not been logined in today, return None
+    """
+    past_12_hours = datetime.utcnow() - timedelta(hours=12)
+
+    try:
+        first_login_record = (
+            await AuditLogHeader.objects.filter(
+                action=AuditActionEnum.USER_LOGIN.value,
+                user=username,
+                created_date__gte=past_12_hours,
+            )
+            .order_by("created_date")
+            .first()
+        )
+        return first_login_record.created_date
+    except ormar.NoMatch:
+        return None

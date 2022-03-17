@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel
 
-from app.core.database import ShiftType
+from app.core.database import UserLevel
 
 
 # * User
@@ -9,7 +9,7 @@ class UserBase(BaseModel):
     username: str
     full_name: str
     expertises: List[str]
-    level: int
+    level: UserLevel
 
 
 class UserCreate(UserBase):

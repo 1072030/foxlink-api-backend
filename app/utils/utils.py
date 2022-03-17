@@ -8,9 +8,18 @@ CST_TIMEZONE = pytz.timezone("Asia/Taipei")
 
 def get_shift_type_now() -> ShiftType:
     now = datetime.now(CST_TIMEZONE)
-    day_begin = datetime.time(datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M")) # type: ignore
-    day_end = datetime.time(datetime.strptime(DAY_SHIFT_END, "%H:%M")) # type: ignore
+    day_begin = datetime.time(datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M"))  # type: ignore
+    day_end = datetime.time(datetime.strptime(DAY_SHIFT_END, "%H:%M"))  # type: ignore
     if now.time() >= day_begin and now.time() <= day_end:
+        return ShiftType.day
+    else:
+        return ShiftType.night
+
+
+def get_shift_type_by_datetime(dt: datetime) -> ShiftType:
+    day_begin = datetime.time(datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M"))  # type: ignore
+    day_end = datetime.time(datetime.strptime(DAY_SHIFT_END, "%H:%M"))  # type: ignore
+    if dt.time() >= day_begin and dt.time() <= day_end:
         return ShiftType.day
     else:
         return ShiftType.night

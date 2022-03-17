@@ -35,7 +35,7 @@ class UserLevel(Enum):
     manager = 2  # 線長
     supervisor = 3  # 組長
     chief = 4  # 課級
-    # admin = 4 # 管理員
+    admin = 5 # 管理員
 
 
 class ShiftType(Enum):

@@ -16,7 +16,7 @@ from app.routes import (
 )
 from app.core.database import database
 from app.daemon.daemon import FoxlinkDbPool
-from app.services.mission import dispatch_routine
+from app.background_service import dispatch_routine
 from app.utils.timer import Ticker
 from app.mqtt.main import connect_mqtt, disconnect_mqtt
 from app.my_log_conf import LOGGER_NAME, LogConfig
