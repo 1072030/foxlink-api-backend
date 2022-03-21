@@ -14,7 +14,7 @@ from app.core.database import (
     database,
 )
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
+from app.models.schema import MissionCreate, MissionUpdate
 from app.mqtt.main import publish
 import logging
 from app.services.user import get_user_by_username

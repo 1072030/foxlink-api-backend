@@ -47,16 +47,3 @@ class MissionCreate(MissionBase):
 class MissionUpdate(MissionBase):
     name: Optional[str]
     device_id: Optional[str]
-
-
-class MissionCancel(BaseModel):
-    mission_id: int
-    reason: str
-
-
-class MissionFinish(BaseModel):
-    devcie_status: str
-    cause_of_issue: str
-    issue_solution: str
-    image: bytes
-    signature: bytes
