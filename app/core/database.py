@@ -49,6 +49,11 @@ class WorkerStatusEnum(Enum):
     leave = "Leave"
 
 
+class LogoutReasonEnum(Enum):
+    meeting = "Meeting"
+    leave = "Leave"
+
+
 class MainMeta(ormar.ModelMeta):
     metadata = metadata
     database = database
@@ -77,6 +82,7 @@ class User(ormar.Model):
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
+    is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
 
 

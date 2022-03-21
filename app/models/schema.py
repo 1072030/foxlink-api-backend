@@ -25,6 +25,7 @@ class UserPatch(BaseModel):
 class UserOut(UserBase):
     is_active: bool
     is_admin: bool
+    is_changepwd: bool
 
 
 class UserChangePassword(BaseModel):

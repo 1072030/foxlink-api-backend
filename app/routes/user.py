@@ -45,7 +45,7 @@ async def change_password(
     if not verify_password(dto.old_password, user.password_hash):
         raise HTTPException(status_code=401, detail="The old password is not matched")
 
-    await update_user(user.username, password_hash=get_password_hash(dto.new_password))
+    await update_user(user.username, password_hash=get_password_hash(dto.new_password), is_changepwd=True)
 
 
 @router.get("/offwork", tags=["users"])
