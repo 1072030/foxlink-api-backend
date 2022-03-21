@@ -40,6 +40,7 @@ class MissionDto(BaseModel):
     assignees: List[str]
     is_started: bool
     is_closed: bool
+    done_verified: bool
     event_start_date: Optional[datetime.datetime]
     event_end_date: Optional[datetime.datetime]
     created_date: datetime.datetime
@@ -64,6 +65,7 @@ async def read_all_missions(user: User = Depends(get_admin_active_user)):
             description=x.description,
             is_started=x.is_started,
             is_closed=x.is_closed,
+            done_verified=x.done_verified,
             assignees=[u.username for u in x.assignees],
             event_start_date=x.event_start_date,
             event_end_date=x.event_end_date,
@@ -92,6 +94,7 @@ async def get_self_mission(user: User = Depends(get_current_active_user)):
             description=x.description,
             is_started=x.is_started,
             is_closed=x.is_closed,
+            done_verified=x.done_verified,
             assignees=[u.username for u in x.assignees],
             event_start_date=x.event_start_date,
             event_end_date=x.event_end_date,
@@ -124,6 +127,7 @@ async def get_a_mission_by_id(
         description=m.description,
         is_started=m.is_started,
         is_closed=m.is_closed,
+        done_verified=m.done_verified,
         assignees=[u.username for u in m.assignees],
         event_start_date=m.event_start_date,
         event_end_date=m.event_end_date,
