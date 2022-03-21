@@ -162,13 +162,6 @@ async def finish_mission(
     await finish_mission_by_id(mission_id, user)
 
 
-@router.post("/{mission_id}/cancel", tags=["missions"])
-async def cancel_mission(
-    dto: MissionCancel, user: User = Depends(get_current_active_user)
-):
-    await cancel_mission_by_id(dto, user)
-
-
 @router.post("/", tags=["missions"], status_code=201)
 async def create_a_mission(
     dto: MissionCreate, user: User = Depends(get_admin_active_user)
