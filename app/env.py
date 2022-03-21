@@ -35,6 +35,10 @@ DATABASE_PASSWORD = get_env("DATABASE_PASSWORD", str)
 DATABASE_NAME = get_env("DATABASE_NAME", str)
 PY_ENV = get_env("PY_ENV", str, "production")
 
+if PY_ENV not in ["production", "dev"]:
+    logger.error("PY_ENV env should be either production or dev!")
+    exit(1)
+
 FOXLINK_DB_HOST = get_env("FOXLINK_DB_HOST", str)
 FOXLINK_DB_PORT = get_env("FOXLINK_DB_PORT", int)
 FOXLINK_DB_USER = get_env("FOXLINK_DB_USER", str)

@@ -243,5 +243,5 @@ async def before_update(sender, instance, **kwargs):
 engine = create_engine(DATABASE_URI)
 
 if PY_ENV == "dev":
-    metadata.drop_all(engine)
+    # metadata.drop_all(engine)
     metadata.create_all(engine)
