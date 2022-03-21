@@ -35,7 +35,7 @@ class UserLevel(Enum):
     manager = 2  # 線長
     supervisor = 3  # 組長
     chief = 4  # 課級
-    admin = 5 # 管理員
+    admin = 5  # 管理員
 
 
 class ShiftType(Enum):
@@ -143,16 +143,6 @@ class Mission(ormar.Model):
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     done_verified: bool = ormar.Boolean(default=False)
     related_event_id: int = ormar.Integer()
-    machine_status: Optional[str] = ormar.String(max_length=256, nullable=True)
-    cause_of_issue: Optional[str] = ormar.String(max_length=512, nullable=True)
-    issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
-    canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
-    image: Optional[bytes] = ormar.LargeBinary(
-        max_length=1024 * 1024 * 5, default=bytes(0)
-    )
-    signature: Optional[bytes] = ormar.LargeBinary(
-        max_length=1024 * 1024 * 5, default=bytes(0)
-    )
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
     created_date: datetime = ormar.DateTime(server_default=func.now())

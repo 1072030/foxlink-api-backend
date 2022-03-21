@@ -153,9 +153,9 @@ async def reject_a_mission(
 
 @router.post("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
-    mission_id: int, dto: MissionFinish, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    await finish_mission_by_id(mission_id, dto, user)
+    await finish_mission_by_id(mission_id, user)
 
 
 @router.post("/{mission_id}/cancel", tags=["missions"])

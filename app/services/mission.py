@@ -181,9 +181,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
 
 
 @database.transaction()
-async def finish_mission_by_id(
-    mission_id: int, dto: MissionFinish, validate_user: User
-):
+async def finish_mission_by_id(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
@@ -202,13 +200,7 @@ async def finish_mission_by_id(
         raise HTTPException(400, "this mission is not verified as done")
 
     await mission.update(
-        repair_end_date=datetime.utcnow(),
-        machine_status=dto.devcie_status,
-        cause_of_issue=dto.cause_of_issue,
-        issue_solution=dto.issue_solution,
-        image=dto.image,
-        signature=dto.signature,
-        is_cancel=False,
+        repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
     # set each assignee's last_event_end_date
