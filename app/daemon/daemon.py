@@ -140,7 +140,7 @@ class FoxlinkDbPool:
                 # if this device's priority is not existed in `CategoryPRI` table, which means it's not an out-of-order event.
                 # Thus, we should skip it.
                 priority = await CategoryPRI.objects.filter(
-                    devices__id__iexact=device_id, category=m.category
+                    devices__id__iexact=device_id, category=e.category
                 ).get_or_none()
 
                 if priority is None:
