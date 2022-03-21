@@ -162,13 +162,14 @@ async def dispatch_routine():
             .get_or_none()
         )
 
-        reject_count = await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
-        ).count()
+        reject_count, event_count = await asyncio.gather(
+            AuditLogHeader.objects.filter( action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id).count(),
+            Mission.objects.filter(device=m.device.id, category=m.category).count(),
+        )
 
         item = {
             "missionID": m.id,
-            "event_count": 1,  # TODO
+            "event_count": event_count,
             "refuse_count": reject_count,
             "device": m.device.device_name,
             "process": m.device.process,
