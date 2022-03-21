@@ -18,7 +18,7 @@ data_converter = data_convert()
 
 
 def generate_device_id(project: str, line: int, device_name: str) -> str:
-    return f"{project}-{int(line)}-{device_name}"
+    return f"{project}@{int(line)}@{device_name}"
 
 
 @database.transaction()
@@ -41,7 +41,7 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False):
         is_rescue: bool = row["project"] == "rescue"
 
         if is_rescue:
-            device_id = f"{row['project']}-{row['workshop']}-{row['device_name']}"
+            device_id = f"{row['project']}@{row['workshop']}@{row['device_name']}"
         else:
             device_id = generate_device_id(
                 row["project"], row["line"], row["device_name"]

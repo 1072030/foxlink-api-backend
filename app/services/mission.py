@@ -290,6 +290,8 @@ async def assign_mission(mission_id: int, username: str):
 
 
 async def cancel_mission_by_id(dto: MissionCancel, validate_user: User):
+    """DEPRECATED: this method is deprecated and will be removed in the future."""
+
     mission = await get_mission_by_id(dto.mission_id)
 
     if mission is None:

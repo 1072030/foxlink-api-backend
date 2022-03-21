@@ -114,7 +114,9 @@ class FoxlinkDbPool:
 
         for m in missions:
             event = await self.get_a_event_from_table(
-                db_name, m.device.id.split("-")[0].lower() + table_postfix, m.related_event_id
+                db_name,
+                m.device.id.split("@")[0].lower() + table_postfix,
+                m.related_event_id,
             )
 
             if event is None:
@@ -152,5 +154,5 @@ class FoxlinkDbPool:
 
     def generate_device_id(self, event: Event) -> str:
         project = event.project.split(" ")[0]
-        return f"{project}-{event.line}-{event.device_name}"
+        return f"{project}@{event.line}@{event.device_name}"
 
