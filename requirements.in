@@ -30,3 +30,5 @@ paho-mqtt
 openpyxl
 xlrd
 validators
+qrcode
+pillow
