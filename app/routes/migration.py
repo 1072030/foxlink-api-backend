@@ -2,7 +2,6 @@ from app.services.auth import get_admin_active_user
 from app.services.migration import (
     import_devices,
     import_devices,
-    import_employee_shift_table,
     import_workshop_events,
     import_factory_worker_infos,
 )
@@ -12,15 +11,6 @@ from fastapi.exceptions import HTTPException
 
 
 router = APIRouter(prefix="/migration")
-
-
-@router.post("/users/shift", tags=["migration"], status_code=201)
-async def import_users_shift_info_from_csv(
-    file: UploadFile = File(...), user: User = Depends(get_admin_active_user)
-):
-    if file.filename.split(".")[1] != "csv":
-        raise HTTPException(415)
-    await import_employee_shift_table(file)
 
 
 @router.post("/devices", tags=["migration"], status_code=201)
@@ -45,7 +35,7 @@ async def import_devices_from_excel(
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
-        raise e
+        raise HTTPException(status_code=400, detail=repr(e))
 
 
 @router.post("/workshop-eventbook", tags=["migration"], status_code=201)
@@ -65,18 +55,20 @@ async def import_workshop_eventbooks_from_excel(
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
         )
-        raise e
+        raise HTTPException(status_code=400, detail=repr(e))
 
 
 @router.post("/factory-worker-infos", tags=["migration"], status_code=201)
 async def import_factory_worker_infos_from_excel(
-    file: UploadFile = File(...), user: User = Depends(get_admin_active_user),
+    workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
+    file: UploadFile = File(...),
+    user: User = Depends(get_admin_active_user),
 ):
     if file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
 
     try:
-        await import_factory_worker_infos(file)
+        await import_factory_worker_infos(workshop_name, file)
         await AuditLogHeader.objects.create(
             table_name="users",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,

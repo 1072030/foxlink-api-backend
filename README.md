@@ -16,8 +16,8 @@
 範例：
 ```jsonc
 {
-  "type" : "new", # 該事件的類別：new 為新增任務
-  "mission_id" : 12, # 新增任務的 ID
+  "type" : "new", // 該事件的類別：new 為新增任務
+  "mission_id" : 12, // 新增任務的 ID
   "device" : {
     "project" : "n104",
     "process" : "M3段",
@@ -32,18 +32,41 @@
 範例：
 ```jsonc
 {
-    "id": 1, # 被拒絕超過兩次的任務 id
-    "worker": "員工姓名",
-    "rejected_count": "該任務總拒絕次數"
+    "id": 1, // 被拒絕超過兩次的任務 ID
+    "worker": "string", // 員工姓名
+    "rejected_count": 2 // 該任務總共被拒絕了幾次
 }
 ```
 - foxlink/no-available-worker - 當有任務無人可以指派時，會推送這個訊息
 ```jsonc
 {
-  "mission_id" : 12, # 沒有人可以指派的任務 ID
-  "device_id": "string", # DeviceID
-  "description": "任務的敘述，目前是放故障的問題原因"
+  "mission_id" : 12, // 沒有人可以指派的任務 ID
+  "device_id": "string", // DeviceID
+  "description": "string" // 任務的敘述，目前是放故障的問題原因
 }
+```
+- foxlink/users/{username}/subordinate-rejected - 當天如果有下屬拒絕任務兩次以上，就會推送這則訊息
+```jsonc
+{
+    "subordinate_id": '145287', // 下屬的 ID
+    "subordinate_name": 'string', // 下屬姓名
+    "total_rejected_count": 2 // 下屬當日總拒絕次數
+}
+```
+- foxlink/overtime-workers - 如果有員工超過上班時間（例如早班員工到了晚班時段還在處理任務），就會推送這則訊息
+```jsonc
+[
+  {
+    "worker_id": '145287', // 員工的 ID
+    "worker_name": 'string', // 員工姓名
+    "working_on_mission": {
+      "mission_id": 0, // Mission ID
+      "mission_name": "string", // 任務名稱
+      "device_id": "string", // 機台的 ID
+      "mission_start_date": "2022-03-17T08:19:07.169" // 任務創建的時間 (UTC Time)
+    }
+  }
+]
 ```
 
 # Related Infos

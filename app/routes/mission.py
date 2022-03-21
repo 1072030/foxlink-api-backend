@@ -5,7 +5,7 @@ from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
     get_missions,
     get_mission_by_id,
-    get_missions_by_user_id,
+    get_missions_by_username,
     create_mission,
     update_mission_by_id,
     start_mission_by_id,
@@ -15,7 +15,6 @@ from app.services.mission import (
     delete_mission_by_id,
     assign_mission,
 )
-from app.services.user import get_user_by_id
 from app.services.auth import get_current_active_user, get_admin_active_user
 from app.models.schema import MissionCancel, MissionCreate, MissionUpdate, MissionFinish
 from app.mqtt.main import publish
@@ -77,7 +76,7 @@ async def read_all_missions(user: User = Depends(get_admin_active_user)):
 
 @router.get("/self", response_model=List[MissionDto], tags=["missions"])
 async def get_self_mission(user: User = Depends(get_current_active_user)):
-    missions = await get_missions_by_user_id(user.id)
+    missions = await get_missions_by_username(user.username)
 
     return [
         MissionDto(

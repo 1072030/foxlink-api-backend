@@ -17,6 +17,7 @@ from app.env import (
 
 
 db_name = "aoi"
+table_postfix = " e75_event"
 
 
 class Event(BaseModel):
@@ -113,7 +114,7 @@ class FoxlinkDbPool:
 
         for m in missions:
             event = await self.get_a_event_from_table(
-                db_name, m.device.id.split("-")[0], m.related_event_id
+                db_name, m.device.id.split("-")[0].lower() + table_postfix, m.related_event_id
             )
 
             if event is None:
@@ -136,7 +137,7 @@ class FoxlinkDbPool:
                     continue
 
                 device = await Device.objects.filter(
-                    id=self.generate_device_id(e)
+                    id__iexact=self.generate_device_id(e)
                 ).get()
 
                 await Mission.objects.create(
@@ -150,5 +151,6 @@ class FoxlinkDbPool:
                 )
 
     def generate_device_id(self, event: Event) -> str:
-        return f"{event.project}-{event.line}-{event.device_name}"
+        project = event.project.split(" ")[0]
+        return f"{project}-{event.line}-{event.device_name}"
 

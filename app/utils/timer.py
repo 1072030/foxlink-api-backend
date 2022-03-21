@@ -4,6 +4,10 @@ import traceback
 from typing import Callable
 from contextlib import suppress
 
+from app.my_log_conf import LOGGER_NAME
+
+logger = logging.getLogger(LOGGER_NAME)
+
 
 class Ticker:
     def __init__(self, func: Callable, time: int):
@@ -33,5 +37,8 @@ class Ticker:
             try:
                 await self.func()
             except Exception as e:
-                print(traceback.format_exc())
-                logging.error(e)
+                logger.error(
+                    f"""
+                    Ticker error: {repr(e)}
+                    Traceback: {traceback.format_exc()}
+                    """)

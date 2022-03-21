@@ -1,8 +1,10 @@
+from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
+import ormar
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
-from app.core.database import User
+from app.core.database import AuditActionEnum, AuditLogHeader, User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -29,18 +31,13 @@ async def create_user(dto: UserCreate) -> User:
         raise HTTPException(status_code=400, detail="cannot add user:" + str(e))
 
 
-async def get_user_by_id(user_id: str) -> Optional[User]:
-    user = await User.objects.filter(id=user_id).get_or_none()
-    return user
-
-
 async def get_user_by_username(username: str) -> Optional[User]:
     user = await User.objects.filter(username=username).get_or_none()
     return user
 
 
-async def update_user(user_id: str, **kwargs):
-    user = await get_user_by_id(user_id)
+async def update_user(username: str, **kwargs):
+    user = await get_user_by_username(username)
 
     if user is None:
         raise HTTPException(
@@ -56,8 +53,30 @@ async def update_user(user_id: str, **kwargs):
     return user
 
 
-async def delete_user_by_id(user_id: int):
-    affected_row = await User.objects.delete(id=user_id)
+async def delete_user_by_username(username: str):
+    affected_row = await User.objects.delete(username=username)
 
     if affected_row != 1:
         raise HTTPException(status_code=404, detail="user by this id is not found")
+
+
+async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]:
+    """
+    Get a employee's first login record past 12 hours (today)
+    If the employee has not been logined in today, return None
+    """
+    past_12_hours = datetime.utcnow() - timedelta(hours=12)
+
+    try:
+        first_login_record = (
+            await AuditLogHeader.objects.filter(
+                action=AuditActionEnum.USER_LOGIN.value,
+                user=username,
+                created_date__gte=past_12_hours,
+            )
+            .order_by("created_date")
+            .first()
+        )
+        return first_login_record.created_date
+    except Exception:
+        return None

@@ -1,8 +1,8 @@
 """init table
 
-Revision ID: 474345f1c8fd
+Revision ID: 998c7cea1952
 Revises: 
-Create Date: 2022-02-08 23:22:14.686113
+Create Date: 2022-03-14 13:41:25.755083
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "474345f1c8fd"
+revision = "998c7cea1952"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -32,6 +32,7 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("map", sa.JSON(), nullable=False),
+        sa.Column("related_devices", sa.JSON(), nullable=False),
         sa.Column(
             "created_date",
             sa.DateTime(),
@@ -88,7 +89,6 @@ def upgrade():
     op.create_index(op.f("ix_devices_id"), "devices", ["id"], unique=False)
     op.create_table(
         "users",
-        sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("username", sa.String(length=100), nullable=False),
         sa.Column("password_hash", sa.String(length=100), nullable=False),
         sa.Column("full_name", sa.String(length=50), nullable=False),
@@ -98,28 +98,33 @@ def upgrade():
         sa.Column("is_admin", sa.Boolean(), server_default="0", nullable=True),
         sa.Column("level", sa.SmallInteger(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["location"], ["factorymaps.id"], name="fk_users_factorymaps_id_location"
+            ["location"],
+            ["factorymaps.id"],
+            name="fk_users_factorymaps_id_location",
+            ondelete="SET NULL",
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("username"),
     )
-    op.create_index(op.f("ix_users_id"), "users", ["id"], unique=False)
-    op.create_index(op.f("ix_users_username"), "users", ["username"], unique=True)
+    op.create_index(op.f("ix_users_username"), "users", ["username"], unique=False)
     op.create_table(
         "auditlogheaders",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("action", sa.String(length=50), nullable=False),
         sa.Column("table_name", sa.String(length=50), nullable=False),
         sa.Column("record_pk", sa.String(length=100), nullable=True),
-        sa.Column("user", sa.String(length=36), nullable=True),
-        sa.Column("description", sa.String(length=256), nullable=True),
+        sa.Column("user", sa.String(length=100), nullable=True),
         sa.Column(
             "created_date",
             sa.DateTime(),
             server_default=sa.text("now()"),
             nullable=True,
         ),
+        sa.Column("description", sa.String(length=256), nullable=True),
         sa.ForeignKeyConstraint(
-            ["user"], ["users.id"], name="fk_auditlogheaders_users_id_user"
+            ["user"],
+            ["users.username"],
+            name="fk_auditlogheaders_users_username_user",
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -144,31 +149,21 @@ def upgrade():
     op.create_table(
         "categorypris_devices",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("category", sa.String(length=100), nullable=True),
-        sa.Column("devices", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["category"],
-            ["devices.id"],
-            name="fk_categorypris_devices_devices_category_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["devices"],
-            ["categorypris.id"],
-            name="fk_categorypris_devices_categorypris_devices_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "devicemanageinfos",
-        sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("device", sa.String(length=100), nullable=True),
-        sa.Column("date", sa.Date(), nullable=False),
+        sa.Column("categorypri", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(
-            ["device"], ["devices.id"], name="fk_devicemanageinfos_devices_id_device"
+            ["categorypri"],
+            ["categorypris.id"],
+            name="fk_categorypris_devices_categorypris_categorypri_id",
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["device"],
+            ["devices.id"],
+            name="fk_categorypris_devices_devices_device_id",
+            onupdate="CASCADE",
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -177,6 +172,7 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("device", sa.String(length=100), nullable=True),
         sa.Column("name", sa.String(length=100), nullable=False),
+        sa.Column("category", sa.Integer(), nullable=False),
         sa.Column("description", sa.String(length=256), nullable=False),
         sa.Column("repair_start_date", sa.DateTime(), nullable=True),
         sa.Column("repair_end_date", sa.DateTime(), nullable=True),
@@ -190,6 +186,7 @@ def upgrade():
         sa.Column("image", sa.LargeBinary(length=5242880), nullable=True),
         sa.Column("signature", sa.LargeBinary(length=5242880), nullable=True),
         sa.Column("is_cancel", sa.Boolean(), nullable=True),
+        sa.Column("is_emergency", sa.Boolean(), nullable=True),
         sa.Column(
             "created_date",
             sa.DateTime(),
@@ -214,7 +211,8 @@ def upgrade():
         "userdevicelevels",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("device", sa.String(length=100), nullable=True),
-        sa.Column("user", sa.String(length=36), nullable=True),
+        sa.Column("user", sa.String(length=100), nullable=True),
+        sa.Column("superior", sa.String(length=100), nullable=True),
         sa.Column("shift", sa.Boolean(), nullable=False),
         sa.Column("level", sa.SmallInteger(), nullable=False),
         sa.Column(
@@ -233,38 +231,32 @@ def upgrade():
             ["device"], ["devices.id"], name="fk_userdevicelevels_devices_id_device"
         ),
         sa.ForeignKeyConstraint(
-            ["user"], ["users.id"], name="fk_userdevicelevels_users_id_user"
+            ["superior"],
+            ["users.username"],
+            name="fk_userdevicelevels_users_username_superior",
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user"],
+            ["users.username"],
+            name="fk_userdevicelevels_users_username_user",
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("device", "user", name="uc_userdevicelevels_device_user"),
+        sa.UniqueConstraint(
+            "device", "user", "shift", name="uc_userdevicelevels_device_user_shift"
+        ),
     )
     op.create_index(
         op.f("ix_userdevicelevels_id"), "userdevicelevels", ["id"], unique=False
     )
     op.create_table(
-        "usershiftinfos",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user", sa.String(length=36), nullable=True),
-        sa.Column("shift_date", sa.Date(), nullable=False),
-        sa.Column("attend", sa.Boolean(), nullable=True),
-        sa.Column("day_or_night", sa.String(length=5), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["user"], ["users.id"], name="fk_usershiftinfos_users_id_user"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "user", "shift_date", name="uc_usershiftinfos_user_shift_date"
-        ),
-    )
-    op.create_index(
-        op.f("ix_usershiftinfos_id"), "usershiftinfos", ["id"], unique=False
-    )
-    op.create_table(
         "worker_status",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("worker", sa.String(length=36), nullable=True),
+        sa.Column("worker", sa.String(length=100), nullable=True),
         sa.Column("at_device", sa.String(length=100), nullable=True),
-        sa.Column("last_event_end_date", sa.DateTime(), nullable=True),
+        sa.Column("status", sa.String(length=15), nullable=False),
+        sa.Column("last_event_end_date", sa.DateTime(), nullable=False),
         sa.Column("dispatch_count", sa.Integer(), nullable=True),
         sa.Column(
             "updated_date",
@@ -276,9 +268,13 @@ def upgrade():
             ["at_device"], ["devices.id"], name="fk_worker_status_devices_id_at_device"
         ),
         sa.ForeignKeyConstraint(
-            ["worker"], ["users.id"], name="fk_worker_status_users_id_worker"
+            ["worker"],
+            ["users.username"],
+            name="fk_worker_status_users_username_worker",
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("worker"),
     )
     op.create_table(
         "auditlogheaders_logvalues",
@@ -302,72 +298,9 @@ def upgrade():
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
-        "deviceinfo_chiefs",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user", sa.String(length=36), nullable=True),
-        sa.Column("devicemanageinfo", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["devicemanageinfo"],
-            ["devicemanageinfos.id"],
-            name="fk_deviceinfo_chiefs_devicemanageinfos_devicemanageinfo_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user"],
-            ["users.id"],
-            name="fk_deviceinfo_chiefs_users_user_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "deviceinfo_managers",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user", sa.String(length=36), nullable=True),
-        sa.Column("devicemanageinfo", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["devicemanageinfo"],
-            ["devicemanageinfos.id"],
-            name="fk_deviceinfo_managers_devicemanageinfos_devicemanageinfo_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user"],
-            ["users.id"],
-            name="fk_deviceinfo_managers_users_user_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "deviceinfo_supervisors",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user", sa.String(length=36), nullable=True),
-        sa.Column("devicemanageinfo", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["devicemanageinfo"],
-            ["devicemanageinfos.id"],
-            name="fk_deviceinfo_supervisors_devicemanageinfos_devicemanageinfo_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user"],
-            ["users.id"],
-            name="fk_deviceinfo_supervisors_users_user_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
         "missions_users",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user", sa.String(length=36), nullable=True),
+        sa.Column("user", sa.String(length=100), nullable=True),
         sa.Column("mission", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(
             ["mission"],
@@ -378,29 +311,8 @@ def upgrade():
         ),
         sa.ForeignKeyConstraint(
             ["user"],
-            ["users.id"],
-            name="fk_missions_users_users_user_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "usershiftinfos_devices",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("device", sa.String(length=100), nullable=True),
-        sa.Column("usershiftinfo", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["device"],
-            ["devices.id"],
-            name="fk_usershiftinfos_devices_devices_device_id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["usershiftinfo"],
-            ["usershiftinfos.id"],
-            name="fk_usershiftinfos_devices_usershiftinfos_usershiftinfo_id",
+            ["users.username"],
+            name="fk_missions_users_users_user_username",
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
@@ -411,20 +323,13 @@ def upgrade():
 
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table("usershiftinfos_devices")
     op.drop_table("missions_users")
-    op.drop_table("deviceinfo_supervisors")
-    op.drop_table("deviceinfo_managers")
-    op.drop_table("deviceinfo_chiefs")
     op.drop_table("auditlogheaders_logvalues")
     op.drop_table("worker_status")
-    op.drop_index(op.f("ix_usershiftinfos_id"), table_name="usershiftinfos")
-    op.drop_table("usershiftinfos")
     op.drop_index(op.f("ix_userdevicelevels_id"), table_name="userdevicelevels")
     op.drop_table("userdevicelevels")
     op.drop_index(op.f("ix_missions_id"), table_name="missions")
     op.drop_table("missions")
-    op.drop_table("devicemanageinfos")
     op.drop_table("categorypris_devices")
     op.drop_index(op.f("ix_auditlogheaders_table_name"), table_name="auditlogheaders")
     op.drop_index(op.f("ix_auditlogheaders_record_pk"), table_name="auditlogheaders")
@@ -432,7 +337,6 @@ def downgrade():
     op.drop_index(op.f("ix_auditlogheaders_action"), table_name="auditlogheaders")
     op.drop_table("auditlogheaders")
     op.drop_index(op.f("ix_users_username"), table_name="users")
-    op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_table("users")
     op.drop_index(op.f("ix_devices_id"), table_name="devices")
     op.drop_table("devices")

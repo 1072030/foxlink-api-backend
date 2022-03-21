@@ -1,5 +1,5 @@
 from datetime import date, timedelta, datetime
-from typing import Optional, List
+from typing import Optional, List, ForwardRef
 from enum import Enum
 from ormar import property_field, pre_update
 from pydantic import Json
@@ -20,8 +20,10 @@ from app.env import (
 
 DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-database = databases.Database(DATABASE_URI)
+database = databases.Database(DATABASE_URI, echo=True)
 metadata = MetaData()
+
+UserRef = ForwardRef("User")
 
 
 def generate_uuidv4():
@@ -33,12 +35,12 @@ class UserLevel(Enum):
     manager = 2  # 線長
     supervisor = 3  # 組長
     chief = 4  # 課級
-    # admin = 4 # 管理員
+    admin = 5 # 管理員
 
 
-class ShiftClassType(Enum):
-    day = "Day"
-    night = "Night"
+class ShiftType(Enum):
+    day = 0
+    night = 1
 
 
 class WorkerStatusEnum(Enum):
@@ -68,17 +70,17 @@ class User(ormar.Model):
     class Meta(MainMeta):
         pass
 
-    id: str = ormar.String(
-        primary_key=True, index=True, max_length=36, default=generate_uuidv4
-    )
-    username: str = ormar.String(max_length=100, unique=True, index=True)
+    username: str = ormar.String(primary_key=True, max_length=100, index=True)
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
     expertises: sqlalchemy.JSON = ormar.JSON()
-    location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap)
+    location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
+
+
+User.update_forward_refs()
 
 
 class Device(ormar.Model):
@@ -100,66 +102,30 @@ class Device(ormar.Model):
 
 class UserDeviceLevel(ormar.Model):
     class Meta(MainMeta):
-        constraints = [ormar.UniqueColumns("device", "user")]
+        constraints = [ormar.UniqueColumns("device", "user", "shift")]
 
     id: int = ormar.Integer(primary_key=True, index=True)
     device: Device = ormar.ForeignKey(Device, index=True)
-    user: User = ormar.ForeignKey(User, index=True)
-    shift: bool = ormar.Boolean(nullable=False)
+    user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
+    superior: Optional[User] = ormar.ForeignKey(
+        User, nullable=True, ondelete="SET NULL", related_name="superior",
+    )
+    shift: bool = ormar.Boolean(nullable=False, choices=list(ShiftType))
     level: int = ormar.SmallInteger(minimum=0)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
-class UserShiftInfo(ormar.Model):
-    class Meta(MainMeta):
-        constraints = [ormar.UniqueColumns("user", "shift_date")]
+# class UserShiftInfo(ormar.Model):
+#     class Meta(MainMeta):
+#         constraints = [ormar.UniqueColumns("user", "shift_date")]
 
-    id: int = ormar.Integer(primary_key=True, index=True)
-    user: User = ormar.ForeignKey(User, index=True)
-    devices: List[Device] = ormar.ManyToMany(Device)
-    shift_date: date = ormar.Date()
-    attend: bool = ormar.Boolean(default=True)
-    day_or_night: str = ormar.String(max_length=5, choices=list(ShiftClassType))
-
-
-class DeviceManageInfoManager(ormar.Model):
-    class Meta(MainMeta):
-        tablename = "deviceinfo_managers"
-
-    id: int = ormar.Integer(primary_key=True)
-
-
-class DeviceManageInfoSupervisor(ormar.Model):
-    class Meta(MainMeta):
-        tablename = "deviceinfo_supervisors"
-
-    id: int = ormar.Integer(primary_key=True)
-
-
-class DeviceManageInfoChief(ormar.Model):
-    class Meta(MainMeta):
-        tablename = "deviceinfo_chiefs"
-
-    id: int = ormar.Integer(primary_key=True)
-
-
-class DeviceManageInfo(ormar.Model):
-    class Meta(MainMeta):
-        pass
-
-    id: int = ormar.Integer(primary_key=True)
-    device: Device = ormar.ForeignKey(Device, index=True)
-    managers: List[User] = ormar.ManyToMany(
-        User, through=DeviceManageInfoManager, related_name="managers"
-    )
-    supervisors: List[User] = ormar.ManyToMany(
-        User, through=DeviceManageInfoSupervisor, related_name="supervisors"
-    )
-    chiefs: List[User] = ormar.ManyToMany(
-        User, through=DeviceManageInfoChief, related_name="chiefs"
-    )
-    date: date = ormar.Date()
+#     id: int = ormar.Integer(primary_key=True, index=True)
+#     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
+#     devices: List[Device] = ormar.ManyToMany(Device)
+#     shift_date: date = ormar.Date()
+#     attend: bool = ormar.Boolean(default=True)
+#     day_or_night: str = ormar.String(max_length=5, choices=list(ShiftType))
 
 
 class Mission(ormar.Model):
@@ -217,7 +183,7 @@ class AuditActionEnum(Enum):
     MISSION_FINISHED = "MISSION_FINISHED"
     MISSION_DELETED = "MISSION_DELETED"
     USER_LOGIN = "USER_LOGIN"
-    MOVE_POSITION = "MOVE_POSITION"
+    USER_MOVE_POSITION = "USER_MOVE_POSITION"
     DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
     DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
 
@@ -242,7 +208,7 @@ class AuditLogHeader(ormar.Model):
     )
     table_name: Optional[str] = ormar.String(max_length=50, index=True)
     record_pk: Optional[str] = ormar.String(max_length=100, index=True, nullable=True)
-    user: Optional[User] = ormar.ForeignKey(User, nullable=True)
+    user: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
     created_date: datetime = ormar.DateTime(server_default=func.now())
     values: List[LogValue] = ormar.ManyToMany(LogValue)
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
@@ -265,7 +231,7 @@ class WorkerStatus(ormar.Model):
         tablename = "worker_status"
 
     id: int = ormar.Integer(primary_key=True)
-    worker: User = ormar.ForeignKey(User, unique=True)
+    worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE")
     at_device: Device = ormar.ForeignKey(Device)
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime()
@@ -281,4 +247,5 @@ async def before_update(sender, instance, **kwargs):
 engine = create_engine(DATABASE_URI)
 
 if PY_ENV == "dev":
+    metadata.drop_all(engine)
     metadata.create_all(engine)

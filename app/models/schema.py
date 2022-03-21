@@ -1,7 +1,7 @@
-from pydantic.types import Json
-from app.core.database import User
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
+
+from app.core.database import UserLevel
 
 
 # * User
@@ -9,7 +9,7 @@ class UserBase(BaseModel):
     username: str
     full_name: str
     expertises: List[str]
-    level: int
+    level: UserLevel
 
 
 class UserCreate(UserBase):
@@ -23,7 +23,6 @@ class UserPatch(BaseModel):
 
 
 class UserOut(UserBase):
-    id: str
     is_active: bool
     is_admin: bool
 
@@ -61,13 +60,3 @@ class MissionFinish(BaseModel):
     issue_solution: str
     image: bytes
     signature: bytes
-
-
-# * Factory Map
-class FactoryMapBase(BaseModel):
-    name: str
-    matrix: List[List[int]]
-
-
-class FactoryMapCreate(FactoryMapBase):
-    pass
