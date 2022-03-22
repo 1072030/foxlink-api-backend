@@ -9,7 +9,6 @@ from app.core.database import (
     WorkerStatus,
     WorkerStatusEnum,
     AuditLogHeader,
-    Mission,
     database,
 )
 from app.services.user import (
@@ -26,7 +25,13 @@ from app.services.auth import (
     verify_password,
     get_admin_active_user,
 )
-from app.models.schema import UserCreate, UserChangePassword, UserOut, UserPatch
+from app.models.schema import (
+    UserCreate,
+    UserChangePassword,
+    UserOut,
+    UserPatch,
+    MissionDto,
+)
 
 router = APIRouter(prefix="/users")
 
@@ -72,11 +77,9 @@ async def get_off_work(
         await WorkerStatus.objects.filter(worker=user).update(
             status=WorkerStatusEnum.leave.value
         )
-        
+
     await AuditLogHeader.objects.create(
-        user=user,
-        action=AuditActionEnum.USER_LOGOUT.value,
-        description=reason.value,
+        user=user, action=AuditActionEnum.USER_LOGOUT.value, description=reason.value,
     )
 
 
@@ -101,6 +104,6 @@ async def delete_a_user_by_username(
     return True
 
 
-@router.get("/mission-history", tags=["users"], response_model=List[Mission])
+@router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
 async def get_user_mission_history(user: User = Depends(get_current_active_user)):
     return await get_worker_mission_history(user.username)

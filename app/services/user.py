@@ -5,6 +5,7 @@ import ormar
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
 from app.core.database import AuditActionEnum, AuditLogHeader, Mission, User
+from app.models.schema import DeviceDto, MissionDto
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -82,11 +83,35 @@ async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]
         return None
 
 
-async def get_worker_mission_history(username: str) -> List[Mission]:
-    return (
+async def get_worker_mission_history(username: str) -> List[MissionDto]:
+    missions = (
         await Mission.objects.filter(assignees__username=username)
         .order_by("-created_date")
         .limit(10)
         .all()
     )
+
+    return [
+        MissionDto(
+            mission_id=x.id,
+            name=x.name,
+            device=DeviceDto(
+                device_id=x.device.id,
+                device_name=x.device.device_name,
+                project=x.device.project,
+                process=x.device.process,
+                line=x.device.line,
+            ),
+            description=x.description,
+            is_started=x.is_started,
+            is_closed=x.is_closed,
+            done_verified=x.done_verified,
+            assignees=[u.username for u in x.assignees],
+            event_start_date=x.event_start_date,
+            event_end_date=x.event_end_date,
+            created_date=x.created_date,
+            updated_date=x.updated_date,
+        )
+        for x in missions
+    ]
 

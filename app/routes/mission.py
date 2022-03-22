@@ -17,32 +17,9 @@ from app.services.mission import (
 from app.services.auth import get_current_active_user, get_admin_active_user
 from app.models.schema import MissionCreate, MissionUpdate
 from fastapi.exceptions import HTTPException
-import datetime
+from app.models.schema import MissionDto, DeviceDto
 
 router = APIRouter(prefix="/missions")
-
-
-class DeviceDto(BaseModel):
-    device_id: str
-    device_name: str
-    project: str
-    process: str
-    line: int
-
-
-class MissionDto(BaseModel):
-    mission_id: int
-    device: DeviceDto
-    name: str
-    description: str
-    assignees: List[str]
-    is_started: bool
-    is_closed: bool
-    done_verified: bool
-    event_start_date: Optional[datetime.datetime]
-    event_end_date: Optional[datetime.datetime]
-    created_date: datetime.datetime
-    updated_date: datetime.datetime
 
 
 @router.get("/", response_model=List[MissionDto], tags=["missions"])
