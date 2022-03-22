@@ -4,7 +4,7 @@ from fastapi.exceptions import HTTPException
 import ormar
 from app.models.schema import UserCreate
 from passlib.context import CryptContext
-from app.core.database import AuditActionEnum, AuditLogHeader, User
+from app.core.database import AuditActionEnum, AuditLogHeader, Mission, User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -80,3 +80,13 @@ async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]
         return first_login_record.created_date
     except Exception:
         return None
+
+
+async def get_worker_mission_history(username: str) -> List[Mission]:
+    return (
+        await Mission.objects.filter(assignees__username=username)
+        .order_by("-created_date")
+        .limit(10)
+        .all()
+    )
+
