@@ -86,6 +86,7 @@ async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]
 async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(assignees__username=username)
+        .select_related("device")
         .order_by("-created_date")
         .limit(10)
         .all()
