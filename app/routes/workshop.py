@@ -1,7 +1,9 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from app.core.database import FactoryMap, User
 from app.services.auth import get_admin_active_user
+from app.services.workshop import create_workshop_device_qrcode
+from urllib.parse import quote
 
 router = APIRouter(prefix="/workshop")
 
@@ -16,5 +18,20 @@ async def get_workshop_info_by_query(
     query = {k: v for k, v in query.items() if v is not None}
     return await FactoryMap.objects.filter(**query).all()  # type: ignore
 
-async def get_workshop_device_qrcode(workshop_name: str, user: User = Depends(get_admin_active_user)):
-    ...
+
+@router.get("/qrcode", tags=["workshop"])
+async def get_workshop_device_qrcode(
+    workshop_name: str, user: User = Depends(get_admin_active_user)
+):
+    zip_bytes = await create_workshop_device_qrcode(workshop_name)
+
+    return Response(
+        zip_bytes,
+        media_type="application/x-zip-compressed",
+        headers={
+            "Content-Disposition": "attachment; filename*=utf-8''{}.zip".format(
+                quote(workshop_name + "-QRCodes")
+            )
+        },
+    )
+
