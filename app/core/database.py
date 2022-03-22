@@ -52,6 +52,8 @@ class WorkerStatusEnum(Enum):
 class LogoutReasonEnum(Enum):
     meeting = "Meeting"
     leave = "Leave"
+    rest = "Rest"
+    offwork = "OffWork"
 
 
 class MainMeta(ormar.ModelMeta):
@@ -102,6 +104,7 @@ class Device(ormar.Model):
     y_axis: float = ormar.Float(nullable=False)
     is_rescue: bool = ormar.Boolean(default=False)
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
+    sop_link: Optional[str] = ormar.String(max_length=128, nullable=True)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
@@ -179,6 +182,7 @@ class AuditActionEnum(Enum):
     MISSION_FINISHED = "MISSION_FINISHED"
     MISSION_DELETED = "MISSION_DELETED"
     USER_LOGIN = "USER_LOGIN"
+    USER_LOGOUT = "USER_LOGOUT"
     USER_MOVE_POSITION = "USER_MOVE_POSITION"
     DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
     DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
