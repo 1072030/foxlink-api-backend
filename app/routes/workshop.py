@@ -28,7 +28,8 @@ async def get_workshop_info_by_query(
         200: {
             "content": {"application/x-zip-compressed": {}},
             "description": "Return a zip file containing device qrcode in png format.",
-        }
+        },
+        404: {"description": "workshop is not found",},
     },
 )
 async def get_workshop_device_qrcode(

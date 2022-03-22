@@ -1,5 +1,6 @@
 import io
 import qrcode
+from fastapi.exceptions import HTTPException
 from app.core.database import FactoryMap
 from zipfile import ZipFile
 
@@ -20,13 +21,13 @@ async def create_workshop_device_qrcode(workshop_name: str):
     workshop = await get_factory_map_by_name(workshop_name)
 
     if workshop is None:
-        raise Exception("workshop is not found")
+        raise HTTPException(404, "workshop is not found")
 
     zip_io = io.BytesIO()
     with ZipFile(zip_io, "w") as zip_file:
         for device_id in workshop.related_devices:
             # we don't need to create rescue station qrcode.
-            if 'rescue' in device_id:
+            if "rescue" in device_id:
                 continue
 
             qr = qrcode.QRCode(
