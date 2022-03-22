@@ -19,7 +19,18 @@ async def get_workshop_info_by_query(
     return await FactoryMap.objects.filter(**query).all()  # type: ignore
 
 
-@router.get("/qrcode", tags=["workshop"])
+@router.get(
+    "/qrcode",
+    tags=["workshop"],
+    description="Download all device qrcode in workshop",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/x-zip-compressed": {}},
+            "description": "Return a zip file containing device qrcode in png format.",
+        }
+    },
+)
 async def get_workshop_device_qrcode(
     workshop_name: str, user: User = Depends(get_admin_active_user)
 ):
