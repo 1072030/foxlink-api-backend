@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 import datetime
 from typing import List
@@ -52,8 +53,10 @@ async def get_logs(
 
     params = {k: v for k, v in params.items() if v is not None}
 
-    logs = await AuditLogHeader.objects.filter(**params).select_related(["user", "values"]).paginate(page, limit).order_by("-created_date").all()  # type: ignore
-    total_count = await AuditLogHeader.objects.filter(**params).count()  # type: ignore
+    logs, total_count = await asyncio.gather(
+        AuditLogHeader.objects.filter(**params).select_related(["user", "values"]).paginate(page, limit).order_by("-created_date").all(),  # type: ignore
+        AuditLogHeader.objects.filter(**params).count(),  # type: ignore
+    )
 
     return LogResponse(
         page=page,
