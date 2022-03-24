@@ -12,6 +12,7 @@ from app.core.database import (
     database,
 )
 from app.services.user import (
+    get_user_subordinates_by_username,
     get_users,
     create_user,
     get_password_hash,
@@ -26,6 +27,7 @@ from app.services.auth import (
     get_admin_active_user,
 )
 from app.models.schema import (
+    SubordinateOut,
     UserCreate,
     UserChangePassword,
     UserOut,
@@ -79,7 +81,10 @@ async def get_off_work(
         )
 
     await AuditLogHeader.objects.create(
-        user=user, table_name="users", action=AuditActionEnum.USER_LOGOUT.value, description=reason.value,
+        user=user,
+        table_name="users",
+        action=AuditActionEnum.USER_LOGOUT.value,
+        description=reason.value,
     )
 
 
@@ -107,3 +112,11 @@ async def delete_a_user_by_username(
 @router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
 async def get_user_mission_history(user: User = Depends(get_current_active_user)):
     return await get_worker_mission_history(user.username)
+
+
+@router.get("/subordinates", tags=["users"], response_model=List[SubordinateOut])
+async def get_user_subordinates(user: User = Depends(get_current_active_user)):
+    if user.level == UserLevel.maintainer.value:
+        raise HTTPException(401, "you are not allowed to get subordinates")
+
+    return await get_user_subordinates_by_username(user.username)

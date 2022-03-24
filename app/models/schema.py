@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel
 import datetime
-from app.core.database import UserLevel
+from app.core.database import ShiftType, UserLevel
 
 
 # * User
@@ -72,3 +72,7 @@ class MissionDto(BaseModel):
     created_date: datetime.datetime
     updated_date: datetime.datetime
 
+class SubordinateOut(BaseModel):
+    username: str
+    full_name: str
+    shift: ShiftType

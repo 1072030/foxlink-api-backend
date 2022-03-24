@@ -2,9 +2,15 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
 import ormar
-from app.models.schema import UserCreate
+from app.models.schema import SubordinateOut, UserCreate
 from passlib.context import CryptContext
-from app.core.database import AuditActionEnum, AuditLogHeader, Mission, User
+from app.core.database import (
+    AuditActionEnum,
+    AuditLogHeader,
+    Mission,
+    User,
+    database,
+)
 from app.models.schema import DeviceDto, MissionDto
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -116,3 +122,21 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
         for x in missions
     ]
 
+
+async def get_user_subordinates_by_username(username: str):
+    result = await database.fetch_all(
+        """
+        SELECT DISTINCT user as username, u.full_name as full_name, shift 
+        FROM userdevicelevels
+        INNER JOIN users u ON u.username = `user`
+        WHERE superior = :superior AND user != superior;
+        """,
+        values={"superior": username},
+    )
+
+    return [
+        SubordinateOut(
+            username=x["username"], full_name=x["full_name"], shift=x["shift"]
+        )
+        for x in result
+    ]
