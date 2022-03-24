@@ -8,18 +8,19 @@ from typing import Optional
 router = APIRouter(prefix="/logs")
 
 
-class LogDto(BaseModel):
+class LogOut(BaseModel):
     id: int
     action: AuditActionEnum
     table_name: str
     record_pk: Optional[str]
     values: List[LogValue]
     username: Optional[str]
+    description: Optional[str]
     created_date: datetime.datetime
 
 
 class LogResponse(BaseModel):
-    logs: List[LogDto]
+    logs: List[LogOut]
     page: int  # current page
     limit: int  # current page limit
     total: int  # total amount of logs
@@ -51,7 +52,7 @@ async def get_logs(
 
     params = {k: v for k, v in params.items() if v is not None}
 
-    logs = await AuditLogHeader.objects.filter(**params).select_related("user").paginate(page, limit).order_by("-created_date").all()  # type: ignore
+    logs = await AuditLogHeader.objects.filter(**params).select_related("user", "values").paginate(page, limit).order_by("-created_date").all()  # type: ignore
     total_count = await AuditLogHeader.objects.filter(**params).count()  # type: ignore
 
     return LogResponse(
@@ -59,13 +60,14 @@ async def get_logs(
         limit=limit,
         total=total_count,
         logs=[
-            LogDto(
+            LogOut(
                 id=log.id,
                 action=log.action,
                 table_name=log.table_name,
                 record_pk=log.record_pk,
                 values=log.values,
                 username=log.user.username if log.user is not None else None,
+                description=log.description,
                 created_date=log.created_date,
             )
             for log in logs
