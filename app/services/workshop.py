@@ -1,5 +1,6 @@
 import io
 import qrcode
+from qrcode.constants import ERROR_CORRECT_M
 from fastapi.exceptions import HTTPException
 from app.core.database import FactoryMap
 from zipfile import ZipFile
@@ -31,10 +32,7 @@ async def create_workshop_device_qrcode(workshop_name: str):
                 continue
 
             qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
+                version=2, error_correction=ERROR_CORRECT_M, box_size=10, border=4,
             )
             qr.add_data(device_id)
             qr.make(fit=True)

@@ -19,6 +19,12 @@ async def get_workshop_info_by_query(
     return await FactoryMap.objects.filter(**query).all()  # type: ignore
 
 
+@router.get("/list", tags=["workshop"], description="Get a list of all workshop's name")
+async def get_workshop_list(user: User = Depends(get_admin_active_user)):
+    workshop = await FactoryMap.objects.fields(["name"]).all()
+    return [w.name for w in workshop]
+
+
 @router.get(
     "/qrcode",
     tags=["workshop"],
