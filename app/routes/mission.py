@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
+    accept_mission,
     get_missions,
     get_mission_by_id,
     get_missions_by_username,
@@ -122,12 +123,17 @@ async def assign_mission_to_user(
 async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
     await start_mission_by_id(mission_id, user)
 
+@router.post("/{mission_id}/accept", tags=["missions"])
+async def accept_mission_by_worker(
+    mission_id: int, user: User = Depends(get_current_active_user)
+):
+    await accept_mission(mission_id, user)
 
 @router.get("/{mission_id}/reject", tags=["missions"])
 async def reject_a_mission(
     mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    return await reject_mission_by_id(mission_id, user)
+    await reject_mission_by_id(mission_id, user)
 
 
 @router.post("/{mission_id}/finish", tags=["missions"])
