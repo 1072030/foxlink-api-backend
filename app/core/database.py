@@ -238,6 +238,7 @@ class WorkerStatus(ormar.Model):
     last_event_end_date: datetime = ormar.DateTime()
     dispatch_count: int = ormar.Integer(default=0)
     updated_date: datetime = ormar.DateTime(server_default=func.now())
+    check_alive_time: datetime = ormar.DateTime(server_default=func.now())
 
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus])

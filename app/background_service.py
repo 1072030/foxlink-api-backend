@@ -1,7 +1,6 @@
-import logging, asyncio
+import logging, asyncio, aiohttp
 from typing import List
 from datetime import datetime, timedelta
-
 from pydantic import BaseModel
 from app.dispatch import FoxlinkDispatch
 from app.services.mission import assign_mission
@@ -9,6 +8,7 @@ from app.services.user import get_employee_work_timestamp_today
 from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import get_shift_type_now, get_shift_type_by_datetime
 from app.mqtt.main import publish
+from app.env import MQTT_BROKER, MAX_NOT_ALIVE_TIME, EMQX_USERNAME, EMQX_PASSWORD
 from app.core.database import (
     CategoryPRI,
     FactoryMap,
@@ -27,7 +27,6 @@ from app.core.database import (
 
 logger = logging.getLogger(LOGGER_NAME)
 dispatch = FoxlinkDispatch()
-
 
 class MissionInfo(BaseModel):
     mission_id: str
@@ -48,6 +47,30 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
     except ValueError as e:
         msg = f"{device_id} device is not in the map {factory_map.name}"
         raise ValueError(msg)
+
+
+async def check_alive_worker_routine():
+    alive_worker_status = await WorkerStatus.objects.filter(
+        status__in=[WorkerStatusEnum.working.value, WorkerStatusEnum.idle.value]
+    ).all()
+
+    async with aiohttp.ClientSession() as session:
+        for w in alive_worker_status:
+            async with session.get(
+                f"http://{MQTT_BROKER}:18083/api/v4/clients/{w.worker.username}",
+                auth=aiohttp.BasicAuth(login=EMQX_USERNAME, password=EMQX_PASSWORD),
+            ) as resp:
+                if resp.status != 200:
+                    logger.warn("Error getting mqtt client status")
+                    continue
+
+                content = await resp.json()
+                if len(content['data']) == 0:
+                    if datetime.utcnow() - w.check_alive_time > timedelta(minutes=MAX_NOT_ALIVE_TIME):
+                        await w.update(status=WorkerStatusEnum.leave.value)
+                        logger.info(f"{w.worker.username} is offline")
+                else:
+                    await w.update(check_alive_time=datetime.utcnow())
 
 
 async def notify_overtime_workers():
@@ -83,7 +106,7 @@ async def worker_monitor_routine():
     ).all()
 
     for w in workers:
-        status = (
+        worker_status = (
             await WorkerStatus.objects.select_related("worker")
             .filter(worker=w)
             .get_or_none()
@@ -108,19 +131,22 @@ async def worker_monitor_routine():
             logger.error(f"you should create a rescue station as soon as possible")
             return
 
-        if status is None:
+        if worker_status is None:
             await WorkerStatus.objects.create(
                 worker=w,
-                status=WorkerStatusEnum.idle.value,
+                status=WorkerStatusEnum.leave.value,
                 at_device=rescue_stations[0],
                 last_event_end_date=datetime.utcnow(),
             )
         else:
+            if worker_status.status == WorkerStatusEnum.leave.value:
+                continue
+
             factory_map = await FactoryMap.objects.filter(id=w.location).get()
             rescue_distances = []
 
             worker_device_idx = find_idx_in_factory_map(
-                factory_map, status.at_device.id
+                factory_map, worker_status.at_device.id
             )
 
             for r in rescue_stations:
@@ -132,7 +158,7 @@ async def worker_monitor_routine():
                     }
                 )
 
-            await status.update(
+            await worker_status.update(
                 status=WorkerStatusEnum.idle.value,
                 at_device=dispatch.move_to_rescue(rescue_distances),
             )
@@ -140,7 +166,11 @@ async def worker_monitor_routine():
 
 @database.transaction()
 async def dispatch_routine():
-    await asyncio.gather(worker_monitor_routine(), notify_overtime_workers())
+    await asyncio.gather(
+        worker_monitor_routine(),
+        notify_overtime_workers(),
+    )
+    await check_alive_worker_routine()
 
     avaliable_missions = (
         await Mission.objects.select_related(["device", "assignees"])
@@ -163,7 +193,9 @@ async def dispatch_routine():
         )
 
         reject_count, event_count = await asyncio.gather(
-            AuditLogHeader.objects.filter( action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id).count(),
+            AuditLogHeader.objects.filter(
+                action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
+            ).count(),
             Mission.objects.filter(device=m.device.id, category=m.category).count(),
         )
 

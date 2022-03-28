@@ -32,3 +32,4 @@ xlrd
 validators
 qrcode
 pillow
+aiohttp
