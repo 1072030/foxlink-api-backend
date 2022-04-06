@@ -14,7 +14,7 @@ from app.core.database import (
     database,
 )
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionCancel, MissionCreate, MissionFinish, MissionUpdate
+from app.models.schema import MissionCreate, MissionUpdate
 from app.mqtt.main import publish
 import logging
 from app.services.user import get_user_by_username
@@ -77,11 +77,17 @@ async def create_mission(dto: MissionCreate):
         raise HTTPException(
             status_code=400, detail="raise a error when inserting mission into databse",
         )
+
+    await AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_CREATED.value,
+        table_name="missions",
+        record_pk=str(created_mission.id),
+    )
     return created_mission
 
 
 @database.transaction()
-async def start_mission_by_id(mission_id: int, validate_user: User):
+async def start_mission_by_id(mission_id: int, worker: User):
     mission = await Mission.objects.select_related("assignees").get_or_none(
         id=mission_id
     )
@@ -89,14 +95,24 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
+    if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
-    if mission.repair_end_date is not None:
-        raise HTTPException(400, "this mission is already closed!")
+    if mission.is_started or mission.is_closed:
+        raise HTTPException(400, "this mission is already started or closed")
 
-    if mission.repair_start_date is not None:
-        raise HTTPException(400, "this mission is starting currently")
+    for worker in mission.assignees:
+        # Check worker has accepted the mission or not.
+        accept_count = await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_ACCEPTED.value,
+            user=worker.username,
+            record_pk=str(mission_id),
+        ).count()
+
+        if accept_count == 0:
+            raise HTTPException(
+                400, "one of the assignees hasn't accepted the mission yet!"
+            )
 
     await mission.update(repair_start_date=datetime.utcnow())
 
@@ -106,11 +122,41 @@ async def start_mission_by_id(mission_id: int, validate_user: User):
         worker_status.status = WorkerStatusEnum.working.value
         await worker_status.update()
         await AuditLogHeader.objects.create(
-            action=AuditActionEnum.MISSION_ACCEPTED.value,
+            action=AuditActionEnum.MISSION_STARTED.value,
             user=worker.username,
             table_name="missions",
-            record_pk=mission.id,
+            record_pk=str(mission.id),
         )
+
+
+async def accept_mission(mission_id: int, worker: User):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request is not found")
+
+    if len([x for x in mission.assignees if x.username == worker.username]) == 0:
+        raise HTTPException(400, "you are not this mission's assignee")
+
+    if mission.is_started or mission.is_closed:
+        raise HTTPException(400, "this mission is already started or closed")
+
+    # Check worker has accepted the mission or not.
+    accept_count = await AuditLogHeader.objects.filter(
+        action=AuditActionEnum.MISSION_ACCEPTED.value,
+        user=worker.username,
+        record_pk=mission_id,
+    ).count()
+
+    if accept_count > 0:
+        raise HTTPException(400, "you have already accepted the mission")
+
+    await AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_ACCEPTED.value,
+        user=worker.username,
+        table_name="missions",
+        record_pk=str(mission_id),
+    )
 
 
 async def reject_mission_by_id(mission_id: int, user: User):
@@ -121,13 +167,22 @@ async def reject_mission_by_id(mission_id: int, user: User):
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    filter = [u for u in mission.assignees if u.username == user.username]
-
-    if len(filter) == 0:
+    if len([u for u in mission.assignees if u.username == user.username]) == 0:
         raise HTTPException(400, "the mission haven't assigned to you")
 
-    if mission.repair_start_date is not None:
-        raise HTTPException(400, "this mission is starting currently")
+    if mission.is_started or mission.is_closed:
+        raise HTTPException(400, "this mission is already started or closed")
+
+    accept_count = await AuditLogHeader.objects.filter(
+        action=AuditActionEnum.MISSION_ACCEPTED.value,
+        user=user.username,
+        record_pk=str(mission_id),
+    ).count()
+
+    if accept_count > 0:
+        raise HTTPException(400, "you have already accepted the mission")
+
+    await mission.assignees.remove(user)  # type: ignore
 
     await AuditLogHeader.objects.create(
         table_name="missions",
@@ -135,8 +190,6 @@ async def reject_mission_by_id(mission_id: int, user: User):
         record_pk=str(mission.id),
         user=user,
     )
-
-    await mission.assignees.remove(user)  # type: ignore
 
     mission_reject_amount = await AuditLogHeader.objects.filter(
         record_pk=str(mission.id),
@@ -181,9 +234,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
 
 
 @database.transaction()
-async def finish_mission_by_id(
-    mission_id: int, dto: MissionFinish, validate_user: User
-):
+async def finish_mission_by_id(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
@@ -192,23 +243,17 @@ async def finish_mission_by_id(
     if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
-    if mission.repair_start_date is None:
+    if not mission.is_started:
         raise HTTPException(400, "this mission hasn't started yet")
 
-    if mission.repair_end_date is not None:
+    if mission.is_closed:
         raise HTTPException(400, "this mission is already closed!")
 
     if not mission.done_verified:
         raise HTTPException(400, "this mission is not verified as done")
 
     await mission.update(
-        repair_end_date=datetime.utcnow(),
-        machine_status=dto.devcie_status,
-        cause_of_issue=dto.cause_of_issue,
-        issue_solution=dto.issue_solution,
-        image=dto.image,
-        signature=dto.signature,
-        is_cancel=False,
+        repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
     # set each assignee's last_event_end_date
@@ -218,12 +263,13 @@ async def finish_mission_by_id(
         )
 
     # record this operation
-    await AuditLogHeader.objects.create(
-        table_name="missions",
-        action=AuditActionEnum.MISSION_FINISHED.value,
-        record_pk=str(mission.id),
-        user=validate_user,
-    )
+    for w in mission.assignees:
+        await AuditLogHeader.objects.create(
+            table_name="missions",
+            action=AuditActionEnum.MISSION_FINISHED.value,
+            record_pk=str(mission.id),
+            user=w.username,
+        )
 
 
 async def delete_mission_by_id(mission_id: int):
@@ -289,26 +335,6 @@ async def assign_mission(mission_id: int, username: str):
         raise HTTPException(400, detail="the user is already assigned to this mission")
 
 
-async def cancel_mission_by_id(dto: MissionCancel, validate_user: User):
-    """DEPRECATED: this method is deprecated and will be removed in the future."""
-
-    mission = await get_mission_by_id(dto.mission_id)
-
-    if mission is None:
-        raise HTTPException(404, "the mission you request to start is not found")
-
-    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
-        raise HTTPException(400, "you are not this mission's assignee")
-
-    if mission.repair_end_date is not None:
-        raise HTTPException(400, "this mission is already closed!")
-
-    if mission.repair_start_date is not None:
-        raise HTTPException(400, "this mission is currently starting")
-
-    await mission.update(repair_end_date=datetime.utcnow(), canceled_reason=dto.reason)
-
-
 async def request_assistance(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -322,7 +348,7 @@ async def request_assistance(mission_id: int, validate_user: User):
         raise HTTPException(400, "this mission is already in emergency")
 
     if not mission.is_started() or mission.is_closed():
-        raise HTTPException(400, "this mission is not started or closed")
+        raise HTTPException(400, "this mission hasn't started yet or it's already closed")
 
     await mission.update(is_emergency=True)
 

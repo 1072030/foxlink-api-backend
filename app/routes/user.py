@@ -1,13 +1,24 @@
 from typing import List
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
-from app.core.database import User, UserLevel, WorkerStatus, WorkerStatusEnum
+from app.core.database import (
+    AuditActionEnum,
+    LogoutReasonEnum,
+    User,
+    UserLevel,
+    WorkerStatus,
+    WorkerStatusEnum,
+    AuditLogHeader,
+    database,
+)
 from app.services.user import (
+    get_user_subordinates_by_username,
     get_users,
     create_user,
     get_password_hash,
     update_user,
     delete_user_by_username,
+    get_worker_mission_history,
     update_user,
 )
 from app.services.auth import (
@@ -15,7 +26,14 @@ from app.services.auth import (
     verify_password,
     get_admin_active_user,
 )
-from app.models.schema import UserCreate, UserChangePassword, UserOut, UserPatch
+from app.models.schema import (
+    SubordinateOut,
+    UserCreate,
+    UserChangePassword,
+    UserOut,
+    UserPatch,
+    MissionDto,
+)
 
 router = APIRouter(prefix="/users")
 
@@ -45,15 +63,29 @@ async def change_password(
     if not verify_password(dto.old_password, user.password_hash):
         raise HTTPException(status_code=401, detail="The old password is not matched")
 
-    await update_user(user.username, password_hash=get_password_hash(dto.new_password))
+    await update_user(
+        user.username,
+        password_hash=get_password_hash(dto.new_password),
+        is_changepwd=True,
+    )
 
 
-@router.get("/offwork", tags=["users"])
-async def get_offwork(user: User = Depends(get_current_active_user)):
+@database.transaction()
+@router.post("/get-off-work", tags=["users"])
+async def get_off_work(
+    reason: LogoutReasonEnum, user: User = Depends(get_current_active_user)
+):
     if user.level == UserLevel.maintainer.value:
         await WorkerStatus.objects.filter(worker=user).update(
             status=WorkerStatusEnum.leave.value
         )
+
+    await AuditLogHeader.objects.create(
+        user=user,
+        table_name="users",
+        action=AuditActionEnum.USER_LOGOUT.value,
+        description=reason.value,
+    )
 
 
 @router.patch("/{username}", tags=["users"])
@@ -76,3 +108,15 @@ async def delete_a_user_by_username(
     await delete_user_by_username(username)
     return True
 
+
+@router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
+async def get_user_mission_history(user: User = Depends(get_current_active_user)):
+    return await get_worker_mission_history(user.username)
+
+
+@router.get("/subordinates", tags=["users"], response_model=List[SubordinateOut])
+async def get_user_subordinates(user: User = Depends(get_current_active_user)):
+    if user.level == UserLevel.maintainer.value:
+        raise HTTPException(401, "you are not allowed to get subordinates")
+
+    return await get_user_subordinates_by_username(user.username)

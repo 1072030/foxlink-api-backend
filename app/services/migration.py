@@ -56,6 +56,7 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False):
             line=int(row["line"]) if math.isnan(row["line"]) == False else None,
             x_axis=float(row["x_axis"]),
             y_axis=float(row["y_axis"]),
+            sop_link=row["sop_link"],
             is_rescue=is_rescue,
             workshop=workshop,
         )

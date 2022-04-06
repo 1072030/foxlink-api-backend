@@ -35,7 +35,7 @@ class UserLevel(Enum):
     manager = 2  # 線長
     supervisor = 3  # 組長
     chief = 4  # 課級
-    admin = 5 # 管理員
+    admin = 5  # 管理員
 
 
 class ShiftType(Enum):
@@ -47,6 +47,13 @@ class WorkerStatusEnum(Enum):
     working = "Working"
     idle = "Idle"
     leave = "Leave"
+
+
+class LogoutReasonEnum(Enum):
+    meeting = "Meeting"
+    leave = "Leave"
+    rest = "Rest"
+    offwork = "OffWork"
 
 
 class MainMeta(ormar.ModelMeta):
@@ -77,6 +84,7 @@ class User(ormar.Model):
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
+    is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
 
 
@@ -96,6 +104,7 @@ class Device(ormar.Model):
     y_axis: float = ormar.Float(nullable=False)
     is_rescue: bool = ormar.Boolean(default=False)
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
+    sop_link: Optional[str] = ormar.String(max_length=128, nullable=True)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
@@ -143,16 +152,6 @@ class Mission(ormar.Model):
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     done_verified: bool = ormar.Boolean(default=False)
     related_event_id: int = ormar.Integer()
-    machine_status: Optional[str] = ormar.String(max_length=256, nullable=True)
-    cause_of_issue: Optional[str] = ormar.String(max_length=512, nullable=True)
-    issue_solution: Optional[str] = ormar.String(max_length=512, nullable=True)
-    canceled_reason: Optional[str] = ormar.String(max_length=512, nullable=True)
-    image: Optional[bytes] = ormar.LargeBinary(
-        max_length=1024 * 1024 * 5, default=bytes(0)
-    )
-    signature: Optional[bytes] = ormar.LargeBinary(
-        max_length=1024 * 1024 * 5, default=bytes(0)
-    )
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
     created_date: datetime = ormar.DateTime(server_default=func.now())
@@ -180,9 +179,11 @@ class AuditActionEnum(Enum):
     MISSION_REJECTED = "MISSION_REJECTED"
     MISSION_ACCEPTED = "MISSION_ACCEPTED"
     MISSION_ASSIGNED = "MISSION_ASSIGNED"
+    MISSION_STARTED = "MISSION_STARTED"
     MISSION_FINISHED = "MISSION_FINISHED"
     MISSION_DELETED = "MISSION_DELETED"
     USER_LOGIN = "USER_LOGIN"
+    USER_LOGOUT = "USER_LOGOUT"
     USER_MOVE_POSITION = "USER_MOVE_POSITION"
     DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
     DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
@@ -237,6 +238,7 @@ class WorkerStatus(ormar.Model):
     last_event_end_date: datetime = ormar.DateTime()
     dispatch_count: int = ormar.Integer(default=0)
     updated_date: datetime = ormar.DateTime(server_default=func.now())
+    check_alive_time: datetime = ormar.DateTime(server_default=func.now())
 
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus])
@@ -247,5 +249,5 @@ async def before_update(sender, instance, **kwargs):
 engine = create_engine(DATABASE_URI)
 
 if PY_ENV == "dev":
-    metadata.drop_all(engine)
+    # metadata.drop_all(engine)
     metadata.create_all(engine)

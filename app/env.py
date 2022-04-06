@@ -35,6 +35,10 @@ DATABASE_PASSWORD = get_env("DATABASE_PASSWORD", str)
 DATABASE_NAME = get_env("DATABASE_NAME", str)
 PY_ENV = get_env("PY_ENV", str, "production")
 
+if PY_ENV not in ["production", "dev"]:
+    logger.error("PY_ENV env should be either production or dev!")
+    exit(1)
+
 FOXLINK_DB_HOST = get_env("FOXLINK_DB_HOST", str)
 FOXLINK_DB_PORT = get_env("FOXLINK_DB_PORT", int)
 FOXLINK_DB_USER = get_env("FOXLINK_DB_USER", str)
@@ -51,6 +55,9 @@ if PY_ENV == "production" and JWT_SECRET == "secret":
 # MQTT
 MQTT_BROKER = get_env("MQTT_BROKER", str)
 MQTT_PORT = get_env("MQTT_PORT", int, 1883)
+# EMQX default admin account is (username: admin, password: public)
+EMQX_USERNAME = get_env("EMQX_USERNAME", str, "admin")
+EMQX_PASSWORD = get_env("EMQX_PASSWORD", str, "public")
 
 if MQTT_BROKER is None:
     logger.error("MQTT_BROKER is not set")
@@ -64,4 +71,6 @@ DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "07:40")
 DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "19:40")
 NIGHT_SHIFT_BEGIN = get_env("NIGHT_SHIFT_BEGIN", str, "19:40")
 NIGHT_SHIFT_END = get_env("NIGHT_SHIFT_END", str, "07:40")
+
+MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 

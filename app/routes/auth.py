@@ -21,7 +21,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
 router = APIRouter(prefix="/auth")
 
 
-@router.post("/token", response_model=Token, tags=["auth"], responses={401: {"description": "Invalid username/password"}})
+@router.post(
+    "/token",
+    response_model=Token,
+    tags=["auth"],
+    responses={401: {"description": "Invalid username/password"}},
+)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
 
@@ -46,8 +51,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value:
-        await WorkerStatus.objects.filter(worker=user).update(
-            status=WorkerStatusEnum.idle.value
-        )
+        worker_status = await WorkerStatus.objects.filter(worker=user).get()
+        if worker_status.status == WorkerStatusEnum.leave.value:
+            await worker_status.update(
+                status=WorkerStatusEnum.idle.value
+            )
 
     return {"access_token": access_token, "token_type": "bearer"}

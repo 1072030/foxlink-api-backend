@@ -2,9 +2,16 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
 import ormar
-from app.models.schema import UserCreate
+from app.models.schema import SubordinateOut, UserCreate
 from passlib.context import CryptContext
-from app.core.database import AuditActionEnum, AuditLogHeader, User
+from app.core.database import (
+    AuditActionEnum,
+    AuditLogHeader,
+    Mission,
+    User,
+    database,
+)
+from app.models.schema import DeviceDto, MissionDto
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -80,3 +87,56 @@ async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]
         return first_login_record.created_date
     except Exception:
         return None
+
+
+async def get_worker_mission_history(username: str) -> List[MissionDto]:
+    missions = (
+        await Mission.objects.filter(assignees__username=username)
+        .select_related("device")
+        .order_by("-created_date")
+        .limit(10)
+        .all()
+    )
+
+    return [
+        MissionDto(
+            mission_id=x.id,
+            name=x.name,
+            device=DeviceDto(
+                device_id=x.device.id,
+                device_name=x.device.device_name,
+                project=x.device.project,
+                process=x.device.process,
+                line=x.device.line,
+            ),
+            description=x.description,
+            is_started=x.is_started,
+            is_closed=x.is_closed,
+            done_verified=x.done_verified,
+            assignees=[u.username for u in x.assignees],
+            event_start_date=x.event_start_date,
+            event_end_date=x.event_end_date,
+            created_date=x.created_date,
+            updated_date=x.updated_date,
+        )
+        for x in missions
+    ]
+
+
+async def get_user_subordinates_by_username(username: str):
+    result = await database.fetch_all(
+        """
+        SELECT DISTINCT user as username, u.full_name as full_name, shift 
+        FROM userdevicelevels
+        INNER JOIN users u ON u.username = `user`
+        WHERE superior = :superior AND user != superior;
+        """,
+        values={"superior": username},
+    )
+
+    return [
+        SubordinateOut(
+            username=x["username"], full_name=x["full_name"], shift=x["shift"]
+        )
+        for x in result
+    ]

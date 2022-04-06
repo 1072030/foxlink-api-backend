@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel
-
-from app.core.database import UserLevel
+import datetime
+from app.core.database import ShiftType, UserLevel
 
 
 # * User
@@ -25,6 +25,7 @@ class UserPatch(BaseModel):
 class UserOut(UserBase):
     is_active: bool
     is_admin: bool
+    is_changepwd: bool
 
 
 class UserChangePassword(BaseModel):
@@ -49,14 +50,29 @@ class MissionUpdate(MissionBase):
     device_id: Optional[str]
 
 
-class MissionCancel(BaseModel):
+class DeviceDto(BaseModel):
+    device_id: str
+    device_name: str
+    project: str
+    process: str
+    line: int
+
+
+class MissionDto(BaseModel):
     mission_id: int
-    reason: str
+    device: DeviceDto
+    name: str
+    description: str
+    assignees: List[str]
+    is_started: bool
+    is_closed: bool
+    done_verified: bool
+    event_start_date: Optional[datetime.datetime]
+    event_end_date: Optional[datetime.datetime]
+    created_date: datetime.datetime
+    updated_date: datetime.datetime
 
-
-class MissionFinish(BaseModel):
-    devcie_status: str
-    cause_of_issue: str
-    issue_solution: str
-    image: bytes
-    signature: bytes
+class SubordinateOut(BaseModel):
+    username: str
+    full_name: str
+    shift: ShiftType

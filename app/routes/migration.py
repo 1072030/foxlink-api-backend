@@ -34,6 +34,7 @@ async def import_devices_from_excel(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
+            description="Import devices layout failed",
         )
         raise HTTPException(status_code=400, detail=repr(e))
 
@@ -54,6 +55,7 @@ async def import_workshop_eventbooks_from_excel(
             table_name="categorypris",
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user,
+            description="Import workshop eventbooks failed",
         )
         raise HTTPException(status_code=400, detail=repr(e))
 

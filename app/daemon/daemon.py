@@ -1,12 +1,8 @@
 import datetime
-from typing import List, Dict, Optional
-
+from typing import List, Optional
 from pydantic import BaseModel
 from app.utils.timer import Ticker
-from app.core.database import Device, Mission
-from app.models.schema import MissionCreate
-from app.services.mission import create_mission
-from app.core.database import Mission
+from app.core.database import Device, Mission, CategoryPRI
 from databases import Database
 from app.env import (
     FOXLINK_DB_USER,
@@ -36,6 +32,7 @@ class Event(BaseModel):
 class FoxlinkDbPool:
     _db: Database
     _ticker: Ticker
+    table_name_blacklist: List[str] = ["measure_info"]
 
     def __init__(self):
         self._db = Database(
@@ -64,7 +61,8 @@ class FoxlinkDbPool:
             {"table_name": db_name},
         )
 
-        return [x[0] for x in r]
+        table_names = [x[0] for x in r]
+        return [x for x in table_names if x not in self.table_name_blacklist]
 
     async def get_a_event_from_table(
         self, db_name: str, table_name: str, id: int
@@ -127,7 +125,6 @@ class FoxlinkDbPool:
 
     async def fetch_events_from_foxlink(self):
         tables = await self.get_db_table_list(db_name)
-        tables = [x for x in tables if x != "measure_info"]
 
         for table_name in tables:
             events = await self.get_recent_events(db_name, table_name)
@@ -138,9 +135,18 @@ class FoxlinkDbPool:
                 if m is not None:
                     continue
 
-                device = await Device.objects.filter(
-                    id__iexact=self.generate_device_id(e)
-                ).get()
+                device_id = self.generate_device_id(e)
+
+                # if this device's priority is not existed in `CategoryPRI` table, which means it's not an out-of-order event.
+                # Thus, we should skip it.
+                priority = await CategoryPRI.objects.filter(
+                    devices__id__iexact=device_id, category=e.category
+                ).get_or_none()
+
+                if priority is None:
+                    continue
+
+                device = await Device.objects.filter(id__iexact=device_id).get()
 
                 await Mission.objects.create(
                     device=device,

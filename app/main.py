@@ -1,18 +1,17 @@
-import logging
+import logging, importlib
 from fastapi import FastAPI
-from app.env import MQTT_BROKER, MQTT_PORT
+from app.env import MQTT_BROKER, MQTT_PORT, PY_ENV
 from logging.config import dictConfig
 from app.routes import (
     health,
     migration,
-    mock,
     user,
     auth,
     mission,
     statistics,
     log,
     device,
-    factorymap,
+    workshop,
 )
 from app.core.database import database
 from app.daemon.daemon import FoxlinkDbPool
@@ -20,6 +19,9 @@ from app.background_service import dispatch_routine
 from app.utils.timer import Ticker
 from app.mqtt.main import connect_mqtt, disconnect_mqtt
 from app.my_log_conf import LOGGER_NAME, LogConfig
+
+if PY_ENV == "dev":
+    mock = importlib.import_module("app.routes.mock")
 
 dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
@@ -33,8 +35,11 @@ app.include_router(migration.router)
 app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
-app.include_router(factorymap.router)
-app.include_router(mock.router)
+app.include_router(workshop.router)
+
+if PY_ENV == "dev":
+    logger.info("Creating mock router for dev mode")
+    app.include_router(mock.router)  # type: ignore
 
 
 foxlink_db = FoxlinkDbPool()
@@ -48,14 +53,16 @@ async def startup():
     await foxlink_db.connect()
     await dispatcher.start()
     # mock, test usage
-    await mock._db.connect()
+    if PY_ENV == "dev":
+        await mock._db.connect()
     logger.info("Foxlink API Server startup complete.")
 
 
 @app.on_event("shutdown")
 async def shutdown():
     # mock, test usage
-    await mock._db.disconnect()
+    if PY_ENV == "dev":
+        await mock._db.disconnect()
 
     await dispatcher.stop()
     await foxlink_db.close()

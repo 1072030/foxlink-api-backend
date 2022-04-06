@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
+    accept_mission,
     get_missions,
     get_mission_by_id,
     get_missions_by_username,
@@ -10,40 +11,16 @@ from app.services.mission import (
     update_mission_by_id,
     start_mission_by_id,
     finish_mission_by_id,
-    cancel_mission_by_id,
     reject_mission_by_id,
     delete_mission_by_id,
     assign_mission,
 )
 from app.services.auth import get_current_active_user, get_admin_active_user
-from app.models.schema import MissionCancel, MissionCreate, MissionUpdate, MissionFinish
-from app.mqtt.main import publish
+from app.models.schema import MissionCreate, MissionUpdate
 from fastapi.exceptions import HTTPException
-import datetime
+from app.models.schema import MissionDto, DeviceDto
 
 router = APIRouter(prefix="/missions")
-
-
-class DeviceDto(BaseModel):
-    device_id: str
-    device_name: str
-    project: str
-    process: str
-    line: int
-
-
-class MissionDto(BaseModel):
-    mission_id: int
-    device: DeviceDto
-    name: str
-    description: str
-    assignees: List[str]
-    is_started: bool
-    is_closed: bool
-    event_start_date: Optional[datetime.datetime]
-    event_end_date: Optional[datetime.datetime]
-    created_date: datetime.datetime
-    updated_date: datetime.datetime
 
 
 @router.get("/", response_model=List[MissionDto], tags=["missions"])
@@ -64,6 +41,7 @@ async def read_all_missions(user: User = Depends(get_admin_active_user)):
             description=x.description,
             is_started=x.is_started,
             is_closed=x.is_closed,
+            done_verified=x.done_verified,
             assignees=[u.username for u in x.assignees],
             event_start_date=x.event_start_date,
             event_end_date=x.event_end_date,
@@ -92,6 +70,7 @@ async def get_self_mission(user: User = Depends(get_current_active_user)):
             description=x.description,
             is_started=x.is_started,
             is_closed=x.is_closed,
+            done_verified=x.done_verified,
             assignees=[u.username for u in x.assignees],
             event_start_date=x.event_start_date,
             event_end_date=x.event_end_date,
@@ -124,6 +103,7 @@ async def get_a_mission_by_id(
         description=m.description,
         is_started=m.is_started,
         is_closed=m.is_closed,
+        done_verified=m.done_verified,
         assignees=[u.username for u in m.assignees],
         event_start_date=m.event_start_date,
         event_end_date=m.event_end_date,
@@ -143,26 +123,24 @@ async def assign_mission_to_user(
 async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
     await start_mission_by_id(mission_id, user)
 
+@router.post("/{mission_id}/accept", tags=["missions"])
+async def accept_mission_by_worker(
+    mission_id: int, user: User = Depends(get_current_active_user)
+):
+    await accept_mission(mission_id, user)
 
 @router.get("/{mission_id}/reject", tags=["missions"])
 async def reject_a_mission(
     mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    return await reject_mission_by_id(mission_id, user)
+    await reject_mission_by_id(mission_id, user)
 
 
 @router.post("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
-    mission_id: int, dto: MissionFinish, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    await finish_mission_by_id(mission_id, dto, user)
-
-
-@router.post("/{mission_id}/cancel", tags=["missions"])
-async def cancel_mission(
-    dto: MissionCancel, user: User = Depends(get_current_active_user)
-):
-    await cancel_mission_by_id(dto, user)
+    await finish_mission_by_id(mission_id, user)
 
 
 @router.post("/", tags=["missions"], status_code=201)
