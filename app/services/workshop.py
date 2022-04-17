@@ -6,7 +6,7 @@ from app.core.database import FactoryMap
 from zipfile import ZipFile
 from PIL import ImageDraw, ImageFont
 
-font = ImageFont.truetype("./data/NotoSansTC-Regular.otf", 16)
+font = ImageFont.truetype("./data/NotoSansTC-Regular.otf", 14)
 
 
 async def get_all_factory_maps():
@@ -34,16 +34,30 @@ async def create_workshop_device_qrcode(workshop_name: str):
             # if "rescue" in device_id:
             #     continue
 
+            split_text = device_id.split("@")
+
             qr = qrcode.QRCode(
-                version=2, error_correction=ERROR_CORRECT_M, box_size=10, border=4,
+                version=2, error_correction=ERROR_CORRECT_M, box_size=10, border=6,
             )
             qr.add_data(device_id)
             qr.make(fit=True)
             img = qr.make_image()
 
-            ImageDraw.Draw(img).text(
-                (10, 0), device_id, fill=0, font=font
-            )  # add device_id at top-left corner
+            # add device_id at top-left corner
+            if split_text[0] == "rescue":
+                ImageDraw.Draw(img).text(
+                    (10, 0),
+                    f"車間：{split_text[1]}\n救援站編號：{split_text[2]}",
+                    fill=0,
+                    font=font,
+                )
+            else:
+                ImageDraw.Draw(img).text(
+                    (10, 0),
+                    f"Project: {split_text[0]} Line: {split_text[1]}\nDevice Name: {split_text[2]}",
+                    fill=0,
+                    font=font,
+                )
 
             img_bytes = io.BytesIO()
             img.save(img_bytes, format=img.format)
