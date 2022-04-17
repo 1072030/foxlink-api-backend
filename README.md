@@ -68,6 +68,42 @@
   }
 ]
 ```
+- foxlink/users/{username}/move-rescue-station - 當員工閒置於機台超過特定時間時，系統將會通知員工移動至最近的維修站。
+```jsonc
+{
+  "rescue_id": "rescue@第九車間@1", // 要前往的維修站 ID
+}
+```
+- foxlink/users/{username}/worker-unusual-offline - 當員工異常離線時（網路不佳），超過某特定時間，將會通知該員工上級。
+```jsonc
+{
+  "worker_id": "rescue@第九車間@1", // 異常離線的員工 ID
+  "worker_name": "string", // 員工姓名
+}
+```
+
+# Server Config
+Config Name                 | Description                                                                                                                 | Default Value | Example Value
+----------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------|--------------
+DATABASE_HOST               | Database host                                                                                                               | localhost     | 127.0.0.1
+DATABASE_PORT               | Database port                                                                                                               | None          | 3306
+DATABASE_USER               | Database user                                                                                                               | None          | root
+DATABASE_PASSWORD           | Database password                                                                                                           | None          | None
+FOXLINK_DB_HOST             | Foxlink Db's host                                                                                                           | None          | 127.0.0.1
+FOXLINK_DB_PORT             | Foxlink Db's port                                                                                                           | None          | 3306
+FOXLINK_DB_USER             | Foxlink Db's user                                                                                                           | None          | foxlink
+FOXLINK_DB_PASSWORD         | Foxlink Db's password                                                                                                       | None          | foxlink
+JWT_SECRET                  | JWT secret.                                                                                                                 | secret        | secret
+MQTT_BROKER                 | IP address of MQTT broker                                                                                                   | None          | 127.0.0.1
+MQTT_PORT                   | MQTT Broker's Port                                                                                                          | 1883          | 1883
+EMQX_USERNAME               | EMQX username                                                                                                               | admin         | admin
+EMQX_PASSWORD               | EMQX password                                                                                                               | public        | public
+WORKER_REJECT_AMOUNT_NOTIFY | Minimum notify threshold a worker rejects missions in a day                                                                 | 2             | 2
+MISSION_REJECT_AMOUT_NOTIFY | Minimum notify threshold that a mission is being rejected                                                                   | 2             | 2
+DAY_SHIFT_BEGIN             | Day shift begin time (UTC Time)                                                                                             | 07:40         | 07:40
+DAY_SHIFT_END               | Day shift end time (UTC Time)                                                                                               | 19:40         | 19:40
+MAX_NOT_ALIVE_TIME          | Maximun time that a worker's application is not alive (in minutes)                                                          | 5             | 5
+MOVE_TO_RESCUE_STATION_TIME | Maximun time that a worker can idle at a device. When time's out, worker will be notified to move to nearest rescue station | 5             | 5
 
 # Related Infos
 - NTUST MQTT Broker: 140.118.157.9:27010
