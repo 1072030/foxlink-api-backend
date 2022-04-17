@@ -36,6 +36,7 @@ colorama==0.4.4
     # via
     #   click
     #   qrcode
+    #   tqdm
 cryptography==36.0.1
     # via -r requirements.in
 databases==0.5.3
@@ -140,6 +141,8 @@ sqlalchemy==1.4.28
     #   ormar
 starlette==0.16.0
     # via fastapi
+tqdm==4.64.0
+    # via -r requirements.in
 typing-extensions==4.0.1
     # via
     #   aiosqlite
