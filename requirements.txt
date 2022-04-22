@@ -83,7 +83,9 @@ multidict==6.0.2
     #   aiohttp
     #   yarl
 numpy==1.22.2
-    # via pandas
+    # via
+    #   pandas
+    #   scipy
 openpyxl==3.0.9
     # via -r requirements.in
 ormar==0.10.23
@@ -124,6 +126,8 @@ qrcode==7.3.1
     # via -r requirements.in
 rsa==4.8
     # via python-jose
+scipy==1.6.1
+    # via -r requirements.in
 six==1.16.0
     # via
     #   bcrypt

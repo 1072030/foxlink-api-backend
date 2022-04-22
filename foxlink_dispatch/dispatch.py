@@ -7,10 +7,11 @@
 # re_       : 回傳給 server 使用，非 df_ 的 回傳值。
 # error     : 回傳出現異常的欄位
 #%% 需安裝
+from typing import Optional, Any
 import pandas as pd
-import validators
-from typing import Any, Optional, Tuple
 from tqdm import tqdm
+import re
+from scipy.spatial import distance
 
 #%%
 class Foxlink_dispatch:
@@ -100,13 +101,13 @@ class Foxlink_dispatch:
 
 #%%
 """
-Custom Error；防呆報錯
+Custom Error；新增防呆報錯項目
 """
 
 
 class DispatchException(Exception):
-    def __init__(self, message: str, detail: Optional[Any]):
-        self.message = message
+    def __init__(self, msg: str, detail: Optional[Any]):
+        self.message = msg
         self.detail = detail
 
     def __repr__(self) -> str:
@@ -124,73 +125,23 @@ class Error_FileName(DispatchException):  # 資料名稱錯誤
 
 
 class Error_FileContent(DispatchException):  # 資料內容錯誤
-    def __init__(self, msg="內容可能不是員工資訊表喔", detail=None):
+    def __init__(self, msg="資料內容錯誤", detail=None):
         super().__init__(msg, detail)
 
 
 class Error_None(DispatchException):  # 空值
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有「尚未填寫」的部分喔", detail)
-
-
-class Error_Project(DispatchException):  # 專案類別
-    def __init__(self, msg="員工資訊表中有不存在的「專案名稱」，或是不符合格式喔", detail=None):
+    def __init__(self, msg="資訊表有尚未填寫的部分", detail=None):
         super().__init__(msg, detail)
-
-
-class Error_Shift(DispatchException):  # 班別:白班(0) 夜班(1)
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有不存在的職務", detail)
-
-
-class Error_Workshop(DispatchException):  # 車間
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有不存在的職務", detail)
-
-
-class Error_Device(DispatchException):  # 機台
-    def __init__(self, msg="員工資訊表中有不存在的機台名稱喔", detail=None):
-        super().__init__(msg, detail)
-
-
-class Error_Process(DispatchException):  # 製程段
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有不存在的製程段喔", detail)
-
-
-class Error_Line(DispatchException):  # 線段
-    def __init__(self, detail):
-        super().__init__("車間layout座標表中有不存在的線段喔", detail)
-
-
-class Error_Category(DispatchException):  # 需要指派員工的 category
-    def __init__(self):
-        super().__init__("車間layout座標表中有不存在的 category 喔")
-
-
-class Error_Job(DispatchException):  # 職務等級
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有不存在的職務喔", detail)
 
 
 class Error_Superior(DispatchException):  # 員工負責人
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有不存在的負責人喔", detail)
-
-
-class Error_Exp(DispatchException):  # 經驗值等級
-    def __init__(self, detail):
-        super().__init__("員工資訊表中有不存在的經驗等級喔", detail)
+    def __init__(self, msg: str, detail=None):
+        super().__init__(msg, detail)
 
 
 class Error_Axis(DispatchException):  # 座標
-    def __init__(self, detail):
-        super().__init__("車間layout座標表中的座標填寫有誤喔", detail)
-
-
-class Error_SOP(DispatchException):  # 機台SOP
-    def __init__(self, detail):
-        super().__init__("車間layout座標表中的 SOP link 填寫有誤喔~", detail)
+    def __init__(self, msg="車間 Layout 座標表中的座標填寫有誤", detail=None):
+        super().__init__(msg, detail)
 
 
 #%%
@@ -200,42 +151,21 @@ class Error_SOP(DispatchException):  # 機台SOP
 
 
 class data_convert:
-    def __init__(self, para):
-        "可控參數(parm)，放在 程式碼參數_公版.xlsx ；修改該 excel"
-        self.df_parm = pd.read_excel(para)
-        self.parm_shift = list(
-            self.df_parm["shift"].dropna().astype(int).astype(str)
-        )  # 班別:白班(0) 夜班(1)
-        self.parm_project = list(
-            self.df_parm["project"].dropna().astype(str)
-        )  # 專案別 ；MySQL中有出現 D5X、PEPPER 等命名方式；注意 D5X 不是 "D52","D53","D54" 共用的意思
-        self.parm_process = list(self.df_parm["process"].dropna().astype(str))  # 製程段
-        self.parm_device = list(
-            self.df_parm["device"].dropna().astype(str)
-        )  # 機台名稱； 目前有 Device_1~13
-        self.parm_exp = list(
-            self.df_parm["exp"].dropna().astype(int).astype(str)
-        )  # 經驗值等級
-        self.parm_job = list(
-            self.df_parm["job"].dropna().astype(int).astype(str)
-        )  # 職務等級； 目前 1 ~ 4
-        self.parm_cate = list(
-            self.df_parm["category"].dropna().astype(int).astype(str)
-        )  # 需要指派員工的category ； 當前為 1~199,300~699
-        self.parm_workshop = list(
-            self.df_parm["workshop"].dropna().astype(str)
-        )  # 車間： 目前有 第九車間(9)，可為數字或是string，最後都會轉成string
+    def __init__(self):
         return
+
+    def natural_sort(self, l):  # 自然排序
+        convert = lambda text: int(text) if text.isdigit() else text.lower()
+        alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
+        return sorted(l, key=alphanum_key)
 
     #%%
     """
     車間員工資訊表
     """
 
-    def fn_factory_worker_info(
-        self, filename: str, raw_excel: bytes
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        print("轉換中...")
+    def fn_factory_worker_info(self, filename: str, raw_excel: bytes):
+        print(filename + " 轉換中...")
         self.df_factory_worker_info_convert = pd.DataFrame()  # 空白資料表，準備儲存使用
         try:
             "讀取員工資料表"
@@ -243,34 +173,24 @@ class data_convert:
             self.df_factory_worker_info = pd.read_excel(
                 raw_excel, sheet_name=0, header=None
             )
-            if "車間員工資訊表" not in filename:  # 檢查 資料表名稱
-                raise Error_FileName(detail=filename)
-            if (
-                ~self.df_factory_worker_info.isin(
-                    ["班別", "員工工號", "員工名字", "車間", "職務", "負責人"]
-                )
-                .any()
-                .iloc[0:6]
-                .all()
-            ):  # 檢查資料表內容，如果沒有此些值，合理判斷是上傳錯誤的內容，或是公版被修改
-                raise Error_FileContent()
-
             "抓取員工資訊；職位判斷，負責人關係..."
             self.df_worker_info = self.df_factory_worker_info.iloc[5:, 0:6].rename(
                 columns=self.df_factory_worker_info.iloc[4, 0:6]
             )
-
-            if self.df_worker_info.isnull().values.any():  # 檢查是否有空值
-                self.df_error_list = self.df_worker_info[self.df_worker_info.isnull()]
-                raise Error_None(detail=self.df_error_list)
-            if (
-                ~self.df_worker_info["職務"].astype(str).isin(self.parm_job).all()
-            ):  # 檢查"職務人"填寫是否正確
+            if ~self.df_worker_info.columns.isin(
+                ["班別", "員工工號", "員工名字", "車間", "職務", "負責人"]
+            ).all():  # 檢查資料表內容，如果沒有此些值，合理判斷是上傳錯誤的內容，或是公版被修改
+                self.df_error_list = self.df_worker_info.columns
+                raise Error_FileContent(
+                    msg=f'{filename} 的"欄位名稱"可能有誤喔~', detail=self.df_error_list
+                )
+            if self.df_worker_info.isnull().values.any():  # 檢查是否有空值；可以避免空欄位
                 self.df_error_list = self.df_worker_info[
-                    ~self.df_worker_info["職務"].astype(str).isin(self.parm_job)
+                    self.df_worker_info.isnull().values
                 ]
-                value = self.df_error_list["職務"]
-                raise Error_Job(detail=value)
+                raise Error_None(
+                    msg=f'{filename} 的"尚未填寫"的部分~', detail=self.df_error_list
+                )
             if (
                 ~self.df_worker_info["負責人"]
                 .astype(str)
@@ -283,93 +203,26 @@ class data_convert:
                     .isin(self.df_worker_info["員工名字"])
                 ]
                 value = self.df_error_list["負責人"]
-                raise Error_Superior(detail=value)
-            if (
-                ~self.df_worker_info["班別"].astype(str).isin(self.parm_shift).all()
-            ):  # 檢查"班別"填寫是否正確
-                self.df_error_list = self.df_worker_info[
-                    ~self.df_worker_info["班別"].astype(str).isin(self.parm_shift)
-                ]
-                value = self.df_error_list["班別"]
-                raise Error_Shift(detail=value)
-            if (
-                ~self.df_worker_info["車間"].isin(self.parm_workshop).all()
-            ):  # 檢查"車間"填寫是否正確
-                self.df_error_list = self.df_worker_info[
-                    ~self.df_worker_info["車間"].isin(self.parm_workshop)
-                ]
-                value = self.df_error_list["車間"]
-                raise Error_Workshop(detail=value)
-
+                raise Error_Superior(msg=f"{filename} 有不存在的負責人", detail=value)
             "抓取專案與機台資訊"
             self.df_project_info = (
                 self.df_factory_worker_info.iloc[0:4, 5:]
                 .set_index(5)
                 .fillna(method="ffill", axis=1)
             )  # 填補 nan (excel 合併儲存格，python讀取後只有一格有值，其他為nan)
-
-            if (
-                self.df_project_info.loc["專案"]
-                .str.split("/")
-                .apply(lambda x: any([i not in self.parm_project for i in x]))
-                .any()
-            ):  # 檢查"專案名稱"填寫是否正確
-                self.df_error_list = self.df_project_info.loc["專案"][
-                    self.df_project_info.loc["專案"]
-                    .str.split("/")
-                    .apply(lambda x: any([i not in self.parm_project for i in x]))
-                ]
-                raise Error_Project(detail=self.df_error_list)
-            if (
-                ~self.df_project_info.loc["自動機製程段"]
-                .astype(str)
-                .isin(self.parm_process)
-                .all()
-            ):  # 檢查"製程段"填寫是否正確
-                self.df_error_list = self.df_project_info.loc["自動機製程段"][
-                    ~self.df_project_info.loc["自動機製程段"]
-                    .astype(str)
-                    .isin(self.parm_process)
-                ].values
-                raise Error_Process(detail=self.df_error_list)
-            if (
-                ~self.df_project_info.loc["Device"]
-                .astype(str)
-                .isin(self.parm_device)
-                .all()
-            ):  # 檢查"機台名稱"填寫是否正確
-                self.df_error_list = self.df_project_info.loc["Device"][
-                    ~self.df_project_info.loc["Device"]
-                    .astype(str)
-                    .isin(self.parm_device)
-                ].values
-                raise Error_Device(detail=self.df_error_list)
-
             "抓取員工機台經驗資訊"
             self.df_exp = self.df_factory_worker_info.iloc[5:, 6:]
-            if self.df_exp.isnull().values.any():  # 檢查是否有空值
+            if self.df_exp.isnull().values.any():  # 檢查是否有空值；可以避免空欄位
                 self.df_error_list = pd.concat(
                     [self.df_worker_info, self.df_exp[self.df_exp.isnull().values]],
                     join="inner",
                     axis=1,
                 )
-                raise Error_None(detail=self.df_error_list)
-            if ~self.df_exp.astype(str).isin(self.parm_exp).values.all():  # 符合 parm_exp
-                self.df_error_list = pd.concat(
-                    [
-                        self.df_worker_info,
-                        self.df_exp[
-                            ~self.df_exp.astype(str).isin(self.parm_exp).values
-                        ],
-                    ],
-                    join="inner",
-                    axis=1,
+                raise Error_None(
+                    msg=f'{filename} 的"尚未填寫"的部分~', detail=self.df_error_list
                 )
-                raise Error_Exp(detail=self.df_error_list)
-
             for w in tqdm(range(len(self.df_worker_info))):  # 員工數量
                 for p in range(len(self.df_project_info.columns)):  # 所有專案中機台數量
-                    # 逐筆新增
                     self.df_factory_worker_info_convert = self.df_factory_worker_info_convert.append(
                         {
                             "worker_id": str(
@@ -412,13 +265,44 @@ class data_convert:
                 drop=1
             )
 
+            "找出各欄位參數資訊"
+            parm = {
+                "worker": list(
+                    zip(self.df_worker_info["員工工號"], self.df_worker_info["員工名字"])
+                ),
+                "workshop": sorted(
+                    list(set(self.df_factory_worker_info_convert["workshop"]))
+                ),
+                "project": sorted(
+                    list(set(self.df_factory_worker_info_convert["project"]))
+                ),
+                "process": self.natural_sort(
+                    list(set(self.df_factory_worker_info_convert["process"]))
+                ),
+                "device": self.natural_sort(
+                    list(set(self.df_factory_worker_info_convert["device_name"]))
+                ),
+                "shift": sorted(
+                    list(set(self.df_factory_worker_info_convert["shift"]))
+                ),
+                "exp": sorted(list(set(self.df_factory_worker_info_convert["level"]))),
+                "job": sorted(list(set(self.df_factory_worker_info_convert["job"]))),
+            }
+            self.df_factory_worker_info_parm = pd.concat(
+                [pd.Series(v, name=k) for k, v in parm.items()], axis=1
+            )
+
             print("轉換完成")
-            return (
-                self.df_factory_worker_info_convert,
-                self.df_worker_info.sort_values(by="職務", ascending=0),
-            )  # 資料表轉換完成，提供給server做後續匯入動作
+            # 資料表轉換完成，提供給server做後續匯入動作
+            return {
+                "result": self.df_factory_worker_info_convert,  # 轉換完成的結果
+                "worker_info": self.df_worker_info.sort_values(
+                    by="職務", ascending=0
+                ),  # 員工資訊
+                "parameter": self.df_factory_worker_info_parm,
+            }  # 相關參數
         except Exception as e:
-            raise e
+            raise DispatchException(msg="Unexpected exception", detail=str(e))
 
     #%%
     """
@@ -429,82 +313,62 @@ class data_convert:
         self, filename: str, raw_excel: bytes
     ):  # 輸入資料路徑與名稱；須注意資料名稱格式
         self.df_proj_eventbooks_convert = pd.DataFrame()  # 空白資料表，準備儲存使用
-        print("轉換中...")
+        print(filename + " 轉換中...")
         try:
             _project_name_ = filename.split("Device")[0].strip(
                 " "
-            )  # 抓取 project 檔案名稱；用device去切，注意忽略"空格"
-            if (
-                _project_name_ not in self.parm_project
-            ):  # 檢查資料表名稱 e.g. D5X device事件簿.xlsx 會取得 D5X
-                raise Error_Project(
-                    msg=f"{filename}的專案名稱不存在或輸入有誤喔~", detail=_project_name_
-                )
+            )  # 抓取 project 檔案名稱；用 "Device" 去切，注意忽略"空格"
             self.df_proj_eventbooks = pd.read_excel(
                 raw_excel, sheet_name=None
             )  # 讀 excel 資料
             _devices_ = list(self.df_proj_eventbooks.keys())  # 根據"工作表"名稱抓取 Device 名稱
-            if len(set(_devices_).difference(self.parm_device)) > 0:  # 檢查"機台名稱"填寫是否正確
-                self.df_error_list = set(_devices_).difference(self.parm_device)
-                raise Error_Device(
-                    msg=f"在 {filename} 的 Worksheet: 有不存在的機台名稱喔",
-                    detail=self.df_error_list,
-                )
             for j in tqdm(_devices_):  # 依照 device 進行區分
-                if (
-                    ~self.df_proj_eventbooks[j]
-                    .columns.isin(["Category", "MESSAGE", "优先顺序"])
-                    .all()
-                ):  # 檢查欄位名稱是否正確；確定匯入的資料正確
-                    self.df_error_list = self.df_proj_eventbooks[j].columns
-                    value = set(self.df_proj_eventbooks[j].columns).difference(
+                _events_ = self.df_proj_eventbooks[j]  # 事件簿device資訊
+                if ~_events_.columns.isin(
+                    ["Category", "MESSAGE", "优先顺序"]
+                ).all():  # 檢查欄位名稱是否正確；確定匯入的資料正確
+                    self.df_error_list = _events_.columns
+                    value = set(_events_.columns).difference(
                         ["Category", "MESSAGE", "优先顺序"]
                     )
                     raise Error_FileContent(
-                        msg=f"在 {filename} 的 Worksheet: {j} 的內容值可能不對喔", detail=value
+                        msg=f"在{filename} 的 Worksheet: {j} 中有「尚未填寫」的部分喔~", detail=value
                     )
-                _events_ = self.df_proj_eventbooks[j][
-                    ["Category", "MESSAGE", "优先顺序"]
-                ]  # 事件簿使用的資訊欄位；
-                if (
-                    _events_["Category"].isnull().values.any()
-                ):  # donecheck# 檢查 category 欄位是不是有空值
+                if _events_["Category"].isnull().values.any():  # 檢查欄位是不是有空值
                     self.df_error_list = _events_[_events_["Category"].isnull().values]
-                    raise Error_None(detail=self.df_error_list)
-                else:  # 確定category欄位沒有nan後
-                    _events_ = _events_[
-                        _events_["Category"].astype(str).isin(self.parm_cate)
-                    ].reset_index(
-                        drop=True
-                    )  # 篩選出含括在 Category 中的項目
-                    # 因為不確定有哪一些category，只知道範圍，目前以1~199,300~699篩選；但如果異常事件發生時出現資料表中沒有沒有的項目，需要通知管理層處理:更新資料和派遣(不一定)
-                if (
-                    _events_[["MESSAGE", "优先顺序"]].isnull().values.any()
-                ):  # 檢查單一機台的資料中是否有空值
-                    self.df_error_list = _events_[
-                        _events_[["MESSAGE", "优先顺序"]].isnull().values
-                    ]
-                    raise Error_None(detail=self.df_error_list)
-                else:
-                    _events_["project"] = _project_name_.lower()  # 新增專案名稱欄位；小寫
-                    _events_["Device_Name"] = j.lower()  # 新增機台名稱欄位；小寫
-                    self.df_proj_eventbooks_convert = self.df_proj_eventbooks_convert.append(
-                        _events_, ignore_index=True
-                    )  # 一筆筆新增
-                if (
-                    ~_events_["优先顺序"].apply(lambda y: isinstance(y, (float, int))).all()
-                ):  # 優先順序範圍需是"數字"
-                    self.df_error_list = _events_[
-                        ~_events_["优先顺序"].apply(lambda y: isinstance(y, (float, int)))
-                    ]
-                    value = self.df_error_list["优先顺序"]
-                    raise Error_FileContent(
-                        msg=f"在 {filename} 的 Worksheet: {j} 的內容值可能不對喔~", detail=value
+                    raise Error_None(
+                        msg=f"在{filename} 的 Worksheet: {j} 中的內容值可能不對喔~",
+                        detail=self.df_error_list,
                     )
+                _events_["project"] = _project_name_.lower()  # 新增專案名稱欄位；小寫
+                _events_["Device_Name"] = j.lower()  # 新增機台名稱欄位；小寫
+                self.df_proj_eventbooks_convert = self.df_proj_eventbooks_convert.append(
+                    _events_, ignore_index=True
+                )  # 一筆筆df新增
+
+            "Category欄位參數資訊；篩選 优先顺序 欄位有值者，代表需要指派"
+            parm = {
+                "category": sorted(
+                    list(
+                        set(
+                            self.df_proj_eventbooks_convert[
+                                ~self.df_proj_eventbooks_convert["优先顺序"].isna()
+                            ]["Category"]
+                        )
+                    )
+                )
+            }
+            self.df_proj_eventbooks_parm = pd.DataFrame(parm)
+
             print("轉換完成")
-            return self.df_proj_eventbooks_convert  # 資料表轉換完成，提供給server做後續匯入動作
+            # 資料表轉換完成，提供給server做後續匯入動作
+            return {
+                "result": self.df_proj_eventbooks_convert,  # 轉換完成的結果
+                "parameter": self.df_proj_eventbooks_parm,
+            }  # 相關參數
+
         except Exception as e:
-            raise e
+            raise DispatchException(msg="Device 事件簿出現非預期的錯誤！", detail=str(e))
 
     #%%
     """
@@ -512,23 +376,39 @@ class data_convert:
     server 必須要製作機台 id 才可以進行轉換!
     生成車間移動距離表
     """
-    # 目前為針對 第九車間 layout 客製化計算，layout 無更動 (僅是換機台名稱、座標值) 則可使用； 無法針對 layout 變動後做計算
-    def fn_factorymap(self, dataframe: pd.DataFrame):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
-        print("轉換中...")
-        self.df_movingMatrix = None  #  空白資料表，準備儲存使用
+    # 因當前車間機台有明顯劃分的"製程段"段區域，移動距離矩陣資料可套用至此類型之車間Layout座標表
+    def fn_factorymap(self, frame: pd.DataFrame):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
+        def manhattan_dis(From, To):  # 曼哈頓距離
+            return sum(abs(val1 - val2) for val1, val2 in zip(From, To))
+
         try:
-            self.df_device_xy = dataframe  # 讀取車間機台座標表
-            if (
-                self.df_device_xy[["id", "workshop", "project", "x_axis", "y_axis"]]
-                .isnull()
-                .values.any()
-            ):  # done # 確認資料表"id","workshop","project","x_axis","y_axis"欄位有無空值
-                self.df_error_list = self.df_device_xy[
-                    self.df_device_xy[["id", "workshop", "project", "x_axis", "y_axis"]]
-                    .isnull()
-                    .values
+            self.df_device_xy = frame  # 讀取車間機台座標表
+            if ~self.df_device_xy.columns.isin(
+                [
+                    "id",
+                    "workshop",
+                    "project",
+                    "process",
+                    "line",
+                    "device_name",
+                    "x_axis",
+                    "y_axis",
+                    "sop_link",
                 ]
-                raise Error_None(detail=self.df_error_list)
+            ).all():  # 檢查欄位名稱是否正確；確定匯入的資料正確
+                self.df_error_list = self.df_device_xy.columns
+                raise Error_FileContent(
+                    msg='車間layout座標表中有"尚未填寫"的部分喔~', detail=self.df_error_list
+                )
+            if (
+                self.df_device_xy[["id", "x_axis", "y_axis"]].isnull().values.any()
+            ):  # done # 確認資料表"id","x_axis","y_axis"欄位有無空值；才可算移動距離
+                self.df_error_list = self.df_device_xy[
+                    self.df_device_xy[["id", "x_axis", "y_axis"]].isnull().values
+                ]
+                raise Error_None(
+                    msg='車間layout座標表中有"尚未填寫"的部分喔~', detail=self.df_error_list
+                )
             elif (
                 ~self.df_device_xy["x_axis"]
                 .apply(lambda x: isinstance(x, (float, int)))
@@ -540,7 +420,7 @@ class data_convert:
                     )
                 ]
                 value = self.df_error_list["x_axis"]
-                raise Error_Axis(detail=value)
+                raise Error_Axis(msg='車間layout座標表中的"座標"填寫有誤喔~', detail=value)
             elif (
                 ~self.df_device_xy["y_axis"]
                 .apply(lambda y: isinstance(y, (float, int)))
@@ -552,62 +432,26 @@ class data_convert:
                     )
                 ]
                 value = self.df_error_list["y_axis"]
-                raise Error_Axis(detail=value)
-            elif (
-                ~self.df_device_xy["workshop"].isin(self.parm_workshop).all()
-            ):  # done # 檢查"車間"填寫是否正確
-                self.df_error_list = self.df_device_xy[
-                    ~self.df_device_xy["workshop"].isin(self.parm_workshop)
-                ]
-                value = self.df_error_list["workshop"].values
-                raise Error_Workshop(detail=value)
-
+                raise Error_Axis(msg='車間layout座標表中的"座標"填寫有誤喔~', detail=value)
             _devices_ = self.df_device_xy[
                 self.df_device_xy["project"] != "rescue"
             ]  # 機台(非消防站)資訊
             if _devices_.isnull().values.any():  # done # 確認所有機台相關欄位無空值
                 self.df_error_list = _devices_[_devices_.isnull().values]
-                raise Error_None(detail=self.df_error_list)
-            elif (
-                ~_devices_["project"].isin(self.parm_project).all()
-            ):  # done # 檢查"專案名稱"填寫是否正確
-                self.df_error_list = _devices_[
-                    ~_devices_["project"].isin(self.parm_project)
-                ]
-                value = self.df_error_list["project"].values
-                raise Error_Project(detail=value)
-            elif (
-                ~_devices_["process"].isin(self.parm_process).all()
-            ):  # done # 檢查"製程段"填寫是否正確
-                self.df_error_list = _devices_[
-                    ~_devices_["process"].isin(self.parm_process)
-                ]
-                value = self.df_error_list["process"].values
-                raise Error_Process(detail=value)
-            elif (
-                ~_devices_["line"].apply(lambda l: isinstance(l, (float, int))).all()
-            ):  # done # 檢查"線段"填寫是否正確
-                self.df_error_list = _devices_[
-                    ~_devices_["line"].apply(lambda l: isinstance(l, (float, int)))
-                ]
-                value = self.df_error_list["line"].values
-                raise Error_Line(detail=value)
-            elif (
-                ~_devices_["device_name"].isin(self.parm_device).all()
-            ):  # done # 檢查"機台名稱"填寫是否正確
-                self.df_error_list = _devices_[
-                    ~_devices_["device_name"].isin(self.parm_device)
-                ]
-                value = self.df_error_list["device_name"].values
-                raise Error_Device(detail=value)
-            if ~_devices_["sop_link"].apply(lambda s: validators.url(s)).all():
-                self.df_error_list = _devices_[
-                    _devices_["sop_link"].apply(lambda s: bool(validators.url(s)))
-                    == False
-                ]
-                value = self.df_error_list["sop_link"]
-                raise Error_SOP(detail=value)
-
+                raise Error_None(
+                    msg='車間layout座標表中有"尚未填寫"的部分喔~', detail=self.df_error_list
+                )
+            "找出各欄位參數資訊"
+            parm = {
+                "workshop": sorted(list(set(_devices_["workshop"]))),
+                "project": sorted(list(set(_devices_["project"]))),
+                "process": self.natural_sort(list(set(_devices_["process"]))),
+                "line": sorted(list(set(_devices_["line"]))),
+                "device": self.natural_sort(list(set(_devices_["device_name"]))),
+            }
+            self.df_factorymap_parm = pd.concat(
+                [pd.Series(v, name=k) for k, v in parm.items()], axis=1
+            )
             # 根據資料表所有的"id"，製作對稱矩陣
             self.df_movingMatrix = pd.DataFrame(
                 index=self.df_device_xy["id"], columns=self.df_device_xy["id"]
@@ -617,18 +461,10 @@ class data_convert:
                 From_device = self.df_device_xy.iloc[i]  # 起點 device
                 for j in range(i, len(self.df_device_xy)):
                     To_device = self.df_device_xy.iloc[j]  # 終點device
-                    "相關判斷"
                     if (
-                        From_device["process"] != To_device["process"]
+                        From_device["process"] == To_device["process"]
                     ):  # 判斷兩device 是否屬於相同製程(process)
-                        dis_cal = sum(
-                            abs(
-                                To_device[["x_axis", "y_axis"]]
-                                - From_device[["x_axis", "y_axis"]]
-                            )
-                        )  # 屬於不同製程，直接計算 Manhattan Distance
-                    else:  # 如果是同製程
-                        # 檢查在當前(M1或M3)製程中，有沒有其他device(障礙物)的y座標位於這兩個device的y座標之間
+                        # 如果是同製程 # 檢查在當前製程中，有沒有其他device(障礙物)的y座標位於這兩個device的y座標之間
                         if (
                             self.df_device_xy[
                                 self.df_device_xy["process"] == From_device["process"]
@@ -640,66 +476,66 @@ class data_convert:
                             )
                             .any()
                         ):
-                            if From_device["process"] in ["M1段", "M2段"]:  # 判斷製程是M1或M2
-                                to_aisle = 1.0  # 最邊緣兩測的device中心點，到走道的來回距離(因為有一開始從邊緣device到走道的距離和後面從走道到邊緣device的距離，所以是0.5*2)
-                            else:
-                                if To_device["project"].lower() in [
-                                    "n84"
-                                ]:  # 判斷是否是在M3製程中的n84機種
-                                    to_aisle = 0.5  # 0.25*2
-                                else:
-                                    to_aisle = 1.0
                             # 找到起始device(From_device)那一條產線最左邊與最右邊的device座標
-                            From_left = self.df_device_xy.iloc[
-                                self.df_device_xy[
+                            fit_xy = self.df_device_xy[
+                                (
                                     (
-                                        self.df_device_xy["process"]
-                                        == From_device["process"]
-                                    )
-                                    & (
-                                        self.df_device_xy["project"]
-                                        == From_device["project"]
-                                    )
-                                ]["x_axis"].idxmin()
-                            ]
-                            From_right = self.df_device_xy.iloc[
-                                self.df_device_xy[
-                                    (
-                                        self.df_device_xy["process"]
-                                        == From_device["process"]
-                                    )
-                                    & (
-                                        self.df_device_xy["project"]
-                                        == From_device["project"]
-                                    )
-                                ]["x_axis"].idxmax()
-                            ]
-                            # 計算 Manhattan Distance；是由"起始device"到"走道"的距離，再加上"走道"到"終點"的距離
-                            From_left_dis = (
-                                abs(From_device["x_axis"] - From_left["x_axis"])
-                                + abs(From_device["y_axis"] - From_left["y_axis"])
-                                + abs(From_left["x_axis"] - To_device["x_axis"])
-                                + abs(From_left["y_axis"] - To_device["y_axis"])
-                                + to_aisle
-                            )
-                            From_right_dis = (
-                                abs(From_device["x_axis"] - From_right["x_axis"])
-                                + abs(From_device["y_axis"] - From_right["y_axis"])
-                                + abs(From_right["x_axis"] - To_device["x_axis"])
-                                + abs(From_right["y_axis"] - To_device["y_axis"])
-                                + to_aisle
-                            )
-                            # 移動有左右兩種，取其中較短的距離
-                            dis_cal = min(From_left_dis, From_right_dis)
-                        # 相鄰兩製程段中間如果沒有其他y，代表無障礙，可以直接算Manhattan Distance
-                        else:
-                            dis_cal = sum(
-                                abs(
-                                    To_device[["x_axis", "y_axis"]]
-                                    - From_device[["x_axis", "y_axis"]]
+                                        self.df_device_xy[
+                                            ["project", "process", "line"]
+                                        ]
+                                        == From_device[["project", "process", "line"]]
+                                    ).all(axis=1)
                                 )
+                            ]  # 選出符合條件的座標資料
+                            From_left = self.df_device_xy.iloc[
+                                fit_xy["x_axis"].idxmin()
+                            ]  # 左邊
+                            From_right = self.df_device_xy.iloc[
+                                fit_xy["x_axis"].idxmax()
+                            ]  # 右邊
+                            # 計算 Manhattan Distance；是由"起始device"到"左、右"的距離，再加上"左、右"到"終點"的距離
+                            From_left_dis = distance.cityblock(
+                                [
+                                    From_device["x_axis"],
+                                    From_device["y_axis"],
+                                    From_left["x_axis"],
+                                    From_left["y_axis"],
+                                ],
+                                [
+                                    From_left["x_axis"],
+                                    From_left["y_axis"],
+                                    To_device["x_axis"],
+                                    To_device["y_axis"],
+                                ],
                             )
-                    "儲存移動距離"
+                            From_right_dis = distance.cityblock(
+                                [
+                                    From_device["x_axis"],
+                                    From_device["y_axis"],
+                                    From_right["x_axis"],
+                                    From_right["y_axis"],
+                                ],
+                                [
+                                    From_right["x_axis"],
+                                    From_right["y_axis"],
+                                    To_device["x_axis"],
+                                    To_device["y_axis"],
+                                ],
+                            )
+                            dis_cal = min(
+                                From_left_dis, From_right_dis
+                            )  # 移動有左右兩種，取其中較短的距離
+                        else:
+                            dis_cal = distance.cityblock(
+                                From_device[["x_axis", "y_axis"]],
+                                To_device[["x_axis", "y_axis"]],
+                            )
+                    else:
+                        dis_cal = distance.cityblock(
+                            From_device[["x_axis", "y_axis"]],
+                            To_device[["x_axis", "y_axis"]],
+                        )  # 屬於不同製程，直接計算 Manhattan Distance
+                    # "儲存移動距離"
                     # 根據起始與終點device的id，儲存到self.df_movingMatrix對應的位置
                     self.df_movingMatrix.loc[
                         From_device["id"], To_device["id"]
@@ -708,10 +544,44 @@ class data_convert:
             for i in range(len(self.df_movingMatrix)):
                 for j in range(i, len(self.df_movingMatrix)):
                     self.df_movingMatrix.iloc[j, i] = self.df_movingMatrix.iloc[i, j]
+
             print("轉換完成")
-            return self.df_movingMatrix  # 回傳計算完的機台間移動距離矩陣表
+            # 回傳計算完的機台間移動距離矩陣表
+            return {
+                "result": self.df_movingMatrix,  # 轉換完成的結果
+                "parameter": self.df_factorymap_parm,
+            }  # 相關參數
         except Exception as e:
-            raise e
+            raise DispatchException(msg="處理計算機台間移動距離矩陣表時發生錯誤：", detail=str(e))
+
+    #%%
+    """
+    建立各資料之參數(parameter)表
+    """
+
+    def fn_parm_update(self, parm_files: bytes):
+        columns = [
+            "worker",
+            "workshop",
+            "project",
+            "process",
+            "line",
+            "device",
+            "shift",
+            "exp",
+            "job",
+            "category",
+        ]
+        self.df_parm = pd.concat(parm_files, ignore_index=1)
+        self.df_parm = pd.concat(
+            [
+                self.df_parm[col].dropna().drop_duplicates().reset_index(drop=True)
+                for col in self.df_parm.columns
+            ],
+            axis=1,
+        )
+        self.df_parm = self.df_parm[columns]
+        return self.df_parm
 
 
 #%%
@@ -720,20 +590,34 @@ class data_convert:
 
 #%%
 """測試資料匯入"""
-# test_data_import = data_convert() # 建立物件
+# test_data_import = data_convert()  # 建立物件
 
-# '測試員工資訊表 轉換'
-# test_file_path_workerinfo = "test_data/車間員工資訊表_公版_TEST用.xlsx" # 資料路徑
-# test_workerinfo, test_workerinfo_02 = test_data_import.fn_factory_worker_info(test_file_path_workerinfo)
+# "測試員工資訊表 轉換"
+# test_file_path_workerinfo = "test_data/車間員工資訊表_公版_TEST用.xlsx"  # 測試員工資訊表資料路徑
+# # test_file_path_workerinfo = "test_data/員工車間專職管理表20408[修正].xlsx" # 測試員工資訊表資料路徑
+# test_workerinfo = test_data_import.fn_factory_worker_info(test_file_path_workerinfo)
 
-# '測試機種事件簿 轉換'
-# test_file_path_eventbook = "test_data/D5X Device 事件簿[修正].xlsx" # 資料路徑
-# test_file_path_eventbook = "test_data/N104 Device 事件簿.xlsx" # 資料路徑
-# test_file_path_eventbook = "test_data/Z104 Device 事件簿_[不存在專案].xlsx" # 資料路徑
-# test_file_path_eventbook = "test_data/N84 Device 事件簿.xls" # 資料路徑
-# test_eventbook = test_data_import.fn_proj_eventbooks(test_file_path_eventbook.split("/")[-1].strip(".xlsx"),test_file_path_eventbook)
+# "測試機種事件簿 轉換"
+# test_file_path_eventbook = "test_data/D5X Device 事件簿[修正].xlsx"  # 測試機種事件簿資料路徑
+# # test_file_path_eventbook = "test_data/N104 Device 事件簿.xlsx" # 資料路徑
+# # test_file_path_eventbook = "test_data/Z104 Device 事件簿_[不存在專案].xlsx" # 資料路徑
+# # test_file_path_eventbook = "test_data/N84 Device 事件簿.xls" # 資料路徑
+# test_eventbook = test_data_import.fn_proj_eventbooks(
+#     test_file_path_eventbook.split("/")[-1], test_file_path_eventbook
+# )
 
-# '測試機台座標表 計算移動距離矩陣'
-# test_file_path_layout = "../#原始資料/車間 Layout 座標表_公版_TEST用.xlsx" # 資料路徑
+# "測試機台座標表 計算移動距離矩陣"
+# test_file_path_layout = "test_data/車間 Layout 座標表_公版_TEST用.xlsx"  # 資料路徑
 # test_moving_matrix = test_data_import.fn_factorymap(test_file_path_layout)
 
+# "測試三表更新參數表"
+# test_file_path_parm = "test_data/程式碼參數_TEST用.xlsx"  # 資料路徑
+# test_parm = test_data_import.fn_parm_update(
+#     [
+#         test_workerinfo["parameter"],
+#         test_eventbook["parameter"],
+#         test_moving_matrix["parameter"],
+#     ]
+# )  # 更新參數表
+# test_parm.to_excel("test_data/程式碼參數(及時更新)_TEST用.xlsx",index = 0)
+#%%
