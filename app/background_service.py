@@ -2,17 +2,24 @@ import logging, asyncio, aiohttp
 from typing import List
 from datetime import datetime, timedelta
 from pydantic import BaseModel
-from app.dispatch import FoxlinkDispatch
+from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission
 from app.services.user import get_employee_work_timestamp_today
 from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import get_shift_type_now, get_shift_type_by_datetime
 from app.mqtt.main import publish
-from app.env import MQTT_BROKER, MAX_NOT_ALIVE_TIME, EMQX_USERNAME, EMQX_PASSWORD
+from app.env import (
+    MQTT_BROKER,
+    MAX_NOT_ALIVE_TIME,
+    EMQX_USERNAME,
+    EMQX_PASSWORD,
+    MOVE_TO_RESCUE_STATION_TIME,
+)
 from app.core.database import (
     CategoryPRI,
     FactoryMap,
     Mission,
+    MissionEvent,
     User,
     AuditLogHeader,
     AuditActionEnum,
@@ -26,7 +33,8 @@ from app.core.database import (
 
 
 logger = logging.getLogger(LOGGER_NAME)
-dispatch = FoxlinkDispatch()
+dispatch = Foxlink_dispatch()
+
 
 class MissionInfo(BaseModel):
     mission_id: str
@@ -50,9 +58,13 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 
 async def check_alive_worker_routine():
-    alive_worker_status = await WorkerStatus.objects.filter(
-        status__in=[WorkerStatusEnum.working.value, WorkerStatusEnum.idle.value]
-    ).all()
+    alive_worker_status = (
+        await WorkerStatus.objects.select_related("worker")
+        .filter(
+            status__in=[WorkerStatusEnum.working.value, WorkerStatusEnum.idle.value]
+        )
+        .all()
+    )
 
     async with aiohttp.ClientSession() as session:
         for w in alive_worker_status:
@@ -65,10 +77,27 @@ async def check_alive_worker_routine():
                     continue
 
                 content = await resp.json()
-                if len(content['data']) == 0:
-                    if datetime.utcnow() - w.check_alive_time > timedelta(minutes=MAX_NOT_ALIVE_TIME):
-                        await w.update(status=WorkerStatusEnum.leave.value)
-                        logger.info(f"{w.worker.username} is offline")
+                # if the woeker is still not connected to the broker
+                if len(content["data"]) == 0:
+                    if datetime.utcnow() - w.check_alive_time > timedelta(
+                        minutes=MAX_NOT_ALIVE_TIME
+                    ):
+                        # await w.update(status=WorkerStatusEnum.leave.value)
+                        device_level = await UserDeviceLevel.objects.filter(
+                            user=w.worker.username
+                        ).first()
+                        if device_level is not None:
+                            superior = device_level.superior
+                            publish(
+                                f"foxlink/users/{superior.username}/worker-unusual-offline",
+                                {
+                                    "worker_id": w.worker.username,
+                                    "worker_name": w.worker.full_name,
+                                },
+                                qos=1,
+                                retain=True,
+                            )
+                            # logger.info(f"{w.worker.username} is offline")
                 else:
                     await w.update(check_alive_time=datetime.utcnow())
 
@@ -100,6 +129,20 @@ async def notify_overtime_workers():
     publish("foxlink/overtime-workers", overtime_workers, qos=1, retain=True)
 
 
+async def auto_close_missions():
+    working_missions = (
+        await Mission.objects.select_related("missionevents")
+        .filter(repair_start_date__isnull=True, repair_end_date__isnull=True)
+        .all()
+    )
+
+    for m in working_missions:
+        undone_events = [x for x in m.missionevents if x.done_verified == False]
+
+        if len(undone_events) == 0 and len(m.missionevents) != 0:
+            await m.update(is_cancel=True)
+
+
 async def worker_monitor_routine():
     workers = await User.objects.filter(
         level=UserLevel.maintainer.value, is_admin=False
@@ -107,7 +150,7 @@ async def worker_monitor_routine():
 
     for w in workers:
         worker_status = (
-            await WorkerStatus.objects.select_related("worker")
+            await WorkerStatus.objects.select_related(["worker", "at_device"])
             .filter(worker=w)
             .get_or_none()
         )
@@ -142,6 +185,14 @@ async def worker_monitor_routine():
             if worker_status.status == WorkerStatusEnum.leave.value:
                 continue
 
+            if worker_status.at_device.is_rescue == True:
+                continue
+
+            if datetime.utcnow() - worker_status.last_event_end_date < timedelta(
+                minutes=MOVE_TO_RESCUE_STATION_TIME
+            ):
+                continue
+
             factory_map = await FactoryMap.objects.filter(id=w.location).get()
             rescue_distances = []
 
@@ -158,22 +209,35 @@ async def worker_monitor_routine():
                     }
                 )
 
-            await worker_status.update(
-                status=WorkerStatusEnum.idle.value,
-                at_device=dispatch.move_to_rescue(rescue_distances),
+            to_rescue_station = dispatch.move_to_rescue(rescue_distances)
+
+            # TODO: 將前往維修站作為變成單一任務
+            await Mission.objects.create(
+                name="前往救援站",
+                required_expertises=[],
+                assignees=[w.username],
+                device=to_rescue_station,
+                description=f"請前往救援站 {to_rescue_station}",
             )
+            publish(
+                f"foxlink/users/{w.username}/move-rescue-station",
+                {"rescue_id": to_rescue_station},
+                qos=1,
+                retain=True,
+            )
+
+
+async def check_mission_duration_routine():
+    working_missions = await Mission.objects.filter(
+        repair_start_date__isnull=False, repair_end_date__isnull=True
+    ).all()
+    ...
 
 
 @database.transaction()
 async def dispatch_routine():
-    await asyncio.gather(
-        worker_monitor_routine(),
-        notify_overtime_workers(),
-    )
-    await check_alive_worker_routine()
-
     avaliable_missions = (
-        await Mission.objects.select_related(["device", "assignees"])
+        await Mission.objects.select_related(["device", "assignees", "missionevents"])
         .filter(is_cancel=False, repair_start_date__isnull=True)
         .all()
     )
@@ -186,35 +250,36 @@ async def dispatch_routine():
     m_list = []
 
     for m in avaliable_missions:
-        p = (
-            await CategoryPRI.objects.select_all()
-            .filter(devices__id=m.device.id, category=m.category)
-            .get_or_none()
-        )
+        reject_count = await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
+        ).count()
 
-        reject_count, event_count = await asyncio.gather(
-            AuditLogHeader.objects.filter(
-                action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
-            ).count(),
-            Mission.objects.filter(device=m.device.id, category=m.category).count(),
-        )
+        for event in m.missionevents:
+            event_count, pri = await asyncio.gather(
+                MissionEvent.objects.select_related("mission")
+                .filter(mission__device=m.device.id, category=event.category)
+                .count(),
+                CategoryPRI.objects.select_all()
+                .filter(devices__id=m.device.id, category=event.category)
+                .get_or_none(),
+            )
 
-        item = {
-            "missionID": m.id,
-            "event_count": event_count,
-            "refuse_count": reject_count,
-            "device": m.device.device_name,
-            "process": m.device.process,
-            "create_date": m.created_date,
-        }
+            item = {
+                "missionID": m.id,
+                "event_count": event_count,
+                "refuse_count": reject_count,
+                "device": m.device.device_name,
+                "process": m.device.process,
+                "create_date": m.created_date,
+            }
 
-        if p is not None:
-            item["category"] = p.category
-            item["priority"] = p.priority
-        else:
-            item["category"] = 0
-            item["priority"] = 0
-        m_list.append(item)
+            if pri is not None:
+                item["category"] = pri.category
+                item["priority"] = pri.priority
+            else:
+                item["category"] = 0
+                item["priority"] = 0
+            m_list.append(item)
 
     dispatch.get_missions(m_list)
     mission_1st_id = dispatch.mission_priority().item()
@@ -246,13 +311,22 @@ async def dispatch_routine():
         if w.user.level != UserLevel.maintainer.value:
             continue
 
-        user_login_logs = await AuditLogHeader.objects.filter(
-            user=w.user.username,
-            action=AuditActionEnum.USER_LOGIN.value,
-            created_date__gte=datetime.utcnow() - timedelta(hours=12),
-        ).count()
+        is_idle = (
+            await WorkerStatus.objects.filter(
+                worker=w.user, status=WorkerStatusEnum.idle.value
+            ).count()
+        ) == 1
 
-        if user_login_logs == 0:
+        # user_login_logs = await AuditLogHeader.objects.filter(
+        #     user=w.user.username,
+        #     action=AuditActionEnum.USER_LOGIN.value,
+        #     created_date__gte=datetime.utcnow() - timedelta(hours=12),
+        # ).count()
+
+        # if user_login_logs == 0:
+        #     continue
+
+        if not is_idle:
             continue
 
         # if worker has already working on other mission, skip
@@ -342,3 +416,11 @@ async def dispatch_routine():
     except Exception as e:
         logger.error("cannot assign to worker {}".format(worker_1st))
         raise e
+
+
+async def main_routine():
+    await asyncio.gather(
+        auto_close_missions(), worker_monitor_routine(), notify_overtime_workers(),
+    )
+    await check_alive_worker_routine()
+    await dispatch_routine()

@@ -98,29 +98,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
         .all()
     )
 
-    return [
-        MissionDto(
-            mission_id=x.id,
-            name=x.name,
-            device=DeviceDto(
-                device_id=x.device.id,
-                device_name=x.device.device_name,
-                project=x.device.project,
-                process=x.device.process,
-                line=x.device.line,
-            ),
-            description=x.description,
-            is_started=x.is_started,
-            is_closed=x.is_closed,
-            done_verified=x.done_verified,
-            assignees=[u.username for u in x.assignees],
-            event_start_date=x.event_start_date,
-            event_end_date=x.event_end_date,
-            created_date=x.created_date,
-            updated_date=x.updated_date,
-        )
-        for x in missions
-    ]
+    return [MissionDto.from_mission(x) for x in missions]
 
 
 async def get_user_subordinates_by_username(username: str):

@@ -15,7 +15,7 @@ from app.routes import (
 )
 from app.core.database import database
 from app.daemon.daemon import FoxlinkDbPool
-from app.background_service import dispatch_routine
+from app.background_service import main_routine
 from app.utils.timer import Ticker
 from app.mqtt.main import connect_mqtt, disconnect_mqtt
 from app.my_log_conf import LOGGER_NAME, LogConfig
@@ -43,7 +43,7 @@ if PY_ENV == "dev":
 
 
 foxlink_db = FoxlinkDbPool()
-dispatcher = Ticker(dispatch_routine, 10)
+dispatcher = Ticker(main_routine, 10)
 
 
 @app.on_event("startup")

@@ -19,12 +19,12 @@ class EmergencyMissionInfo(BaseModel):
     assignees: List[UserInfo]
     description: Optional[str]
     category: str
-    event_start_date: datetime.datetime
+    created_date: datetime.datetime
 
 
 class AbnormalDeviceInfo(BaseModel):
     device_id: str
-    description: Optional[str]
+    message: Optional[str]
     category: int
     duration: int
     top_great_assignees: Optional[List[UserInfoWithDuration]]
@@ -34,7 +34,7 @@ class AbnormalMissionInfo(BaseModel):
     mission_id: str
     device_id: str
     category: int
-    description: Optional[str]
+    message: Optional[str]
     duration: int
     created_date: datetime.datetime
 
@@ -61,9 +61,10 @@ async def get_top_abnormal_missions(limit: int = 10) -> List[AbnormalMissionInfo
     """統計當月異常任務，根據處理時間由高排序到低。"""
     abnormal_missions = await database.fetch_all(
         """
-        SELECT id as mission_id, device as device_id, description, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, created_date
-        FROM missions
-        WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL AND MONTH(created_date) = MONTH(CURRENT_DATE())
+        SELECT mission as mission_id, m.device as device_id, message, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, created_date
+        FROM missionevents
+        INNER JOIN missions m ON m.id = mission
+        WHERE event_end_date IS NOT NULL AND MONTH(event_start_date) = MONTH(CURRENT_DATE())
         ORDER BY duration DESC
         LIMIT :limit;
         """,
@@ -73,12 +74,13 @@ async def get_top_abnormal_missions(limit: int = 10) -> List[AbnormalMissionInfo
     return abnormal_missions  # type: ignore
 
 
-async def get_top_abnormal_devices(limit: int):
-    """根據歷史並依照設備的 Category 統計設備異常情形，處理時間由高排序到低。"""
+async def get_top_abnormal_devices(limit: int = 10):
+    """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
     abnormal_devices: List[AbnormalDeviceInfo] = await database.fetch_all(
         """
-        SELECT DISTINCT device as device_id, description, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration
-        FROM missions
+        SELECT DISTINCT device as device_id, message, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration
+        FROM missionevents
+        INNER JOIN missions m ON m.id = mission
         WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL
         ORDER BY duration DESC
         LIMIT :limit;
@@ -92,10 +94,11 @@ async def get_top_abnormal_devices(limit: int):
         # fetch top 3 assignees that deal with device out-of-order issue most quickly
         top_assignees_in_mission = await database.fetch_all(
             """
-            SELECT DISTINCT u.username, u.full_name, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration
-            FROM missions
-            LEFT OUTER JOIN missions_users mu ON missions.id=mu.mission
-            INNER JOIN users u ON u.username = mu.user 
+            SELECT DISTINCT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_start_date, me.event_end_date) as duration
+            FROM missionevents me
+            LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
+            INNER JOIN missions m ON m.id = me.mission
+            INNER JOIN users u ON u.username = mu.user
             WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
             ORDER BY duration ASC
             LIMIT 3;
@@ -170,7 +173,9 @@ async def get_login_users_percentage_by_recent_24_hours() -> float:
 async def get_emergency_missions() -> List[EmergencyMissionInfo]:
     """取得當下緊急任務列表"""
     missions = (
-        await Mission.objects.filter(is_emergency=True, repair_end_date__isnull=True)
+        await Mission.objects.filter(
+            is_emergency=True, repair_end_date__isnull=True, is_cancel=False
+        )
         .select_related("assignees")
         .all()
     )
@@ -185,7 +190,7 @@ async def get_emergency_missions() -> List[EmergencyMissionInfo]:
             ],
             category=m.category,
             description=m.description,
-            event_start_date=m.event_start_date,
+            created_date=m.created_date,
         )
         for m in missions
     ]

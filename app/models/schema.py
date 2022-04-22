@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel
 import datetime
-from app.core.database import ShiftType, UserLevel
+from app.core.database import Mission, ShiftType, UserLevel
 
 
 # * User
@@ -57,20 +57,41 @@ class DeviceDto(BaseModel):
     process: str
     line: int
 
+class UserNameDto(BaseModel):
+    username: str
+    full_name: str
 
 class MissionDto(BaseModel):
     mission_id: int
     device: DeviceDto
     name: str
     description: str
-    assignees: List[str]
+    assignees: List[UserNameDto]
     is_started: bool
     is_closed: bool
-    done_verified: bool
-    event_start_date: Optional[datetime.datetime]
-    event_end_date: Optional[datetime.datetime]
     created_date: datetime.datetime
     updated_date: datetime.datetime
+
+    @classmethod
+    def from_mission(cls, m: Mission):
+        return cls(
+            mission_id=m.id,
+            name=m.name,
+            device=DeviceDto(
+                device_id=m.device.id,
+                device_name=m.device.device_name,
+                project=m.device.project,
+                process=m.device.process,
+                line=m.device.line,
+            ),
+            description=m.description,
+            is_started=m.is_started,
+            is_closed=m.is_closed,
+            assignees=[UserNameDto(username=u.username, full_name=u.full_name) for u in m.assignees],
+            created_date=m.created_date,
+            updated_date=m.updated_date,
+        )
+
 
 class SubordinateOut(BaseModel):
     username: str

@@ -23,7 +23,7 @@ DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DA
 database = databases.Database(DATABASE_URI, echo=True)
 metadata = MetaData()
 
-UserRef = ForwardRef("User")
+MissionRef = ForwardRef("Mission")
 
 
 def generate_uuidv4():
@@ -125,16 +125,19 @@ class UserDeviceLevel(ormar.Model):
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
-# class UserShiftInfo(ormar.Model):
-#     class Meta(MainMeta):
-#         constraints = [ormar.UniqueColumns("user", "shift_date")]
+class MissionEvent(ormar.Model):
+    class Meta(MainMeta):
+        constraints = [ormar.UniqueColumns("event_id", "table_name")]
 
-#     id: int = ormar.Integer(primary_key=True, index=True)
-#     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
-#     devices: List[Device] = ormar.ManyToMany(Device)
-#     shift_date: date = ormar.Date()
-#     attend: bool = ormar.Boolean(default=True)
-#     day_or_night: str = ormar.String(max_length=5, choices=list(ShiftType))
+    id: int = ormar.Integer(primary_key=True)
+    mission: MissionRef = ormar.ForeignKey(MissionRef, index=True, ondelete="CASCADE")  # type: ignore
+    event_id: int = ormar.Integer()
+    table_name: str = ormar.String(max_length=50)
+    category: int = ormar.Integer(nullable=False)
+    message: Optional[str] = ormar.String(max_length=100, nullable=True)
+    done_verified: bool = ormar.Boolean(default=False)
+    event_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    event_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
 
 
 class Mission(ormar.Model):
@@ -145,19 +148,14 @@ class Mission(ormar.Model):
     device: Device = ormar.ForeignKey(Device)
     assignees: List[User] = ormar.ManyToMany(User)
     name: str = ormar.String(max_length=100, nullable=False)
-    category: int = ormar.Integer(nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
     repair_start_date: Optional[date] = ormar.DateTime(nullable=True)
     repair_end_date: Optional[date] = ormar.DateTime(nullable=True)
     required_expertises: sqlalchemy.JSON = ormar.JSON()
-    done_verified: bool = ormar.Boolean(default=False)
-    related_event_id: int = ormar.Integer()
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     updated_date: datetime = ormar.DateTime(server_default=func.now())
-    event_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
-    event_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
 
     @property_field
     def duration(self) -> Optional[timedelta]:
@@ -172,6 +170,18 @@ class Mission(ormar.Model):
     @property_field
     def is_closed(self) -> bool:
         return self.repair_end_date is not None
+
+    @property_field
+    async def is_done_events(self) -> bool:
+        events = await MissionEvent.objects.filter(mission=self.id).all()
+
+        if len([x for x in events if x.done_verified]) == len(events):
+            return True
+        else:
+            return False
+
+
+MissionEvent.update_forward_refs()
 
 
 class AuditActionEnum(Enum):

@@ -10,6 +10,7 @@ from app.core.database import (
     WorkerStatus,
     WorkerStatusEnum,
 )
+from app.utils.utils import get_user_first_login_time
 
 
 class Token(BaseModel):
@@ -52,9 +53,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value:
         worker_status = await WorkerStatus.objects.filter(worker=user).get()
+        today_login_timestamp = await get_user_first_login_time(user.username)
+
+        if today_login_timestamp is None:
+            worker_status.last_event_end_date = today_login_timestamp # type: ignore
+
         if worker_status.status == WorkerStatusEnum.leave.value:
-            await worker_status.update(
-                status=WorkerStatusEnum.idle.value
-            )
+            worker_status.status = WorkerStatusEnum.idle.value
+
+        await worker_status.update()
 
     return {"access_token": access_token, "token_type": "bearer"}

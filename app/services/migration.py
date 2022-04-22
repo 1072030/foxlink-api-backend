@@ -80,15 +80,27 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False):
 async def import_workshop_events(excel_file: UploadFile):
     raw_excel: bytes = await excel_file.read()
     data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
+    df = data["result"]
 
-    for index, row in data["result"].iterrows():
+    project_name = df["project"].unique()[0]
+
+    for device_name in df["Device_Name"].unique():
         devices = await Device.objects.filter(
-            project__iexact=row["project"],
-            device_name__iexact=row["Device_Name"].replace(" ", "_"),
+            project__iexact=project_name,
+            device_name__iexact=device_name.replace(" ", "_"),
         ).all()
 
         for d in devices:
             await d.categorypris.clear()
+
+    for index, row in data["result"].iterrows():
+        if math.isnan(row["优先顺序"]):
+            continue
+
+        devices = await Device.objects.filter(
+            project__iexact=row["project"],
+            device_name__iexact=row["Device_Name"].replace(" ", "_"),
+        ).all()
 
         # await CategoryPRI.objects.filter(devices=devices).delete(each=True)
 
@@ -181,17 +193,18 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
     )
     await User.objects.bulk_create(create_user_bulk)
 
+    # remove original device levels
+    # for username in full_name_mapping.values():
+    #     await UserDeviceLevel.objects.select_related("device").filter(user=username).delete(
+    #         each=True
+    #     )
+
     for index, row in factory_worker_info.iterrows():
         workshop = (
             await FactoryMap.objects.filter(name=row["workshop"])
             .fields(["id", "name"])
             .get()
         )
-
-        # remove original device levels
-        await UserDeviceLevel.objects.select_related("device").filter(
-            user=row["worker_id"]
-        ).delete(each=True)
 
         related_devices = await Device.objects.filter(
             workshop=workshop.id,

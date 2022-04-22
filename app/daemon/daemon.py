@@ -2,7 +2,7 @@ import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 from app.utils.timer import Ticker
-from app.core.database import Device, Mission, CategoryPRI
+from app.core.database import Device, Mission, CategoryPRI, MissionEvent
 from databases import Database
 from app.env import (
     FOXLINK_DB_USER,
@@ -13,10 +13,9 @@ from app.env import (
 
 
 db_name = "aoi"
-table_postfix = " e75_event"
 
 
-class Event(BaseModel):
+class FoxlinkEvent(BaseModel):
     id: int
     project: str
     line: str
@@ -32,7 +31,8 @@ class Event(BaseModel):
 class FoxlinkDbPool:
     _db: Database
     _ticker: Ticker
-    table_name_blacklist: List[str] = ["measure_info"]
+    # table_name_blacklist: List[str] = ["measure_info"]
+    table_suffix = "_event"
 
     def __init__(self):
         self._db = Database(
@@ -61,16 +61,17 @@ class FoxlinkDbPool:
             {"table_name": db_name},
         )
 
-        table_names = [x[0] for x in r]
-        return [x for x in table_names if x not in self.table_name_blacklist]
+        table_names = [x[0] for x in r if x[0].endswith(self.table_suffix)]
+        return table_names
+        # return [x for x in table_names if x not in self.table_name_blacklist]
 
     async def get_a_event_from_table(
         self, db_name: str, table_name: str, id: int
-    ) -> Optional[Event]:
+    ) -> Optional[FoxlinkEvent]:
         stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ID = :id"
         row: list = await self._db.fetch_one(query=stmt, values={"id": id})  # type: ignore
 
-        return Event(
+        return FoxlinkEvent(
             id=row[0],
             project=table_name,
             line=row[1],
@@ -83,12 +84,14 @@ class FoxlinkDbPool:
             end_file_name=row[8],
         )
 
-    async def get_recent_events(self, db_name: str, table_name: str) -> List[Event]:
-        stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL ORDER BY Start_Time DESC;"
+    async def get_recent_events(
+        self, db_name: str, table_name: str
+    ) -> List[FoxlinkEvent]:
+        stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL AND Start_Time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY ORDER BY Start_Time DESC;"
         rows = await self._db.fetch_all(query=stmt)
 
         return [
-            Event(
+            FoxlinkEvent(
                 id=x[0],
                 project=table_name,
                 line=x[1],
@@ -104,24 +107,19 @@ class FoxlinkDbPool:
         ]
 
     async def check_events_is_complete(self):
-        missions = (
-            await Mission.objects.filter(repair_end_date=None)
-            .select_related("device")
-            .all()
-        )
-
-        for m in missions:
-            event = await self.get_a_event_from_table(
-                db_name,
-                m.device.id.split("@")[0].lower() + table_postfix,
-                m.related_event_id,
+        incomplete_mission_events = await MissionEvent.objects.filter(
+            event_end_date__isnull=True
+        ).all()
+        for event in incomplete_mission_events:
+            e = await self.get_a_event_from_table(
+                db_name, event.table_name, event.event_id
             )
 
-            if event is None:
+            if e is None:
                 continue
 
-            if event.end_time is not None:
-                await m.update(event_end_date=event.end_time, done_verified=True)
+            if e.end_time is not None:
+                await event.update(event_end_date=e.end_time, done_verified=True)
 
     async def fetch_events_from_foxlink(self):
         tables = await self.get_db_table_list(db_name)
@@ -130,9 +128,11 @@ class FoxlinkDbPool:
             events = await self.get_recent_events(db_name, table_name)
 
             for e in events:
-                m = await Mission.objects.filter(related_event_id=e.id).get_or_none()
+                mission_event = await MissionEvent.objects.filter(
+                    event_id=e.id, table_name=table_name
+                ).get_or_none()
 
-                if m is not None:
+                if mission_event is not None:
                     continue
 
                 device_id = self.generate_device_id(e)
@@ -148,17 +148,40 @@ class FoxlinkDbPool:
 
                 device = await Device.objects.filter(id__iexact=device_id).get()
 
-                await Mission.objects.create(
-                    device=device,
-                    related_event_id=e.id,
-                    category=e.category,
-                    event_start_date=e.start_time,
-                    name=f"{device.id} 故障",
-                    required_expertises=[],
-                    description=e.message,
-                )
+                # find if this device is already in a mission
+                mission = await Mission.objects.filter(
+                    device=device.id, repair_end_date__isnull=False
+                ).get_or_none()
 
-    def generate_device_id(self, event: Event) -> str:
+                if mission is not None:
+                    await MissionEvent.objects.create(
+                        mission=mission.id,
+                        event_id=e.id,
+                        table_name=table_name,
+                        category=e.category,
+                        message=e.message,
+                        event_start_date=e.start_time,
+                    )
+                else:
+                    new_mission = Mission(
+                        device=device,
+                        name=f"{device.id} 故障",
+                        required_expertises=[],
+                        description="",
+                    )
+                    await new_mission.save()
+                    await new_mission.missionevents.add(
+                        MissionEvent(
+                            mission=new_mission.id,
+                            event_id=e.id,
+                            table_name=table_name,
+                            category=e.category,
+                            message=e.message,
+                            event_start_date=e.start_time,
+                        )
+                    )
+
+    def generate_device_id(self, event: FoxlinkEvent) -> str:
         project = event.project.split(" ")[0]
         return f"{project}@{event.line}@{event.device_name}"
 
