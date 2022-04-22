@@ -104,8 +104,8 @@ async def get_all_worker_status():
         missions = await Mission.objects.filter(
             assignees__username=s.worker.username,
             repair_start_date__isnull=False,
-            event_end_date__isnull=True,
-        ).all()
+            repair_end_date__isnull=True,
+        ).order_by("repair_start_date").all()
 
         if len(missions) > 0:
             duration = datetime.datetime.utcnow() - missions[0].repair_start_date
