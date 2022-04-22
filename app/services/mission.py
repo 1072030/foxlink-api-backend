@@ -1,3 +1,4 @@
+import asyncio
 from app.services.device import get_device_by_id
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -88,7 +89,7 @@ async def create_mission(dto: MissionCreate):
 
 @database.transaction()
 async def start_mission_by_id(mission_id: int, worker: User):
-    mission = await Mission.objects.select_related("assignees").get_or_none(
+    mission = await Mission.objects.select_related(["assignees", 'device']).get_or_none(
         id=mission_id
     )
 
@@ -97,6 +98,13 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
+    
+    if mission.device.is_rescue:
+        await asyncio.gather(
+            mission.update(repair_end_date=datetime.utcnow()),
+            WorkerStatus.objects.filter(worker=worker).update(at_device=mission.device)
+        )
+        return
 
     if mission.is_started or mission.is_closed:
         raise HTTPException(400, "this mission is already started or closed")
@@ -140,6 +148,9 @@ async def accept_mission(mission_id: int, worker: User):
 
     if mission.is_started or mission.is_closed:
         raise HTTPException(400, "this mission is already started or closed")
+
+    if mission.device.is_rescue:
+        raise HTTPException(400, "to-rescue-station mission cannot be accepted")
 
     # Check worker has accepted the mission or not.
     accept_count = await AuditLogHeader.objects.filter(
