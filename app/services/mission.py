@@ -18,7 +18,7 @@ from fastapi.exceptions import HTTPException
 from app.models.schema import MissionCreate, MissionUpdate
 from app.mqtt.main import publish
 import logging
-from app.services.user import get_user_by_username
+from app.services.user import get_user_by_username, move_user_to_position
 from app.my_log_conf import LOGGER_NAME
 from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
 from app.utils.utils import get_shift_type_now, CST_TIMEZONE
@@ -89,7 +89,7 @@ async def create_mission(dto: MissionCreate):
 
 @database.transaction()
 async def start_mission_by_id(mission_id: int, worker: User):
-    mission = await Mission.objects.select_related(["assignees", 'device']).get_or_none(
+    mission = await Mission.objects.select_related(["assignees", "device"]).get_or_none(
         id=mission_id
     )
 
@@ -98,11 +98,11 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
-    
+
     if mission.device.is_rescue:
         await asyncio.gather(
             mission.update(repair_end_date=datetime.utcnow()),
-            WorkerStatus.objects.filter(worker=worker).update(at_device=mission.device)
+            move_user_to_position(worker.username, mission.device.id),
         )
         return
 
@@ -129,11 +129,14 @@ async def start_mission_by_id(mission_id: int, worker: User):
         worker_status.dispatch_count += 1
         worker_status.status = WorkerStatusEnum.working.value
         await worker_status.update()
-        await AuditLogHeader.objects.create(
-            action=AuditActionEnum.MISSION_STARTED.value,
-            user=worker.username,
-            table_name="missions",
-            record_pk=str(mission.id),
+        await asyncio.gather(
+            move_user_to_position(worker.username, mission.device.id),
+            AuditLogHeader.objects.create(
+                action=AuditActionEnum.MISSION_STARTED.value,
+                user=worker.username,
+                table_name="missions",
+                record_pk=str(mission.id),
+            ),
         )
 
 
@@ -260,17 +263,22 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
     if mission.is_closed:
         raise HTTPException(400, "this mission is already closed!")
 
-    if not mission.done_verified:
+    # a hack for async property_field
+    is_done = await mission.is_done_events # type: ignore
+
+    if not is_done:
         raise HTTPException(400, "this mission is not verified as done")
 
     await mission.update(
         repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
+    latest_event_end_date = mission.missionevents[-1].event_end_date
+
     # set each assignee's last_event_end_date
     for w in mission.assignees:
-        await WorkerStatus.objects.filter(worker=w.id).update(
-            last_event_end_date=mission.event_end_date
+        await WorkerStatus.objects.filter(worker=w).update(
+            last_event_end_date=latest_event_end_date
         )
 
     # record this operation
@@ -359,7 +367,9 @@ async def request_assistance(mission_id: int, validate_user: User):
         raise HTTPException(400, "this mission is already in emergency")
 
     if not mission.is_started() or mission.is_closed():
-        raise HTTPException(400, "this mission hasn't started yet or it's already closed")
+        raise HTTPException(
+            400, "this mission hasn't started yet or it's already closed"
+        )
 
     await mission.update(is_emergency=True)
 

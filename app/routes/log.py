@@ -8,13 +8,25 @@ from typing import Optional
 
 router = APIRouter(prefix="/logs")
 
+class LogValueOut(BaseModel):
+    field: str
+    previous_value: str
+    new_value: str
+
+    @classmethod
+    def from_logvalue(cls, logvalue: LogValue):
+        return cls(
+            field=logvalue.field_name,
+            previous_value=logvalue.previous_value,
+            new_value=logvalue.new_value,
+        )
 
 class LogOut(BaseModel):
     id: int
     action: AuditActionEnum
     table_name: str
     record_pk: Optional[str]
-    values: List[LogValue]
+    values: List[LogValueOut]
     username: Optional[str]
     description: Optional[str]
     created_date: datetime.datetime
@@ -54,7 +66,7 @@ async def get_logs(
     params = {k: v for k, v in params.items() if v is not None}
 
     logs, total_count = await asyncio.gather(
-        AuditLogHeader.objects.filter(**params).select_related(["user", "values"]).paginate(page, limit).order_by("-created_date").all(),  # type: ignore
+        AuditLogHeader.objects.filter(**params).select_all().paginate(page, limit).order_by("-created_date").all(),  # type: ignore
         AuditLogHeader.objects.filter(**params).count(),  # type: ignore
     )
 
@@ -68,7 +80,7 @@ async def get_logs(
                 action=log.action,
                 table_name=log.table_name,
                 record_pk=log.record_pk,
-                values=log.values,
+                values=[LogValueOut.from_logvalue(v) for v in log.logvalues],
                 username=log.user.username if log.user is not None else None,
                 description=log.description,
                 created_date=log.created_date,

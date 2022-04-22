@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
@@ -7,11 +8,14 @@ from passlib.context import CryptContext
 from app.core.database import (
     AuditActionEnum,
     AuditLogHeader,
+    LogValue,
     Mission,
     User,
+    WorkerStatus,
     database,
 )
 from app.models.schema import DeviceDto, MissionDto
+from app.services.device import get_device_by_id
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -118,3 +122,44 @@ async def get_user_subordinates_by_username(username: str):
         )
         for x in result
     ]
+
+
+async def move_user_to_position(username: str, device_id: str):
+    user, device = await asyncio.gather(
+        get_user_by_username(username), get_device_by_id(device_id)
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=404, detail="the user with this id is not found"
+        )
+
+    if device is None:
+        raise HTTPException(
+            status_code=404, detail="the device with this id is not found"
+        )
+
+    try:
+        worker_status = await WorkerStatus.objects.filter(worker=user).get()
+        original_at_device = worker_status.at_device.id
+
+        log, _ = await asyncio.gather(
+            AuditLogHeader.objects.create(
+                table_name="worker_status",
+                record_pk=device_id,
+                action=AuditActionEnum.USER_MOVE_POSITION.value,
+                user=user,
+            ),
+            worker_status.update(at_device=device),
+        )
+
+        await LogValue.objects.create(
+            log_header=log.id,
+            field_name="at_device",
+            previous_value=original_at_device,
+            new_value=device_id,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail="cannot update user's position: " + str(e)
+        )

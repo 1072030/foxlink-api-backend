@@ -212,13 +212,14 @@ async def worker_monitor_routine():
             to_rescue_station = dispatch.move_to_rescue(rescue_distances)
 
             # TODO: 將前往維修站作為變成單一任務
-            await Mission.objects.create(
+            mission = await Mission.objects.create(
                 name="前往救援站",
                 required_expertises=[],
-                assignees=[w.username],
                 device=to_rescue_station,
                 description=f"請前往救援站 {to_rescue_station}",
             )
+            await mission.assignees.add(w)
+
             publish(
                 f"foxlink/users/{w.username}/move-rescue-station",
                 {"rescue_id": to_rescue_station},

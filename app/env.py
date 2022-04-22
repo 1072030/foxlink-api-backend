@@ -71,6 +71,10 @@ DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "07:40")
 DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "19:40")
 NIGHT_SHIFT_BEGIN = get_env("NIGHT_SHIFT_BEGIN", str, "19:40")
 NIGHT_SHIFT_END = get_env("NIGHT_SHIFT_END", str, "07:40")
-
+# 當員工
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
+# 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
+MOVE_TO_RESCUE_STATION_TIME = get_env(
+    "MOVE_TO_RESCUE_STATION_TIME", int, 5
+)  # unit: minutes")
 

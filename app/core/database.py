@@ -24,6 +24,7 @@ database = databases.Database(DATABASE_URI, echo=True)
 metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")
+AuditLogHeaderRef = ForwardRef("AuditLogHeader")
 
 
 def generate_uuidv4():
@@ -86,9 +87,6 @@ class User(ormar.Model):
     is_admin: bool = ormar.Boolean(server_default="0")
     is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
-
-
-User.update_forward_refs()
 
 
 class Device(ormar.Model):
@@ -204,6 +202,7 @@ class LogValue(ormar.Model):
         pass
 
     id: int = ormar.Integer(primary_key=True, index=True)
+    log_header: AuditLogHeaderRef = ormar.ForeignKey(AuditLogHeaderRef, ondelete="CASCADE")  # type: ignore
     field_name: str = ormar.String(max_length=100)
     previous_value: str = ormar.String(max_length=512)
     new_value: str = ormar.String(max_length=512)
@@ -221,9 +220,10 @@ class AuditLogHeader(ormar.Model):
     record_pk: Optional[str] = ormar.String(max_length=100, index=True, nullable=True)
     user: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
     created_date: datetime = ormar.DateTime(server_default=func.now())
-    values: List[LogValue] = ormar.ManyToMany(LogValue)
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
 
+
+LogValue.update_forward_refs()
 
 # Device's Category Priority
 class CategoryPRI(ormar.Model):

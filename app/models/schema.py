@@ -55,8 +55,8 @@ class DeviceDto(BaseModel):
     device_id: str
     device_name: str
     project: str
-    process: str
-    line: int
+    process: Optional[str]
+    line: Optional[int]
 
 class UserNameDto(BaseModel):
     username: str
