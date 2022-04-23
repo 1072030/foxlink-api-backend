@@ -194,10 +194,10 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
     await User.objects.bulk_create(create_user_bulk)
 
     # remove original device levels
-    # for username in full_name_mapping.values():
-    #     await UserDeviceLevel.objects.select_related("device").filter(user=username).delete(
-    #         each=True
-    #     )
+    for username in full_name_mapping.values():
+        await UserDeviceLevel.objects.select_related("device").filter(user=username).delete(
+            each=True
+        )
 
     for index, row in factory_worker_info.iterrows():
         workshop = (
