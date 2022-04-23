@@ -26,8 +26,9 @@ class UserOut(UserBase):
     is_active: bool
     is_admin: bool
     is_changepwd: bool
-    work_time: int
 
+class UserOutWithWorkTime(UserOut):
+    work_time: int
 
 class UserChangePassword(BaseModel):
     old_password: str

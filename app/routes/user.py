@@ -33,6 +33,7 @@ from app.models.schema import (
     UserCreate,
     UserChangePassword,
     UserOut,
+    UserOutWithWorkTime,
     UserPatch,
     MissionDto,
 )
@@ -53,7 +54,7 @@ async def create_a_new_user(
     return await create_user(dto)
 
 
-@router.get("/info", response_model=UserOut, tags=["users"])
+@router.get("/info", response_model=UserOutWithWorkTime, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_active_user)):
     first_login_timestamp = await get_user_first_login_time_today(user.username)
 
@@ -63,7 +64,7 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
         ).total_seconds() / 60
     else:
         total_mins = 0
-    return UserOut(work_time=total_mins, **user.dict())
+    return UserOutWithWorkTime(work_time=total_mins, **user.dict())
 
 
 @router.post("/change-password", tags=["users"])
