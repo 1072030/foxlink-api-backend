@@ -223,35 +223,46 @@ class data_convert:
                 )
             for w in tqdm(range(len(self.df_worker_info))):  # 員工數量
                 for p in range(len(self.df_project_info.columns)):  # 所有專案中機台數量
-                    self.df_factory_worker_info_convert = self.df_factory_worker_info_convert.append(
-                        {
-                            "worker_id": str(
-                                self.df_worker_info["員工工號"].iloc[w]
-                            ),  # str； 員工工號
-                            "worker_name": str(
-                                self.df_worker_info["員工名字"].iloc[w]
-                            ),  # str； 員工名字
-                            "job": self.df_worker_info["職務"].iloc[
-                                w
-                            ],  # int； 員工所屬職位，可用於判斷是否為管理層
-                            "superior": str(
-                                self.df_worker_info["負責人"].iloc[w]
-                            ),  # str； 員工所屬之上級管理人
-                            "workshop": str(
-                                self.df_worker_info["車間"].iloc[w]
-                            ),  # str； 所屬車間
-                            "project": str(
-                                self.df_project_info.loc["專案"].iloc[p]
-                            ),  # str； 所屬專案
-                            "process": str(
-                                self.df_project_info.loc["自動機製程段"].iloc[p]
-                            ),  # str； 所屬專案之製程段
-                            "device_name": str(
-                                self.df_project_info.loc["Device"].iloc[p]
-                            ),  # str； 所屬專案之機台
-                            "shift": int(self.df_worker_info["班別"].iloc[w]),  # int； 排班別
-                            "level": int(self.df_exp.iloc[w, p]),  # int； 員工機台經驗等級
-                        },
+                    self.df_factory_worker_info_convert = pd.concat(
+                        [
+                            self.df_factory_worker_info_convert,
+                            pd.DataFrame(
+                                [
+                                    {
+                                        "worker_id": str(
+                                            self.df_worker_info["員工工號"].iloc[w]
+                                        ),  # str； 員工工號
+                                        "worker_name": str(
+                                            self.df_worker_info["員工名字"].iloc[w]
+                                        ),  # str； 員工名字
+                                        "job": self.df_worker_info["職務"].iloc[
+                                            w
+                                        ],  # int； 員工所屬職位，可用於判斷是否為管理層
+                                        "superior": str(
+                                            self.df_worker_info["負責人"].iloc[w]
+                                        ),  # str； 員工所屬之上級管理人
+                                        "workshop": str(
+                                            self.df_worker_info["車間"].iloc[w]
+                                        ),  # str； 所屬車間
+                                        "project": str(
+                                            self.df_project_info.loc["專案"].iloc[p]
+                                        ),  # str； 所屬專案
+                                        "process": str(
+                                            self.df_project_info.loc["自動機製程段"].iloc[p]
+                                        ),  # str； 所屬專案之製程段
+                                        "device_name": str(
+                                            self.df_project_info.loc["Device"].iloc[p]
+                                        ),  # str； 所屬專案之機台
+                                        "shift": int(
+                                            self.df_worker_info["班別"].iloc[w]
+                                        ),  # int； 排班別
+                                        "level": int(
+                                            self.df_exp.iloc[w, p]
+                                        ),  # int； 員工機台經驗等級
+                                    }
+                                ]
+                            ),
+                        ],
                         ignore_index=1,
                     )
             self.df_factory_worker_info_convert[
