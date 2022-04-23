@@ -23,11 +23,14 @@ async-timeout==4.0.2
 attrs==21.4.0
     # via aiohttp
 bcrypt==3.2.0
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   paramiko
 cffi==1.15.0
     # via
     #   bcrypt
     #   cryptography
+    #   pynacl
 charset-normalizer==2.0.12
     # via aiohttp
 click==8.0.3
@@ -38,7 +41,9 @@ colorama==0.4.4
     #   qrcode
     #   tqdm
 cryptography==36.0.1
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   paramiko
 databases==0.5.3
     # via
     #   -r requirements.in
@@ -94,6 +99,8 @@ paho-mqtt==1.6.1
     # via -r requirements.in
 pandas==1.4.0
     # via -r requirements.in
+paramiko==2.10.3
+    # via sshtunnel
 passlib==1.7.4
     # via -r requirements.in
 pillow==9.0.1
@@ -112,6 +119,8 @@ pymysql==0.9.3
     # via
     #   -r requirements.in
     #   aiomysql
+pynacl==1.5.0
+    # via paramiko
 python-dateutil==2.8.2
     # via pandas
 python-dotenv==0.19.2
@@ -132,6 +141,7 @@ six==1.16.0
     # via
     #   bcrypt
     #   ecdsa
+    #   paramiko
     #   python-dateutil
     #   python-multipart
     #   validators
@@ -143,6 +153,8 @@ sqlalchemy==1.4.28
     #   alembic
     #   databases
     #   ormar
+sshtunnel==0.4.0
+    # via -r requirements.in
 starlette==0.16.0
     # via fastapi
 tqdm==4.64.0
