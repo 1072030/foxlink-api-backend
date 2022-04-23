@@ -1,5 +1,5 @@
 import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
 from app.core.database import (
@@ -7,6 +7,7 @@ from app.core.database import (
     LogoutReasonEnum,
     User,
     UserLevel,
+    FactoryMap,
     WorkerStatus,
     WorkerStatusEnum,
     AuditLogHeader,
@@ -42,9 +43,26 @@ router = APIRouter(prefix="/users")
 
 
 @router.get("/", response_model=List[UserOut], tags=["users"])
-async def read_all_users(user: User = Depends(get_admin_active_user)):
-    users = await get_users()
-    return [UserOut(**user.dict()) for user in users]
+async def read_all_users(
+    user: User = Depends(get_admin_active_user), workshop_name: Optional[str] = None
+):
+    if workshop_name is None:
+        users = await User.objects.select_related("location").all()
+    else:
+        users = (
+            await User.objects.select_related("location")
+            .filter(location__name=workshop_name)
+            .exclude_fields(['location__map', 'location__related_devices'])
+            .all()
+        )
+
+    return [
+        UserOut(
+            workshop=user.location.name if user.location is not None else "無",
+            **user.dict()
+        )
+        for user in users
+    ]
 
 
 @router.post("/", tags=["users"], status_code=201)
@@ -58,13 +76,24 @@ async def create_a_new_user(
 async def get_user_himself_info(user: User = Depends(get_current_active_user)):
     first_login_timestamp = await get_user_first_login_time_today(user.username)
 
+    if user.location is None:
+        workshop_name = "無"
+    else:
+        workshop_name = (
+            await FactoryMap.objects.filter(id=user.location.id)
+            .fields(["id", "name"])
+            .get()
+        ).name
+
     if first_login_timestamp is not None:
         total_mins = (
             datetime.datetime.utcnow() - first_login_timestamp
         ).total_seconds() / 60
     else:
         total_mins = 0
-    return UserOutWithWorkTime(work_time=total_mins, **user.dict())
+    return UserOutWithWorkTime(
+        workshop=workshop_name, work_time=total_mins, **user.dict()
+    )
 
 
 @router.post("/change-password", tags=["users"])
