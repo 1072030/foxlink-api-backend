@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel
 import datetime
-from app.core.database import Mission, ShiftType, UserLevel
+from app.core.database import Mission, MissionEvent, ShiftType, UserLevel
 
 
 # * User
@@ -62,12 +62,30 @@ class UserNameDto(BaseModel):
     username: str
     full_name: str
 
+class MissionEventOut(BaseModel):
+    category: int
+    message: str
+    done_verified: bool
+    event_start_date: datetime.datetime
+    event_end_date: Optional[datetime.datetime]
+
+    @classmethod
+    def from_missionevent(cls, e: MissionEvent):
+        return cls(
+            category=e.category,
+            message=e.message,
+            done_verified=e.done_verified,
+            event_start_date=e.event_start_date,
+            event_end_date=e.event_end_date,
+        )
+
 class MissionDto(BaseModel):
     mission_id: int
     device: DeviceDto
     name: str
     description: str
     assignees: List[UserNameDto]
+    events: List[MissionEventOut]
     is_started: bool
     is_closed: bool
     created_date: datetime.datetime
@@ -89,6 +107,7 @@ class MissionDto(BaseModel):
             is_started=m.is_started,
             is_closed=m.is_closed,
             assignees=[UserNameDto(username=u.username, full_name=u.full_name) for u in m.assignees],
+            events=[MissionEventOut.from_missionevent(e) for e in m.missionevents],
             created_date=m.created_date,
             updated_date=m.updated_date,
         )
