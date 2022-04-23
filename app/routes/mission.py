@@ -52,9 +52,25 @@ async def get_missions_by_query(
 
 
 @router.get("/self", response_model=List[MissionDto], tags=["missions"])
-async def get_self_mission(user: User = Depends(get_current_active_user)):
-    missions = await get_missions_by_username(user.username)
+async def get_self_mission(
+    user: User = Depends(get_current_active_user),
+    is_assigned: Optional[bool] = None,
+    start_date: Optional[datetime.datetime] = None,
+    end_date: Optional[datetime.datetime] = None,
+):
+    params = {
+        "created_date__gte": start_date,
+        "created_date__lte": end_date,
+    }
+    params = {k: v for k, v in params.items() if v is not None}
 
+    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(assignees__username=user.username, **params).order_by("created_date").all()  # type: ignore
+    if is_assigned is not None:
+        if is_assigned:
+            missions = [mission for mission in missions if len(mission.assignees) > 0]
+        else:
+            missions = [mission for mission in missions if len(mission.assignees) == 0]
+            
     return [MissionDto.from_mission(x) for x in missions]
 
 
