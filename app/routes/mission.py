@@ -40,7 +40,7 @@ async def get_missions_by_query(
 
     params = {k: v for k, v in params.items() if v is not None}
 
-    missions = await Mission.objects.select_related(["device", "assignees"]).filter(**params).all()  # type: ignore
+    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(**params).all()  # type: ignore
 
     if is_assigned is not None:
         if is_assigned:
