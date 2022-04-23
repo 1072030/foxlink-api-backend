@@ -37,7 +37,7 @@ async def get_mission_by_id(id: int) -> Optional[Mission]:
 
 async def get_missions_by_username(username: str):
     missions = (
-        await Mission.objects.select_related(["assignees", "device"])
+        await Mission.objects.select_related(["assignees", "device", "missionevents"])
         .filter(assignees__username=username)
         .order_by("created_date")
         .all()
@@ -264,7 +264,7 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
         raise HTTPException(400, "this mission is already closed!")
 
     # a hack for async property_field
-    is_done = await mission.is_done_events # type: ignore
+    is_done = await mission.is_done_events  # type: ignore
 
     if not is_done:
         raise HTTPException(400, "this mission is not verified as done")
