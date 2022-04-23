@@ -29,6 +29,8 @@ async def get_missions_by_query(
     user: User = Depends(get_admin_active_user),
     worker: Optional[str] = None,
     is_assigned: Optional[bool] = None,
+    is_started: Optional[bool] = None,
+    is_closed: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ):
@@ -36,6 +38,8 @@ async def get_missions_by_query(
         "created_date__gte": start_date,
         "created_date__lte": end_date,
         "assignees__username": worker,
+        "repair_start_date__isnull": not is_started if is_started is not None else None,
+        "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
 
     params = {k: v for k, v in params.items() if v is not None}
@@ -55,12 +59,16 @@ async def get_missions_by_query(
 async def get_self_mission(
     user: User = Depends(get_current_active_user),
     is_assigned: Optional[bool] = None,
+    is_started: Optional[bool] = None,
+    is_closed: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ):
     params = {
         "created_date__gte": start_date,
         "created_date__lte": end_date,
+        "repair_start_date__isnull": not is_started if is_started is not None else None,
+        "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
     params = {k: v for k, v in params.items() if v is not None}
 
@@ -70,7 +78,7 @@ async def get_self_mission(
             missions = [mission for mission in missions if len(mission.assignees) > 0]
         else:
             missions = [mission for mission in missions if len(mission.assignees) == 0]
-            
+
     return [MissionDto.from_mission(x) for x in missions]
 
 
