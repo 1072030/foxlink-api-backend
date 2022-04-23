@@ -2,9 +2,10 @@ import logging, asyncio, aiohttp
 from typing import List
 from datetime import datetime, timedelta
 from pydantic import BaseModel
+from app.models.schema import MissionDto
 from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission
-from app.services.user import get_employee_work_timestamp_today
+from app.services.user import get_user_first_login_time_today
 from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import get_shift_type_now, get_shift_type_by_datetime
 from app.mqtt.main import publish
@@ -109,7 +110,10 @@ async def notify_overtime_workers():
 
     for m in working_missions:
         for u in m.assignees:
-            first_login_timestamp = await get_employee_work_timestamp_today(u.username)
+            first_login_timestamp = await get_user_first_login_time_today(u.username)
+            if first_login_timestamp is None:
+                continue
+
             if get_shift_type_now() != get_shift_type_by_datetime(
                 first_login_timestamp
             ):
@@ -126,7 +130,9 @@ async def notify_overtime_workers():
                         },
                     }
                 )
-    publish("foxlink/overtime-workers", overtime_workers, qos=1, retain=True)
+
+    if len(overtime_workers) > 0:
+        publish("foxlink/overtime-workers", overtime_workers, qos=1, retain=True)
 
 
 async def auto_close_missions():
@@ -298,6 +304,12 @@ async def dispatch_routine():
 
     if len(can_dispatch_workers) == 0:
         logger.warn(f"No workers available to dispatch for mission {mission_1st.id}")
+        publish(
+            "foxlink/no-available-worker",
+            MissionDto.from_mission(mission_1st).dict(),
+            qos=1,
+            retain=True,
+        )
         return
 
     factory_map = await FactoryMap.objects.filter(
@@ -369,11 +381,7 @@ async def dispatch_routine():
         logger.error("no worker available to fix devices")
         publish(
             "foxlink/no-available-worker",
-            {
-                "mission_id": mission_1st.id,
-                "device_id": mission_1st.device.id,
-                "description": mission_1st.description,
-            },
+            MissionDto.from_mission(mission_1st).dict(),
             qos=1,
             retain=True,
         )

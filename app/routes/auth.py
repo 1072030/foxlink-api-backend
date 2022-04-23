@@ -10,7 +10,7 @@ from app.core.database import (
     WorkerStatus,
     WorkerStatusEnum,
 )
-from app.utils.utils import get_user_first_login_time
+from app.services.user import get_user_first_login_time_today
 
 
 class Token(BaseModel):
@@ -53,7 +53,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value:
         worker_status = await WorkerStatus.objects.filter(worker=user).get()
-        today_login_timestamp = await get_user_first_login_time(user.username)
+        today_login_timestamp = await get_user_first_login_time_today(user.username)
 
         if today_login_timestamp is None:
             worker_status.last_event_end_date = today_login_timestamp # type: ignore

@@ -1,3 +1,4 @@
+import datetime
 from paho.mqtt import client
 import json
 import logging
@@ -25,12 +26,16 @@ def disconnect_mqtt():
     if mqtt_client is not None:
         mqtt_client.disconnect()
 
+def default(o):
+    if isinstance(o, (datetime.date, datetime.datetime)):
+        return o.isoformat()
+
 
 def publish(topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
     if mqtt_client is None:
         raise Exception("MQTT client is not initialized")
 
-    json_str = json.dumps(payload)
+    json_str = json.dumps(payload, default=default)
     result = mqtt_client.publish(topic, payload=json_str, qos=qos, retain=retain)
     # if result[0] is 0, then publish successfully
     return result[0] == 0

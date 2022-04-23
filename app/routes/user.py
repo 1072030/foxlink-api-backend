@@ -2,7 +2,6 @@ import datetime
 from typing import List
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
-from app.utils.utils import get_user_first_login_time
 from app.core.database import (
     AuditActionEnum,
     LogoutReasonEnum,
@@ -15,6 +14,7 @@ from app.core.database import (
 )
 from app.services.user import (
     get_user_subordinates_by_username,
+    get_user_first_login_time_today,
     get_users,
     create_user,
     get_password_hash,
@@ -55,7 +55,7 @@ async def create_a_new_user(
 
 @router.get("/info", response_model=UserOut, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_active_user)):
-    first_login_timestamp = await get_user_first_login_time(user.username)
+    first_login_timestamp = await get_user_first_login_time_today(user.username)
 
     if first_login_timestamp is not None:
         total_mins = (

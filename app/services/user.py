@@ -71,7 +71,7 @@ async def delete_user_by_username(username: str):
         raise HTTPException(status_code=404, detail="user by this id is not found")
 
 
-async def get_employee_work_timestamp_today(username: str) -> Optional[datetime]:
+async def get_user_first_login_time_today(username: str) -> Optional[datetime]:
     """
     Get a employee's first login record past 12 hours (today)
     If the employee has not been logined in today, return None

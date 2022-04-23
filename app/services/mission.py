@@ -15,7 +15,7 @@ from app.core.database import (
     database,
 )
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionCreate, MissionUpdate
+from app.models.schema import MissionCreate, MissionEventOut, MissionUpdate
 from app.mqtt.main import publish
 import logging
 from app.services.user import get_user_by_username, move_user_to_position
@@ -301,7 +301,7 @@ async def delete_mission_by_id(mission_id: int):
 
 
 async def assign_mission(mission_id: int, username: str):
-    mission = await Mission.objects.select_related(["assignees", "device"]).get(
+    mission = await Mission.objects.select_related(["assignees", "device", "missionevents"]).get(
         id=mission_id
     )
 
@@ -346,6 +346,7 @@ async def assign_mission(mission_id: int, username: str):
                 },
                 "name": mission.name,
                 "description": mission.description,
+                "events": [MissionEventOut.from_missionevent(e).dict() for e in mission.missionevents]
             },
             qos=1,
             retain=True,

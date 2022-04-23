@@ -25,7 +25,14 @@
     "name" : "Device_11"
   },
   "name": "任務名稱",
-  "description": "任務的敘述，目前是放故障的問題原因"
+  "description": "任務的敘述",
+  "events": [
+    "category" : 190, // 該故障的分類編號
+    "message" : "进料打码站故障", // 故障資訊
+    "done_verified" : false, // 該故障是否維修完畢
+    "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
+    "event_end_date" : null
+  ]
 }
 ```
 - foxlink/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
@@ -40,9 +47,30 @@
 - foxlink/no-available-worker - 當有任務無人可以指派時，會推送這個訊息
 ```jsonc
 {
-  "mission_id" : 12, // 沒有人可以指派的任務 ID
-  "device_id": "string", // DeviceID
-  "description": "string" // 任務的敘述，目前是放故障的問題原因
+  "mission_id" : 1, // 無人可供指派的任務 ID
+  // Device 詳細資訊
+  "device" : {
+    "device_id" : "D53@1@Device_9",
+    "device_name" : "Device_9",
+    "project" : "D53",
+    "process" : "M3段",
+    "line" : 1
+  },
+  "name" : "D53@1@Device_9 故障", // 任務名稱
+  "description" : "", // 該任務的敘述
+  "assignees" : [ ],
+  // 該任務的 Device 所受影響的故障列表
+  "events" : [ {
+    "category" : 190,
+    "message" : "进料打码站故障",
+    "done_verified" : false, // 該故障是否維修完畢
+    "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
+    "event_end_date" : null
+  } ],
+  "is_started" : false,
+  "is_closed" : false,
+  "created_date" : "2022-04-23T07:12:31",
+  "updated_date" : "2022-04-23T07:12:31"
 }
 ```
 - foxlink/users/{username}/subordinate-rejected - 當天如果有下屬拒絕任務兩次以上，就會推送這則訊息
