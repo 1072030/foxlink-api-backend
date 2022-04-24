@@ -35,4 +35,3 @@ pillow
 aiohttp
 tqdm
 scipy
-sshtunnel
