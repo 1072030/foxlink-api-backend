@@ -68,7 +68,7 @@ class FoxlinkDbPool:
     async def get_a_event_from_table(
         self, db_name: str, table_name: str, id: int
     ) -> Optional[FoxlinkEvent]:
-        stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ID = :id"
+        stmt = f"SELECT * FROM `{db_name}`.`{table_name}` WHERE ID = :id;"
         row: list = await self._db.fetch_one(query=stmt, values={"id": id})  # type: ignore
 
         return FoxlinkEvent(
@@ -150,7 +150,7 @@ class FoxlinkDbPool:
 
                 # find if this device is already in a mission
                 mission = await Mission.objects.filter(
-                    device=device.id, repair_end_date__isnull=False
+                    device=device.id, repair_end_date__isnull=False, is_cancel=False
                 ).get_or_none()
 
                 if mission is not None:
