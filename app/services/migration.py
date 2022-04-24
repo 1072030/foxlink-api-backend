@@ -1,5 +1,5 @@
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from app.core.database import (
     User,
     Device,
@@ -22,7 +22,7 @@ def generate_device_id(project: str, line: int, device_name: str) -> str:
 
 
 @database.transaction()
-async def import_devices(excel_file: UploadFile, clear_all: bool = False):
+async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tuple[List[str], pd.DataFrame]:
     if clear_all is True:
         await Device.objects.delete(each=True)
 
@@ -71,7 +71,8 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False):
     await Device.objects.bulk_update(update_device_bulk)
     await Device.objects.bulk_create(create_device_bulk)
     # calcuate factroy map matrix
-    await calcuate_factory_layout_matrix("第九車間", frame)
+    params = await calcuate_factory_layout_matrix("第九車間", frame)
+    return frame["id"].unique().tolist(), params
 
 
 # TODO: remove orphan category priorities
@@ -112,7 +113,7 @@ async def import_workshop_events(excel_file: UploadFile):
             await p.devices.add(d)  # type: ignore
 
 
-async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame):
+async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame) -> pd.DataFrame:
     data = data_converter.fn_factorymap(frame)
     matrix: List[List[float]] = []
 
@@ -122,6 +123,8 @@ async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame
     await FactoryMap.objects.filter(name=workshop_name).update(
         related_devices=data["result"].columns.values.tolist(), map=matrix
     )
+
+    return data['parameter']
 
 
 @database.transaction()
