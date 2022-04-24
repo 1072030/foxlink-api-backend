@@ -226,7 +226,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
     worker_reject_amount_today = await AuditLogHeader.objects.filter(
         user=user,
         action=AuditActionEnum.MISSION_REJECTED.value,
-        created_date__gte=datetime.now(CST_TIMEZONE).date(),
+        created_date__gte=datetime.now(CST_TIMEZONE),
     ).count()
 
     if worker_reject_amount_today >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
@@ -273,13 +273,14 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
         repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
-    latest_event_end_date = mission.missionevents[-1].event_end_date
+    event_end_dates: List[datetime] = [e.event_end_date - datetime.timedelta(hours=8) for e in mission.missionevents]
+    event_end_dates.sort(reverse=True)
 
     # set each assignee's last_event_end_date
     for w in mission.assignees:
         await WorkerStatus.objects.filter(worker=w).update(
             status=WorkerStatusEnum.idle.value,
-            last_event_end_date=latest_event_end_date
+            last_event_end_date=event_end_dates[0]
         )
 
     # record this operation
