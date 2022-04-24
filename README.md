@@ -96,6 +96,16 @@
   }
 ]
 ```
+- foxlink/users/{username}/mission-overtime - 當有任務處理時長超過門檻值，系統會通知處理員工之上級
+```jsonc
+{
+    "mission_id": 0, // 任務 ID
+    "mission_name": "string", // 任務名稱
+    "worker_id": "145287", // 處理員工 ID
+    "worker_name": "string", // 處理員工姓名
+    "duration": 0, // 目前處理時長（秒）
+},
+```
 - foxlink/users/{username}/move-rescue-station - 當員工閒置於機台超過特定時間時，系統將會通知員工移動至最近的維修站。
 ```jsonc
 {

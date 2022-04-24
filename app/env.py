@@ -1,26 +1,26 @@
 import logging
 import os
-from typing import TypeVar, Optional, Type
+from typing import List, TypeVar, Optional, Type
 from dotenv import load_dotenv
 from app.my_log_conf import LOGGER_NAME
+from ast import literal_eval
 
 T = TypeVar("T")
 
 
-def get_env(
-    key: str, type_: Type[T], default: Optional[T] = None, panic_on_none: bool = False
-) -> Optional[T]:
+def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
     val = os.getenv(key)
 
     if val is None:
         if default is not None:
-            if panic_on_none:
-                raise KeyError(f"{key} is not set")
             return default
         else:
-            return None
+            raise KeyError(f"{key} is not set")
     else:
-        return type_(val)  # type: ignore
+        if dtype is List[int]:
+            return literal_eval(val)
+        else:
+            return dtype(val)  # type: ignore
 
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -74,7 +74,12 @@ NIGHT_SHIFT_END = get_env("NIGHT_SHIFT_END", str, "07:40")
 # 當員工
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 # 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
+
+
+OVERTIME_MISSION_NOTIFY_PERIOD = get_env(
+    "OVERTIME_MISSION_NOTIFY_PERIOD", List[int], [20, 10, 10]
+)
+
 MOVE_TO_RESCUE_STATION_TIME = get_env(
     "MOVE_TO_RESCUE_STATION_TIME", int, 5
 )  # unit: minutes")
-

@@ -1,5 +1,5 @@
 import logging, asyncio, aiohttp
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
@@ -15,6 +15,7 @@ from app.env import (
     EMQX_USERNAME,
     EMQX_PASSWORD,
     MOVE_TO_RESCUE_STATION_TIME,
+    OVERTIME_MISSION_NOTIFY_PERIOD,
 )
 from app.core.database import (
     CategoryPRI,
@@ -138,7 +139,11 @@ async def notify_overtime_workers():
 async def auto_close_missions():
     working_missions = (
         await Mission.objects.select_related("missionevents")
-        .filter(repair_start_date__isnull=True, repair_end_date__isnull=True, is_cancel=False)
+        .filter(
+            repair_start_date__isnull=True,
+            repair_end_date__isnull=True,
+            is_cancel=False,
+        )
         .all()
     )
 
@@ -215,9 +220,9 @@ async def worker_monitor_routine():
                     }
                 )
 
+            # create a go-to-rescue-station mission for those workers who are not at rescue station and idle above threshold duration.
             to_rescue_station = dispatch.move_to_rescue(rescue_distances)
 
-            # TODO: 將前往維修站作為變成單一任務
             mission = await Mission.objects.create(
                 name="前往救援站",
                 required_expertises=[],
@@ -234,11 +239,74 @@ async def worker_monitor_routine():
             )
 
 
+# TODO: 通知維修時間太長的任務給上級
 async def check_mission_duration_routine():
-    working_missions = await Mission.objects.filter(
-        repair_start_date__isnull=False, repair_end_date__isnull=True
-    ).all()
-    ...
+    working_missions = (
+        await Mission.objects.select_related("assignees")
+        .filter(
+            repair_start_date__isnull=False,
+            repair_end_date__isnull=True,
+            is_cancel=False,
+        )
+        .all()
+    )
+
+    standardize_thresholds: List[int] = []
+    total_mins = 0
+    for t in OVERTIME_MISSION_NOTIFY_PERIOD:
+        total_mins += t
+        standardize_thresholds += [total_mins]
+
+    working_missions = [m for m in working_missions if len(m.assignees) != 0]
+
+    for m in working_missions:
+        for idx in range(len(standardize_thresholds) - 1, -1, -1):
+            if m.duration.total_seconds() >= standardize_thresholds[idx]:
+                is_sent = await AuditLogHeader.objects.filter(
+                    action=AuditActionEnum.MISSION_OVERTIME.value,
+                    table="missions",
+                    description=str(standardize_thresholds[idx]),
+                    record_pk=m.id,
+                ).exists()
+
+                if is_sent:
+                    continue
+
+                base_worker = m.assignees[0].username
+                to_notify_superior: Optional[User] = None
+
+                for _ in range(idx + 1):
+                    device_level = await UserDeviceLevel.objects.filter(
+                        device=m.device.id, user=base_worker
+                    ).get_or_none()
+
+                    if device_level.superior is None:
+                        break
+                    base_worker = device_level.superior.username
+                    to_notify_superior = device_level.superior
+
+                if to_notify_superior is None:
+                    break
+
+                publish(
+                    f"foxlink/users/{to_notify_superior.username}/mission-overtime",
+                    {
+                        "mission_id": m.id,
+                        "mission_name": m.name,
+                        "worker_id": m.assignees[0].id,
+                        "worker_name": m.assignees[0].full_name,
+                        "duration": m.duration.total_seconds(),
+                    },
+                    qos=1,
+                )
+
+                await AuditLogHeader.objects.create(
+                    action=AuditActionEnum.MISSION_OVERTIME.value,
+                    table="missions",
+                    description=str(standardize_thresholds[idx]),
+                    record_pk=m.id,
+                    user=m.assignees[0],
+                )
 
 
 @database.transaction()
@@ -429,7 +497,10 @@ async def dispatch_routine():
 
 async def main_routine():
     await asyncio.gather(
-        auto_close_missions(), worker_monitor_routine(), notify_overtime_workers(),
+        auto_close_missions(),
+        worker_monitor_routine(),
+        notify_overtime_workers(),
+        check_mission_duration_routine(),
     )
     await check_alive_worker_routine()
     await dispatch_routine()
