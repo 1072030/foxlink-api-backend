@@ -32,7 +32,7 @@ class FoxlinkDbPool:
     _db: Database
     _ticker: Ticker
     # table_name_blacklist: List[str] = ["measure_info"]
-    table_suffix = "_event"
+    table_suffix = "_event_new"
 
     def __init__(self):
         self._db = Database(
