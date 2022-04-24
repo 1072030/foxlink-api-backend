@@ -153,7 +153,7 @@ async def accept_mission(mission_id: int, worker: User):
         raise HTTPException(400, "this mission is already started or closed")
 
     if mission.device.is_rescue:
-        raise HTTPException(400, "to-rescue-station mission cannot be accepted")
+        raise HTTPException(400, "to-rescue-station mission cannot be accepted, use start_mission api instead")
 
     # Check worker has accepted the mission or not.
     accept_count = await AuditLogHeader.objects.filter(
