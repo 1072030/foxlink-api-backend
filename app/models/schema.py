@@ -90,6 +90,7 @@ class MissionDto(BaseModel):
     events: List[MissionEventOut]
     is_started: bool
     is_closed: bool
+    is_cancel: bool
     created_date: datetime.datetime
     updated_date: datetime.datetime
 
@@ -108,6 +109,7 @@ class MissionDto(BaseModel):
             description=m.description,
             is_started=m.is_started,
             is_closed=m.is_closed,
+            is_cancel=m.is_cancel,
             assignees=[UserNameDto(username=u.username, full_name=u.full_name) for u in m.assignees],
             events=[MissionEventOut.from_missionevent(e) for e in m.missionevents],
             created_date=m.created_date,
