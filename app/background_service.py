@@ -1,4 +1,5 @@
 import logging, asyncio, aiohttp
+import pytz
 from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -7,7 +8,7 @@ from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission
 from app.services.user import get_user_first_login_time_today
 from app.my_log_conf import LOGGER_NAME
-from app.utils.utils import get_shift_type_now, get_shift_type_by_datetime
+from app.utils.utils import CST_TIMEZONE, get_shift_type_now, get_shift_type_by_datetime
 from app.mqtt.main import publish
 from app.env import (
     MQTT_BROKER,
@@ -398,15 +399,6 @@ async def dispatch_routine():
             ).count()
         ) == 1
 
-        # user_login_logs = await AuditLogHeader.objects.filter(
-        #     user=w.user.username,
-        #     action=AuditActionEnum.USER_LOGIN.value,
-        #     created_date__gte=datetime.utcnow() - timedelta(hours=12),
-        # ).count()
-
-        # if user_login_logs == 0:
-        #     continue
-
         if not is_idle:
             continue
 
@@ -427,7 +419,7 @@ async def dispatch_routine():
         daily_count = await AuditLogHeader.objects.filter(
             action=AuditActionEnum.MISSION_ASSIGNED.value,
             user=w.user,
-            created_date__gte=datetime.utcnow().date(),
+            created_date__gte=datetime.now(CST_TIMEZONE).replace(hour=0, minute=0, second=0).astimezone(pytz.utc).date(),
         ).count()
 
         worker_device_idx = find_idx_in_factory_map(

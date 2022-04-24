@@ -150,7 +150,7 @@ class FoxlinkDbPool:
 
                 # find if this device is already in a mission
                 mission = await Mission.objects.filter(
-                    device=device.id, repair_end_date__isnull=False, is_cancel=False
+                    device=device.id, repair_end_date__isnull=True, is_cancel=False
                 ).get_or_none()
 
                 if mission is not None:

@@ -353,9 +353,7 @@ class data_convert:
                     )
                 _events_["project"] = _project_name_.lower()  # 新增專案名稱欄位；小寫
                 _events_["Device_Name"] = j.lower()  # 新增機台名稱欄位；小寫
-                self.df_proj_eventbooks_convert = self.df_proj_eventbooks_convert.append(
-                    _events_, ignore_index=True
-                )  # 一筆筆df新增
+                self.df_proj_eventbooks_convert = pd.concat([self.df_proj_eventbooks_convert, _events_], ignore_index=True) # 一筆筆df新增
 
             "Category欄位參數資訊；篩選 优先顺序 欄位有值者，代表需要指派"
             parm = {

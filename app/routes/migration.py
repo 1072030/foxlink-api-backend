@@ -1,3 +1,4 @@
+from app.models.schema import ImportDevicesOut
 from app.services.auth import get_admin_active_user
 from app.services.migration import (
     import_devices,
@@ -8,6 +9,7 @@ from app.services.migration import (
 from fastapi import APIRouter, Depends, File, UploadFile, Form
 from app.core.database import AuditActionEnum, User, AuditLogHeader
 from fastapi.exceptions import HTTPException
+from typing import List
 
 
 router = APIRouter(prefix="/migration")
@@ -23,12 +25,14 @@ async def import_devices_from_excel(
         raise HTTPException(415)
 
     try:
-        await import_devices(file, clear_all)
+        device_ids, params = await import_devices(file, clear_all)
         await AuditLogHeader.objects.create(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
             user=user,
         )
+        print(params)
+        return ImportDevicesOut(device_ids=device_ids)
     except Exception as e:
         await AuditLogHeader.objects.create(
             table_name="devices",

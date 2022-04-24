@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Optional, List
 from pydantic import BaseModel
 import datetime
 from app.core.database import Mission, MissionEvent, ShiftType, UserLevel
@@ -121,3 +121,7 @@ class SubordinateOut(BaseModel):
     username: str
     full_name: str
     shift: ShiftType
+
+class ImportDevicesOut(BaseModel):
+    device_ids: List[str]
+    parameters: Optional[Any]
