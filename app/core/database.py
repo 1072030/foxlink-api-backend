@@ -147,8 +147,8 @@ class Mission(ormar.Model):
     assignees: List[User] = ormar.ManyToMany(User)
     name: str = ormar.String(max_length=100, nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
-    repair_start_date: Optional[date] = ormar.DateTime(nullable=True)
-    repair_end_date: Optional[date] = ormar.DateTime(nullable=True)
+    repair_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    repair_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
@@ -159,6 +159,8 @@ class Mission(ormar.Model):
     def duration(self) -> Optional[timedelta]:
         if self.repair_start_date is not None and self.repair_end_date is not None:
             return self.repair_end_date - self.repair_start_date
+        elif self.repair_start_date is not None and self.repair_end_date is None:
+            return datetime.utcnow() - self.repair_start_date
         return None
 
     @property_field
