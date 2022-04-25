@@ -1,6 +1,6 @@
 import asyncio
 from app.services.device import get_device_by_id
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from app.core.database import (
     Mission,
@@ -273,7 +273,7 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
         repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
-    event_end_dates: List[datetime] = [e.event_end_date - datetime.timedelta(hours=8) for e in mission.missionevents]
+    event_end_dates: List[datetime] = [e.event_end_date - timedelta(hours=8) for e in mission.missionevents]
     event_end_dates.sort(reverse=True)
 
     # set each assignee's last_event_end_date
