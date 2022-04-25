@@ -78,7 +78,7 @@ async def get_top_abnormal_devices(limit: int = 10):
     """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
     abnormal_devices: List[AbnormalDeviceInfo] = await database.fetch_all(
         """
-        SELECT device as device_id, max(message), max(category), max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
+        SELECT device as device_id, max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
         FROM missionevents
         INNER JOIN missions m ON m.id = mission
         WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL
