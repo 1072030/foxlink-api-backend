@@ -139,7 +139,7 @@ async def notify_overtime_workers():
 
 async def auto_close_missions():
     working_missions = (
-        await Mission.objects.select_related("missionevents")
+        await Mission.objects.select_related(["assignees","missionevents"])
         .filter(
             repair_start_date__isnull=True,
             repair_end_date__isnull=True,
@@ -147,6 +147,8 @@ async def auto_close_missions():
         )
         .all()
     )
+
+    working_missions = [x for x in working_missions if len(x.assignees) != 0]
 
     for m in working_missions:
         undone_events = [x for x in m.missionevents if x.done_verified == False]
