@@ -86,3 +86,14 @@ async def get_admin_active_user(active_user: User = Depends(get_current_active_u
             status_code=status.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
         )
     return active_user
+
+
+async def get_manager_active_user(
+    manager_user: User = Depends(get_current_active_user),
+):
+    if manager_user.level <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You're not manager or admin!",
+        )
+    return manager_user

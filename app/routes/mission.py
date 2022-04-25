@@ -16,7 +16,11 @@ from app.services.mission import (
     delete_mission_by_id,
     assign_mission,
 )
-from app.services.auth import get_current_active_user, get_admin_active_user
+from app.services.auth import (
+    get_current_active_user,
+    get_admin_active_user,
+    get_manager_active_user,
+)
 from app.models.schema import MissionCreate, MissionUpdate
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionDto, DeviceDto
@@ -26,7 +30,7 @@ router = APIRouter(prefix="/missions")
 
 @router.get("/", response_model=List[MissionDto], tags=["missions"])
 async def get_missions_by_query(
-    user: User = Depends(get_admin_active_user),
+    user: User = Depends(get_manager_active_user),
     worker: Optional[str] = None,
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
@@ -96,7 +100,7 @@ async def get_a_mission_by_id(
 
 @router.post("/{mission_id}/assign", tags=["missions"])
 async def assign_mission_to_user(
-    mission_id: int, user_name: str, user: User = Depends(get_admin_active_user)
+    mission_id: int, user_name: str, user: User = Depends(get_manager_active_user)
 ):
     await assign_mission(mission_id, user_name)
 
@@ -142,7 +146,9 @@ async def update_mission(
 
 
 @router.delete("/{mission_id}", tags=["missions"])
-async def delete_mission(mission_id: int, user: User = Depends(get_admin_active_user)):
+async def delete_mission(
+    mission_id: int, user: User = Depends(get_manager_active_user)
+):
     await delete_mission_by_id(mission_id)
     await AuditLogHeader.objects.create(
         table_name="missions",
