@@ -83,7 +83,8 @@ async def get_top_abnormal_devices(limit: int = 10):
         INNER JOIN missions m ON m.id = mission
         WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL
         GROUP BY device
-        ORDER BY duration DESC;
+        ORDER BY duration DESC
+        LIMIT :limit;
         """,
         {"limit": limit},
     )  # type: ignore
