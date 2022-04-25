@@ -26,6 +26,7 @@ from app.services.user import (
 )
 from app.services.auth import (
     get_current_active_user,
+    get_manager_active_user,
     verify_password,
     get_admin_active_user,
 )
@@ -155,8 +156,5 @@ async def get_user_mission_history(user: User = Depends(get_current_active_user)
 
 
 @router.get("/subordinates", tags=["users"], response_model=List[SubordinateOut])
-async def get_user_subordinates(user: User = Depends(get_current_active_user)):
-    if user.level == UserLevel.maintainer.value:
-        raise HTTPException(401, "you are not allowed to get subordinates")
-
+async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
     return await get_user_subordinates_by_username(user.username)

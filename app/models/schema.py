@@ -121,6 +121,7 @@ class SubordinateOut(BaseModel):
     username: str
     full_name: str
     shift: ShiftType
+    status: Optional[ShiftType]
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]

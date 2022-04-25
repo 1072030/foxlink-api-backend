@@ -108,9 +108,10 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
 async def get_user_subordinates_by_username(username: str):
     result = await database.fetch_all(
         """
-        SELECT DISTINCT user as username, u.full_name as full_name, shift 
+        SELECT DISTINCT user as username, u.full_name as full_name, shift, ws.status as status
         FROM userdevicelevels
         INNER JOIN users u ON u.username = `user`
+        LEFT JOIN worker_status ws ON ws.worker = `user`
         WHERE superior = :superior AND user != superior;
         """,
         values={"superior": username},
@@ -118,7 +119,7 @@ async def get_user_subordinates_by_username(username: str):
 
     return [
         SubordinateOut(
-            username=x["username"], full_name=x["full_name"], shift=x["shift"]
+            username=x["username"], full_name=x["full_name"], shift=x["shift"], status=x['status']
         )
         for x in result
     ]
