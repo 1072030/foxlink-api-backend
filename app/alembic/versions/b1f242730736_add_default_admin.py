@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade():
     op.execute(
-        "INSERT INTO `users` VALUES ('admin', '$2a$12$q5AbRyzYuMS8QOKPGIvq8.Wa3J8gYUUM6u/GEwlSHnxEW3W9Oa3u.', 'Foxlink Admin', '[]', NULL, 1, 1, 3)"
+        "INSERT INTO `users` VALUES ('admin', '$2a$12$q5AbRyzYuMS8QOKPGIvq8.Wa3J8gYUUM6u/GEwlSHnxEW3W9Oa3u.', 'Foxlink Admin', '[]', NULL, 1, 1, 5)"
     )
 
 
