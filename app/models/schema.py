@@ -1,7 +1,13 @@
 from typing import Any, Optional, List
 from pydantic import BaseModel
 import datetime
-from app.core.database import Mission, MissionEvent, ShiftType, UserLevel
+from app.core.database import (
+    Mission,
+    MissionEvent,
+    ShiftType,
+    UserLevel,
+    WorkerStatusEnum,
+)
 
 
 # * User
@@ -28,8 +34,10 @@ class UserOut(UserBase):
     is_admin: bool
     is_changepwd: bool
 
+
 class UserOutWithWorkTime(UserOut):
     work_time: int
+
 
 class UserChangePassword(BaseModel):
     old_password: str
@@ -60,9 +68,11 @@ class DeviceDto(BaseModel):
     process: Optional[str]
     line: Optional[int]
 
+
 class UserNameDto(BaseModel):
     username: str
     full_name: str
+
 
 class MissionEventOut(BaseModel):
     category: int
@@ -80,6 +90,7 @@ class MissionEventOut(BaseModel):
             event_start_date=e.event_start_date,
             event_end_date=e.event_end_date,
         )
+
 
 class MissionDto(BaseModel):
     mission_id: int
@@ -110,7 +121,10 @@ class MissionDto(BaseModel):
             is_started=m.is_started,
             is_closed=m.is_closed,
             is_cancel=m.is_cancel,
-            assignees=[UserNameDto(username=u.username, full_name=u.full_name) for u in m.assignees],
+            assignees=[
+                UserNameDto(username=u.username, full_name=u.full_name)
+                for u in m.assignees
+            ],
             events=[MissionEventOut.from_missionevent(e) for e in m.missionevents],
             created_date=m.created_date,
             updated_date=m.updated_date,
@@ -121,7 +135,8 @@ class SubordinateOut(BaseModel):
     username: str
     full_name: str
     shift: ShiftType
-    status: Optional[int]
+    status: Optional[WorkerStatusEnum]
+
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]
