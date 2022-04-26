@@ -187,14 +187,14 @@ async def reject_mission_by_id(mission_id: int, user: User):
     if mission.is_started or mission.is_closed:
         raise HTTPException(400, "this mission is already started or closed")
 
-    accept_count = await AuditLogHeader.objects.filter(
-        action=AuditActionEnum.MISSION_ACCEPTED.value,
-        user=user.username,
-        record_pk=str(mission_id),
-    ).count()
+    # accept_count = await AuditLogHeader.objects.filter(
+    #     action=AuditActionEnum.MISSION_ACCEPTED.value,
+    #     user=user.username,
+    #     record_pk=str(mission_id),
+    # ).count()
 
-    if accept_count > 0:
-        raise HTTPException(400, "you have already accepted the mission")
+    # if accept_count > 0:
+    #     raise HTTPException(400, "you have already accepted the mission")
 
     await mission.assignees.remove(user)  # type: ignore
 

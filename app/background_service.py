@@ -284,8 +284,9 @@ async def check_mission_duration_routine():
                         device=m.device.id, user=base_worker
                     ).get_or_none()
 
-                    if device_level.superior is None:
+                    if device_level is None or device_level.superior is None:
                         break
+                    
                     base_worker = device_level.superior.username
                     to_notify_superior = device_level.superior
 
