@@ -230,6 +230,7 @@ async def worker_monitor_routine():
                 name="前往救援站",
                 required_expertises=[],
                 device=to_rescue_station,
+                repair_start_date=datetime.utcnow(),
                 description=f"請前往救援站 {to_rescue_station}",
             )
             await mission.assignees.add(w)
@@ -296,7 +297,7 @@ async def check_mission_duration_routine():
                     {
                         "mission_id": m.id,
                         "mission_name": m.name,
-                        "worker_id": m.assignees[0].id,
+                        "worker_id": m.assignees[0].username,
                         "worker_name": m.assignees[0].full_name,
                         "duration": m.duration.total_seconds(),
                     },
@@ -308,7 +309,7 @@ async def check_mission_duration_routine():
                     table_name="missions",
                     description=str(standardize_thresholds[idx]),
                     record_pk=m.id,
-                    user=m.assignees[0],
+                    user=m.assignees[0].username,
                 )
 
 
