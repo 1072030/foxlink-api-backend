@@ -19,12 +19,30 @@ from app.background_service import main_routine
 from app.utils.timer import Ticker
 from app.mqtt.main import connect_mqtt, disconnect_mqtt
 from app.my_log_conf import LOGGER_NAME, LogConfig
+from fastapi.middleware.cors import CORSMiddleware
 
 
 dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
+
+# Adding CORS middleware
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://140.118.157.9:43114",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Adding routers
 app.include_router(health.router)
 app.include_router(user.router)
 app.include_router(auth.router)
