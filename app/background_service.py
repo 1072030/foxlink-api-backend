@@ -267,7 +267,7 @@ async def check_mission_duration_routine():
             if m.duration.total_seconds() >= standardize_thresholds[idx]:
                 is_sent = await AuditLogHeader.objects.filter(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
-                    table="missions",
+                    table_name="missions",
                     description=str(standardize_thresholds[idx]),
                     record_pk=m.id,
                 ).exists()
@@ -305,7 +305,7 @@ async def check_mission_duration_routine():
 
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
-                    table="missions",
+                    table_name="missions",
                     description=str(standardize_thresholds[idx]),
                     record_pk=m.id,
                     user=m.assignees[0],
