@@ -17,7 +17,7 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
         else:
             raise KeyError(f"{key} is not set")
     else:
-        if dtype is List[int]:
+        if dtype is List[int] or dtype is List[str]:
             return literal_eval(val)
         else:
             return dtype(val)  # type: ignore
@@ -39,11 +39,15 @@ if PY_ENV not in ["production", "dev"]:
     logger.error("PY_ENV env should be either production or dev!")
     exit(1)
 
-FOXLINK_DB_HOST = get_env("FOXLINK_DB_HOST", str)
-FOXLINK_DB_PORT = get_env("FOXLINK_DB_PORT", int)
+FOXLINK_DB_HOSTS = get_env("FOXLINK_DB_HOSTS", List[str])
 FOXLINK_DB_USER = get_env("FOXLINK_DB_USER", str)
 FOXLINK_DB_PWD = get_env("FOXLINK_DB_PWD", str)
 FOXLINK_DB_NAME = get_env("FOXLINK_DB_NAME", str)
+
+if len(FOXLINK_DB_HOSTS) == 0:
+    logger.error("FOXLINK_DB_HOSTS env should not be empty!")
+    exit(1)
+
 
 JWT_SECRET = get_env("JWT_SECRET", str, "secret")
 

@@ -122,13 +122,12 @@
 
 # Server Config
 Config Name                 | Description                                                                                                                 | Default Value | Example Value
-----------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------|--------------
+----------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------|-------------------
 DATABASE_HOST               | Database host                                                                                                               | localhost     | 127.0.0.1
 DATABASE_PORT               | Database port                                                                                                               | None          | 3306
 DATABASE_USER               | Database user                                                                                                               | None          | root
 DATABASE_PASSWORD           | Database password                                                                                                           | None          | None
-FOXLINK_DB_HOST             | Foxlink Db's host                                                                                                           | None          | 127.0.0.1
-FOXLINK_DB_PORT             | Foxlink Db's port                                                                                                           | None          | 3306
+FOXLINK_DB_HOSTS            | Foxlink Db's hosts, should be an array.                                                                                     | None          | ['127.0.0.1:3306']
 FOXLINK_DB_USER             | Foxlink Db's user                                                                                                           | None          | foxlink
 FOXLINK_DB_PASSWORD         | Foxlink Db's password                                                                                                       | None          | foxlink
 JWT_SECRET                  | JWT secret.                                                                                                                 | secret        | secret
