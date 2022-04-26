@@ -26,7 +26,7 @@ class FoxlinkEvent(BaseModel):
 
 
 class FoxlinkDbPool:
-    _dbs: List[Database]
+    _dbs: List[Database] = []
     _ticker: Ticker
     # table_name_blacklist: List[str] = ["measure_info"]
     table_suffix = "_event_new"
@@ -46,7 +46,7 @@ class FoxlinkDbPool:
 
     async def connect(self):
         db_connect_routines = [db.connect() for db in self._dbs]
-        await asyncio.wait(**db_connect_routines)
+        await asyncio.gather(*db_connect_routines)
         await self._ticker.start()
         await self._2ndticker.start()
 
@@ -54,7 +54,7 @@ class FoxlinkDbPool:
         await self._2ndticker.stop()
         await self._ticker.stop()
         db_disconnect_routines = [db.disconnect() for db in self._dbs]
-        await asyncio.wait(**db_disconnect_routines)
+        await asyncio.gather(*db_disconnect_routines)
 
     async def get_db_table_list(self) -> List[List[str]]:
         async def get_db_tables(db: Database) -> List[str]:
@@ -75,20 +75,24 @@ class FoxlinkDbPool:
         self, db: Database, table_name: str, id: int
     ) -> Optional[FoxlinkEvent]:
         stmt = f"SELECT * FROM `{self.db_name}`.`{table_name}` WHERE ID = :id;"
-        row: list = await db.fetch_one(query=stmt, values={"id": id})  # type: ignore
 
-        return FoxlinkEvent(
-            id=row[0],
-            project=table_name,
-            line=row[1],
-            device_name=row[2],
-            category=row[3],
-            start_time=row[4],
-            end_time=row[5],
-            message=row[6],
-            start_file_name=row[7],
-            end_file_name=row[8],
-        )
+        try:
+            row: list = await db.fetch_one(query=stmt, values={"id": id})  # type: ignore
+
+            return FoxlinkEvent(
+                id=row[0],
+                project=table_name,
+                line=row[1],
+                device_name=row[2],
+                category=row[3],
+                start_time=row[4],
+                end_time=row[5],
+                message=row[6],
+                start_file_name=row[7],
+                end_file_name=row[8],
+            )
+        except:
+            return None
 
     async def get_recent_events(
         self, db: Database, table_name: str
@@ -128,12 +132,12 @@ class FoxlinkDbPool:
 
         for event in incomplete_mission_events:
             validate_routines = [validate_event(db, event) for db in self._dbs]
-            await asyncio.gather(**validate_routines)
+            await asyncio.gather(*validate_routines)
 
     async def fetch_events_from_foxlink(self):
         tables = await self.get_db_table_list()
 
-        for db_idx in len(tables):
+        for db_idx in range(len(tables)):
             db = self._dbs[db_idx]
             for table_name in tables[db_idx]:
                 events = await self.get_recent_events(db, table_name)
