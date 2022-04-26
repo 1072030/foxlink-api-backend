@@ -156,12 +156,13 @@ class Mission(ormar.Model):
     updated_date: datetime = ormar.DateTime(server_default=func.now())
 
     @property_field
-    def duration(self) -> Optional[timedelta]:
+    def duration(self) -> timedelta:
         if self.repair_start_date is not None and self.repair_end_date is not None:
-            return self.repair_end_date - self.repair_start_date
-        elif self.repair_start_date is not None and self.repair_end_date is None:
-            return datetime.utcnow() - self.repair_start_date
-        return None
+            return self.repair_end_date - self.created_date
+        # elif self.repair_start_date is not None and self.repair_end_date is None:
+        #     return datetime.utcnow() - self.repair_start_date
+        else:
+            return datetime.utcnow() - self.created_date
 
     @property_field
     def is_started(self) -> bool:

@@ -248,7 +248,7 @@ async def check_mission_duration_routine():
     working_missions = (
         await Mission.objects.select_related("assignees")
         .filter(
-            repair_start_date__isnull=False,
+            # repair_start_date__isnull=False,
             repair_end_date__isnull=True,
             is_cancel=False,
         )
@@ -286,7 +286,7 @@ async def check_mission_duration_routine():
 
                     if device_level is None or device_level.superior is None:
                         break
-                    
+
                     base_worker = device_level.superior.username
                     to_notify_superior = device_level.superior
 
