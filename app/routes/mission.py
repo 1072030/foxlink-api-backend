@@ -5,10 +5,7 @@ from pydantic import BaseModel
 from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
     accept_mission,
-    get_missions,
     get_mission_by_id,
-    get_missions_by_username,
-    create_mission,
     update_mission_by_id,
     start_mission_by_id,
     finish_mission_by_id,
@@ -35,6 +32,7 @@ async def get_missions_by_query(
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
+    is_cancel: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ):
@@ -42,13 +40,14 @@ async def get_missions_by_query(
         "created_date__gte": start_date,
         "created_date__lte": end_date,
         "assignees__username": worker,
+        'is_cancel': is_cancel,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
 
     params = {k: v for k, v in params.items() if v is not None}
 
-    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(**params).order_by("created_date").all()  # type: ignore
+    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(**params).order_by("-created_date").all()  # type: ignore
 
     if is_assigned is not None:
         if is_assigned:
@@ -65,18 +64,20 @@ async def get_self_mission(
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
+    is_cancel: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ):
     params = {
         "created_date__gte": start_date,
         "created_date__lte": end_date,
+        'is_cancel': is_cancel,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
     params = {k: v for k, v in params.items() if v is not None}
 
-    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(assignees__username=user.username, **params).order_by("created_date").all()  # type: ignore
+    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(assignees__username=user.username, **params).order_by("-created_date").all()  # type: ignore
     if is_assigned is not None:
         if is_assigned:
             missions = [mission for mission in missions if len(mission.assignees) > 0]
