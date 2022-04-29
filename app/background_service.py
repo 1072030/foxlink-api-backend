@@ -79,30 +79,33 @@ async def check_alive_worker_routine():
                     logger.warn("Error getting mqtt client status")
                     continue
 
-                content = await resp.json()
-                # if the woeker is still not connected to the broker
-                if len(content["data"]) == 0:
-                    if datetime.utcnow() - w.check_alive_time > timedelta(
-                        minutes=MAX_NOT_ALIVE_TIME
-                    ):
-                        # await w.update(status=WorkerStatusEnum.leave.value)
-                        device_level = await UserDeviceLevel.objects.filter(
-                            user=w.worker.username
-                        ).first()
-                        if device_level is not None:
-                            superior = device_level.superior
-                            publish(
-                                f"foxlink/users/{superior.username}/worker-unusual-offline",
-                                {
-                                    "worker_id": w.worker.username,
-                                    "worker_name": w.worker.full_name,
-                                },
-                                qos=1,
-                                retain=True,
-                            )
-                            # logger.info(f"{w.worker.username} is offline")
-                else:
-                    await w.update(check_alive_time=datetime.utcnow())
+                try:
+                    content = await resp.json()
+                    # if the woeker is still not connected to the broker
+                    if len(content["data"]) == 0:
+                        if datetime.utcnow() - w.check_alive_time > timedelta(
+                            minutes=MAX_NOT_ALIVE_TIME
+                        ):
+                            
+                                # await w.update(status=WorkerStatusEnum.leave.value)
+                                device_level = await UserDeviceLevel.objects.filter(
+                                    user=w.worker.username
+                                ).first()
+                                if device_level is not None:
+                                    superior = device_level.superior
+                                    publish(
+                                        f"foxlink/users/{superior.username}/worker-unusual-offline",
+                                        {
+                                            "worker_id": w.worker.username,
+                                            "worker_name": w.worker.full_name,
+                                        },
+                                        qos=1,
+                                        retain=True,
+                                    )
+                    else:
+                        await w.update(check_alive_time=datetime.utcnow())
+                except:
+                    continue
 
 
 async def notify_overtime_workers():
