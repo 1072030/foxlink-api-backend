@@ -12,8 +12,8 @@
 2. In CLI, enter `docker-compose up -d` to start up services.
 
 # MQTT Topics
-- foxlink/users/{username}/missions - 當用戶受指派新任務，會觸發這一事件
-範例：
+- foxlink/users/{username}/missions
+1. 當收到新任務時
 ```jsonc
 {
   "type" : "new", // 該事件的類別：new 為新增任務
@@ -35,8 +35,43 @@
   ]
 }
 ```
+2. 當完成任務後，系統通知前往救援站待命時
+```jsonc
+{
+  "type": "rescue",
+  "mission_id": 1, // 前往救援站任務 ID
+  "name": "任務名稱",
+  "description": "任務的敘述",
+  "rescue_station": "要前往的救援站 ID"
+}
+```
+3. 當下屬標記某個任務為緊急任務時，系統通知上屬
+```jsonc
+{
+  "type" : "emergency",
+  "mission_id" : 12, // 緊急任務的 ID
+  "device" : {
+    "project" : "n104",
+    "process" : "M3段",
+    "line" : 4,
+    "name" : "Device_11"
+  },
+  "name": "任務名稱",
+  "description": "任務的敘述",
+  "worker": {
+    "username": "員工 ID",
+    "full_name": "員工姓名"
+  },
+  "events": [
+    "category" : 190, // 該故障的分類編號
+    "message" : "进料打码站故障", // 故障資訊
+    "done_verified" : false, // 該故障是否維修完畢
+    "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
+    "event_end_date" : null
+  ]
+}
+```
 - foxlink/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
-範例：
 ```jsonc
 {
     "id": 1, // 被拒絕超過兩次的任務 ID
@@ -105,12 +140,6 @@
     "worker_name": "string", // 處理員工姓名
     "duration": 0, // 目前處理時長（秒）
 },
-```
-- foxlink/users/{username}/move-rescue-station - 當員工閒置於機台超過特定時間時，系統將會通知員工移動至最近的維修站。
-```jsonc
-{
-  "rescue_id": "rescue@第九車間@1", // 要前往的維修站 ID
-}
 ```
 - foxlink/users/{username}/worker-unusual-offline - 當員工異常離線時（網路不佳），超過某特定時間，將會通知該員工上級。
 ```jsonc

@@ -3,7 +3,7 @@ import pytz
 from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
-from app.models.schema import MissionDto
+from app.models.schema import MissionDto, MissionEventOut
 from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission
 from app.services.user import get_user_first_login_time_today
@@ -86,22 +86,22 @@ async def check_alive_worker_routine():
                         if datetime.utcnow() - w.check_alive_time > timedelta(
                             minutes=MAX_NOT_ALIVE_TIME
                         ):
-                            
-                                # await w.update(status=WorkerStatusEnum.leave.value)
-                                device_level = await UserDeviceLevel.objects.filter(
-                                    user=w.worker.username
-                                ).first()
-                                if device_level is not None:
-                                    superior = device_level.superior
-                                    publish(
-                                        f"foxlink/users/{superior.username}/worker-unusual-offline",
-                                        {
-                                            "worker_id": w.worker.username,
-                                            "worker_name": w.worker.full_name,
-                                        },
-                                        qos=1,
-                                        retain=True,
-                                    )
+
+                            # await w.update(status=WorkerStatusEnum.leave.value)
+                            device_level = await UserDeviceLevel.objects.filter(
+                                user=w.worker.username
+                            ).first()
+                            if device_level is not None:
+                                superior = device_level.superior
+                                publish(
+                                    f"foxlink/users/{superior.username}/worker-unusual-offline",
+                                    {
+                                        "worker_id": w.worker.username,
+                                        "worker_name": w.worker.full_name,
+                                    },
+                                    qos=1,
+                                    retain=True,
+                                )
                     else:
                         await w.update(check_alive_time=datetime.utcnow())
                 except:
@@ -142,7 +142,7 @@ async def notify_overtime_workers():
 
 async def auto_close_missions():
     working_missions = (
-        await Mission.objects.select_related(["assignees","missionevents"])
+        await Mission.objects.select_related(["assignees", "missionevents"])
         .filter(
             repair_start_date__isnull=True,
             repair_end_date__isnull=True,
@@ -239,8 +239,14 @@ async def worker_monitor_routine():
             await mission.assignees.add(w)
 
             publish(
-                f"foxlink/users/{w.username}/move-rescue-station",
-                {"rescue_id": to_rescue_station},
+                f"foxlink/users/{w.username}/missions",
+                {
+                    "type": "rescue",
+                    "mission_id": mission.id,
+                    "name": mission.name,
+                    "description": mission.description,
+                    "rescue_station": to_rescue_station,
+                },
                 qos=1,
                 retain=True,
             )
@@ -426,7 +432,10 @@ async def dispatch_routine():
         daily_count = await AuditLogHeader.objects.filter(
             action=AuditActionEnum.MISSION_ASSIGNED.value,
             user=w.user,
-            created_date__gte=datetime.now(CST_TIMEZONE).replace(hour=0, minute=0, second=0).astimezone(pytz.utc).date(),
+            created_date__gte=datetime.now(CST_TIMEZONE)
+            .replace(hour=0, minute=0, second=0)
+            .astimezone(pytz.utc)
+            .date(),
         ).count()
 
         worker_device_idx = find_idx_in_factory_map(

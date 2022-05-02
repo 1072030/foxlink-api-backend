@@ -356,12 +356,15 @@ async def assign_mission(mission_id: int, username: str):
     else:
         raise HTTPException(400, detail="the user is already assigned to this mission")
 
-
+@database.transaction()
 async def request_assistance(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
         raise HTTPException(404, "the mission you request is not found")
+
+    if mission.device.is_rescue == True:
+        raise HTTPException(400, "you can't mark to-rescue-station mission as emergency")
 
     if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
@@ -376,10 +379,35 @@ async def request_assistance(mission_id: int, validate_user: User):
 
     await mission.update(is_emergency=True)
 
-    publish(
-        "foxlink/mission/emergency",
-        {"id": mission.id, "worker": validate_user.full_name,},
-        qos=1,
-        retain=True,
-    )
+    for worker in mission.assignees:
+        try:
+            worker_device_level = await UserDeviceLevel.objects.filter(user=worker, device=mission.device).first()
+
+            if worker_device_level.superior is None:
+                continue
+
+            publish(
+                f"foxlink/users/{worker_device_level.superior.username}/missions",
+                {
+                    "type": "emergency",
+                    "mission_id": mission.id,
+                    "name": mission.name,
+                    "description": mission.description,
+                    "worker": {
+                        "username": worker.username,
+                        "full_name": worker.full_name,
+                    },
+                    "device": {
+                        "project": mission.device.project,
+                        "process": mission.device.process,
+                        "line": mission.device.line,
+                        "name": mission.device.device_name,
+                    },
+                    "events": [MissionEventOut.from_missionevent(e).dict() for e in mission.missionevents]
+                },
+                qos=1
+            )
+        except:
+            continue
+
 
