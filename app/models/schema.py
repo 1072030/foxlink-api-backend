@@ -156,3 +156,7 @@ class UserOverviewOut(BaseModel):
     shift: Optional[ShiftType]
     superior: Optional[str]
     experiences: List[DeviceExp]
+
+class DayAndNightUserOverview(BaseModel):
+    day_shift: List[UserOverviewOut]
+    night_shift: List[UserOverviewOut]

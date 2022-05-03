@@ -1,9 +1,9 @@
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from fastapi.exceptions import HTTPException
 import ormar
-from app.models.schema import DeviceExp, SubordinateOut, UserCreate, UserOverviewOut
+from app.models.schema import DayAndNightUserOverview, DeviceExp, SubordinateOut, UserCreate, UserOverviewOut
 from passlib.context import CryptContext
 from app.core.database import (
     AuditActionEnum,
@@ -170,35 +170,48 @@ async def move_user_to_position(username: str, device_id: str):
         )
 
 
-async def get_users_overview() -> List[UserOverviewOut]:
+async def get_users_overview() -> DayAndNightUserOverview:
     users = await User.objects.select_related("location").all()
 
-    total_overview: List[UserOverviewOut] = []
+    day_overview: List[UserOverviewOut] = []
+    night_overview: List[UserOverviewOut] = []
+    shift_types = [0, 1]
 
-    for u in users:
-        overview = UserOverviewOut(
-            username=u.username, full_name=u.full_name, level=u.level, experiences=[]
-        )
+    for s in shift_types:
+        for u in users:
+            overview = UserOverviewOut(
+                username=u.username,
+                full_name=u.full_name,
+                level=u.level,
+                shift=s,
+                experiences=[],
+            )
 
-        if u.location is not None:
-            overview.workshop = u.location.name
+            if u.location is not None:
+                overview.workshop = u.location.name
 
-        device_levels = (
-            await UserDeviceLevel.objects.select_related(["superior", "device"])
-            .filter(user=u)
-            .all()
-        )
+            device_levels = (
+                await UserDeviceLevel.objects.select_related(["superior", "device"])
+                .filter(user=u, shift=s)
+                .all()
+            )
 
-        for dl in device_levels:
-            if dl.device.is_rescue:
-                continue
-            overview.experiences.append(DeviceExp(
-                project=dl.device.project,
-                process=dl.device.process,
-                line=dl.device.line,
-                exp=dl.level,
-            ))
+            for dl in device_levels:
+                if overview.superior is None and dl.superior is not None:
+                    overview.superior = dl.superior.full_name
 
-        total_overview += [overview]
+                overview.experiences.append(
+                    DeviceExp(
+                        project=dl.device.project,
+                        process=dl.device.process,
+                        line=dl.device.line,
+                        exp=dl.level,
+                    )
+                )
 
-    return total_overview
+            if s == 0:
+                day_overview.append(overview)
+            else:
+                night_overview.append(overview)
+
+    return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)

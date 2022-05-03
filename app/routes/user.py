@@ -32,6 +32,7 @@ from app.services.auth import (
     get_admin_active_user,
 )
 from app.models.schema import (
+    DayAndNightUserOverview,
     SubordinateOut,
     UserCreate,
     UserChangePassword,
@@ -55,7 +56,7 @@ async def read_all_users(
         users = (
             await User.objects.select_related("location")
             .filter(location__name=workshop_name)
-            .exclude_fields(['location__map', 'location__related_devices'])
+            .exclude_fields(["location__map", "location__related_devices"])
             .all()
         )
 
@@ -162,6 +163,6 @@ async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
     return await get_user_subordinates_by_username(user.username)
 
 
-@router.get("/overview", tags=["users"], response_model=List[UserOverviewOut])
+@router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
 async def get_all_users_overview(user: User = Depends(get_manager_active_user)):
     return await get_users_overview()
