@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi.exceptions import HTTPException
 import ormar
-from app.models.schema import SubordinateOut, UserCreate
+from app.models.schema import DeviceExp, SubordinateOut, UserCreate, UserOverviewOut
 from passlib.context import CryptContext
 from app.core.database import (
     AuditActionEnum,
@@ -11,6 +11,7 @@ from app.core.database import (
     LogValue,
     Mission,
     User,
+    UserDeviceLevel,
     WorkerStatus,
     database,
 )
@@ -119,7 +120,10 @@ async def get_user_subordinates_by_username(username: str):
 
     return [
         SubordinateOut(
-            username=x["username"], full_name=x["full_name"], shift=x["shift"], status=x['status']
+            username=x["username"],
+            full_name=x["full_name"],
+            shift=x["shift"],
+            status=x["status"],
         )
         for x in result
     ]
@@ -164,3 +168,37 @@ async def move_user_to_position(username: str, device_id: str):
         raise HTTPException(
             status_code=400, detail="cannot update user's position: " + str(e)
         )
+
+
+async def get_users_overview() -> List[UserOverviewOut]:
+    users = await User.objects.select_related("location").all()
+
+    total_overview: List[UserOverviewOut] = []
+
+    for u in users:
+        overview = UserOverviewOut(
+            username=u.username, full_name=u.full_name, level=u.level, experiences=[]
+        )
+
+        if u.location is not None:
+            overview.workshop = u.location.name
+
+        device_levels = (
+            await UserDeviceLevel.objects.select_related(["superior", "device"])
+            .filter(user=u)
+            .all()
+        )
+
+        for dl in device_levels:
+            if dl.device.is_rescue:
+                continue
+            overview.experiences.append(DeviceExp(
+                project=dl.device.project,
+                process=dl.device.process,
+                line=dl.device.line,
+                exp=dl.level,
+            ))
+
+        total_overview += [overview]
+
+    return total_overview

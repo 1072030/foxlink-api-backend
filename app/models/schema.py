@@ -141,3 +141,18 @@ class SubordinateOut(BaseModel):
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]
     parameters: Optional[Any]
+
+class DeviceExp(BaseModel):
+    project: str
+    process: Optional[str]
+    line: int
+    exp: int
+
+class UserOverviewOut(BaseModel):
+    username: str
+    full_name: str
+    workshop: Optional[str]
+    level: int
+    shift: Optional[ShiftType]
+    superior: Optional[str]
+    experiences: List[DeviceExp]

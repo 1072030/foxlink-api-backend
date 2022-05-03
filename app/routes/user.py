@@ -19,6 +19,7 @@ from app.services.user import (
     get_users,
     create_user,
     get_password_hash,
+    get_users_overview,
     update_user,
     delete_user_by_username,
     get_worker_mission_history,
@@ -36,6 +37,7 @@ from app.models.schema import (
     UserChangePassword,
     UserOut,
     UserOutWithWorkTime,
+    UserOverviewOut,
     UserPatch,
     MissionDto,
 )
@@ -158,3 +160,8 @@ async def get_user_mission_history(user: User = Depends(get_current_active_user)
 @router.get("/subordinates", tags=["users"], response_model=List[SubordinateOut])
 async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
     return await get_user_subordinates_by_username(user.username)
+
+
+@router.get("/overview", tags=["users"], response_model=List[UserOverviewOut])
+async def get_all_users_overview(user: User = Depends(get_manager_active_user)):
+    return await get_users_overview()
