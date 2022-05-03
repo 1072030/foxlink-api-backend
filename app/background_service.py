@@ -239,7 +239,7 @@ async def worker_monitor_routine():
             await mission.assignees.add(w)
 
             publish(
-                f"foxlink/users/{w.username}/missions",
+                f"foxlink/users/{w.username}/move-rescue-station",
                 {
                     "type": "rescue",
                     "mission_id": mission.id,
