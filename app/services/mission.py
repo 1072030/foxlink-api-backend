@@ -303,7 +303,7 @@ async def delete_mission_by_id(mission_id: int):
 
 
 async def assign_mission(mission_id: int, username: str):
-    mission = await Mission.objects.select_related(["assignees", "device", "missionevents"]).get(
+    mission = await Mission.objects.select_related(["assignees", "device", "missionevents"]).get_or_none(
         id=mission_id
     )
 
