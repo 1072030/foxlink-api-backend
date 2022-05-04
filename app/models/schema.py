@@ -2,6 +2,7 @@ from typing import Any, Optional, List
 from pydantic import BaseModel
 import datetime
 from app.core.database import (
+    CategoryPRI,
     Device,
     Mission,
     MissionEvent,
@@ -188,3 +189,31 @@ class DeviceOut(BaseModel):
             y_axis=device.y_axis,
             is_rescue=device.is_rescue,
         )
+
+class CategoryPriorityDeviceInfo(BaseModel):
+    device_id: str
+    project: str
+    line: int
+    device_name: str
+    
+class CategoryPriorityOut(BaseModel):
+    category: int
+    priority: int
+    message: str
+    devices: List[CategoryPriorityDeviceInfo]
+
+    @classmethod
+    def from_categorypri(cls, pri: CategoryPRI):
+        obj = cls(
+            category=pri.category,
+            priority=pri.priority,
+            message=pri.message,
+            devices=[]
+        )
+
+        if pri.devices is not None:
+            obj.devices = [
+                CategoryPriorityDeviceInfo(device_id=x.id, project=x.project, line=x.line, device_name=x.device_name) for x in pri.devices if pri.devices is not None
+            ]
+            
+        return obj
