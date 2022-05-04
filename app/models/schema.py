@@ -2,6 +2,7 @@ from typing import Any, Optional, List
 from pydantic import BaseModel
 import datetime
 from app.core.database import (
+    Device,
     Mission,
     MissionEvent,
     ShiftType,
@@ -160,3 +161,30 @@ class UserOverviewOut(BaseModel):
 class DayAndNightUserOverview(BaseModel):
     day_shift: List[UserOverviewOut]
     night_shift: List[UserOverviewOut]
+
+class DeviceOut(BaseModel):
+    id: str
+    project: str
+    process: Optional[str]
+    line: Optional[int]
+    device_name: str
+    workshop: str
+    x_axis: float
+    y_axis: float
+    is_rescue:bool
+    sop_link: Optional[str]
+
+    @classmethod
+    def from_device(cls, device: Device):
+        return cls(
+            id=device.id,
+            project=device.project,
+            process=device.process,
+            line=device.line,
+            device_name=device.device_name,
+            workshop=device.workshop.name,
+            sop_link=device.sop_link,
+            x_axis=device.x_axis,
+            y_axis=device.y_axis,
+            is_rescue=device.is_rescue,
+        )
