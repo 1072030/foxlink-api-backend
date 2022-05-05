@@ -42,7 +42,7 @@ if PY_ENV not in ["production", "dev"]:
 FOXLINK_DB_HOSTS = get_env("FOXLINK_DB_HOSTS", List[str])
 FOXLINK_DB_USER = get_env("FOXLINK_DB_USER", str)
 FOXLINK_DB_PWD = get_env("FOXLINK_DB_PWD", str)
-FOXLINK_DB_NAME = get_env("FOXLINK_DB_NAME", str)
+FOXLINK_DB_NAME = get_env("FOXLINK_DB_NAME", str, 'aoi')
 
 if len(FOXLINK_DB_HOSTS) == 0:
     logger.error("FOXLINK_DB_HOSTS env should not be empty!")
