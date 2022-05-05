@@ -372,9 +372,9 @@ async def request_assistance(mission_id: int, validate_user: User):
     if mission.is_emergency:
         raise HTTPException(400, "this mission is already in emergency")
 
-    if not mission.is_started() or mission.is_closed():
+    if mission.is_closed():
         raise HTTPException(
-            400, "this mission hasn't started yet or it's already closed"
+            400, "this mission is already closed"
         )
 
     await mission.update(is_emergency=True)

@@ -6,6 +6,7 @@ from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
     accept_mission,
     get_mission_by_id,
+    request_assistance,
     update_mission_by_id,
     start_mission_by_id,
     finish_mission_by_id,
@@ -132,11 +133,11 @@ async def finish_mission(
     await finish_mission_by_id(mission_id, user)
 
 
-# @router.post("/", tags=["missions"], status_code=201)
-# async def create_a_mission(
-#     dto: MissionCreate, user: User = Depends(get_admin_active_user)
-# ):
-#     return await create_mission(dto)
+@router.get("/{mission_id}/emergency", tags=["missions"], status_code=201)
+async def mark_mission_emergency(
+    mission_id: int, user: User = Depends(get_current_active_user)
+):
+    return await request_assistance(mission_id, user)
 
 
 @router.patch("/{mission_id}", tags=["missions"])
