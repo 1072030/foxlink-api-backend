@@ -1,14 +1,14 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from app.models.schema import CategoryPriorityOut, DeviceOut
-from app.services.auth import get_admin_active_user, get_current_active_user
+from app.services.auth import get_manager_active_user, get_current_active_user
 from app.core.database import CategoryPRI, Device, User
 
 router = APIRouter(prefix="/device")
 
 
 @router.get("/", response_model=List[DeviceOut], tags=["device"])
-async def get_all_devices(workshop_name: Optional[str] = None, user: User = Depends(get_admin_active_user)):
+async def get_all_devices(workshop_name: Optional[str] = None, user: User = Depends(get_manager_active_user)):
     params = {
         "workshop__name": workshop_name
     }
@@ -39,6 +39,6 @@ async def get_device_by_id(device_id: str, user: User = Depends(get_current_acti
     return DeviceOut.from_device(device)
 
 @router.get("/category-priority", response_model=List[CategoryPriorityOut], tags=["device"])
-async def get_category_priority_by_project(project: str):
+async def get_category_priority_by_project(project: str, user: User = Depends(get_manager_active_user)):
     category_pri = await CategoryPRI.objects.select_related(['devices']).filter(devices__project__iexact=project).all()
     return [CategoryPriorityOut.from_categorypri(c) for c in category_pri]

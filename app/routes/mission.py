@@ -142,7 +142,7 @@ async def mark_mission_emergency(
 
 @router.patch("/{mission_id}", tags=["missions"])
 async def update_mission(
-    mission_id: int, dto: MissionUpdate, user: User = Depends(get_admin_active_user)
+    mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)
 ):
     return await update_mission_by_id(mission_id, dto)
 
