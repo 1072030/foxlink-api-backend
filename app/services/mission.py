@@ -156,14 +156,14 @@ async def accept_mission(mission_id: int, worker: User):
         raise HTTPException(400, "to-rescue-station mission cannot be accepted, use start_mission api instead")
 
     # Check worker has accepted the mission or not.
-    accept_count = await AuditLogHeader.objects.filter(
-        action=AuditActionEnum.MISSION_ACCEPTED.value,
-        user=worker.username,
-        record_pk=mission_id,
-    ).count()
+    # accept_count = await AuditLogHeader.objects.filter(
+    #     action=AuditActionEnum.MISSION_ACCEPTED.value,
+    #     user=worker.username,
+    #     record_pk=mission_id,
+    # ).count()
 
-    if accept_count > 0:
-        raise HTTPException(400, "you have already accepted the mission")
+    # if accept_count > 0:
+    #     raise HTTPException(400, "you have already accepted the mission")
 
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_ACCEPTED.value,
