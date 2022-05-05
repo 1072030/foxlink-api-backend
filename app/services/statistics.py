@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from app.core.database import Mission, UserLevel, database, User
 import datetime
 
+from app.models.schema import MissionDto
+
 
 class UserInfo(BaseModel):
     username: str
@@ -171,27 +173,17 @@ async def get_login_users_percentage_by_recent_24_hours() -> float:
     return round(result[0][0] / total_user_count, 3)
 
 
-async def get_emergency_missions() -> List[EmergencyMissionInfo]:
+async def get_emergency_missions() -> List[MissionDto]:
     """取得當下緊急任務列表"""
     missions = (
         await Mission.objects.filter(
             is_emergency=True, repair_end_date__isnull=True, is_cancel=False
         )
-        .select_related("assignees")
+        .select_related(["assignees", 'missionevents'])
         .all()
     )
 
     return [
-        EmergencyMissionInfo(
-            mission_id=m.id,
-            device_id=m.device.id,
-            assignees=[
-                UserInfo(username=a.username, full_name=a.full_name)
-                for a in m.assignees
-            ],
-            category=m.category,
-            description=m.description,
-            created_date=m.created_date,
-        )
+        MissionDto.from_mission(m)
         for m in missions
     ]

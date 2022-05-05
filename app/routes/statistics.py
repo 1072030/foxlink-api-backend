@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.core.database import Mission, WorkerStatus, WorkerStatusEnum
 import asyncio
 from app.env import LOGGER_NAME
+from app.models.schema import MissionDto
 
 from app.services.statistics import (
     AbnormalDeviceInfo,
@@ -38,7 +39,7 @@ class Stats(BaseModel):
     top_most_reject_mission_employees: List[Any]
     top_most_accept_mission_employees: List[Any]
     login_users_percentage_this_week: float
-    current_emergency_mission: List[EmergencyMissionInfo]
+    current_emergency_mission: List[MissionDto]
 
 
 @router.get("/", response_model=Stats, tags=["statistics"])
