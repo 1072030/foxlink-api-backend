@@ -24,6 +24,11 @@ async def get_all_devices(workshop_name: Optional[str] = None, user: User = Depe
 
     return [DeviceOut.from_device(d) for d in devices]
 
+@router.get("/category-priority", response_model=List[CategoryPriorityOut], tags=["device"])
+async def get_category_priority_by_project(project: str, user: User = Depends(get_manager_active_user)):
+    category_pri = await CategoryPRI.objects.select_related(['devices']).filter(devices__project__iexact=project).all()
+    return [CategoryPriorityOut.from_categorypri(c) for c in category_pri]
+    
 @router.get("/{device_id}", response_model=DeviceOut, tags=["device"])
 async def get_device_by_id(device_id: str, user: User = Depends(get_current_active_user)):
     device = (
@@ -37,8 +42,3 @@ async def get_device_by_id(device_id: str, user: User = Depends(get_current_acti
         raise HTTPException(404, 'the device is not found')
 
     return DeviceOut.from_device(device)
-
-@router.get("/category-priority", response_model=List[CategoryPriorityOut], tags=["device"])
-async def get_category_priority_by_project(project: str, user: User = Depends(get_manager_active_user)):
-    category_pri = await CategoryPRI.objects.select_related(['devices']).filter(devices__project__iexact=project).all()
-    return [CategoryPriorityOut.from_categorypri(c) for c in category_pri]
