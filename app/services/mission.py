@@ -305,6 +305,17 @@ async def delete_mission_by_id(mission_id: int):
 
     await mission.delete()
 
+async def cancel_mission_by_id(mission_id: int):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(404, "the mission you request to delete is not found")
+
+    if mission.is_cancel:
+        raise HTTPException(400, "this mission is already canceled")
+
+    await mission.update(is_cancel=True)
+
 
 async def assign_mission(mission_id: int, username: str):
     mission = await Mission.objects.select_related(

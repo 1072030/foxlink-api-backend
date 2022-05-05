@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
 from app.services.mission import (
     accept_mission,
+    cancel_mission_by_id,
     get_mission_by_id,
     request_assistance,
     update_mission_by_id,
@@ -105,6 +106,11 @@ async def assign_mission_to_user(
     mission_id: int, user_name: str, user: User = Depends(get_manager_active_user)
 ):
     await assign_mission(mission_id, user_name)
+
+@router.post("/{mission_id}/cancel", tags=["missions"])
+async def cancel_a_mission_by_id(mission_id: int, user: User = Depends(get_manager_active_user)):
+    await cancel_mission_by_id(mission_id)
+    await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_CANCELED.value, table_name="missions", record_pk=str(mission_id), user=user)
 
 
 @router.post("/{mission_id}/start", tags=["missions"])
