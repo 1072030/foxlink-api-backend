@@ -153,7 +153,10 @@ async def accept_mission(mission_id: int, worker: User):
         raise HTTPException(400, "this mission is already started or closed")
 
     if mission.device.is_rescue:
-        raise HTTPException(400, "to-rescue-station mission cannot be accepted, use start_mission api instead")
+        raise HTTPException(
+            400,
+            "to-rescue-station mission cannot be accepted, use start_mission api instead",
+        )
 
     # Check worker has accepted the mission or not.
     # accept_count = await AuditLogHeader.objects.filter(
@@ -273,14 +276,15 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
         repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
-    event_end_dates: List[datetime] = [e.event_end_date - timedelta(hours=8) for e in mission.missionevents]
+    event_end_dates: List[datetime] = [
+        e.event_end_date - timedelta(hours=8) for e in mission.missionevents
+    ]
     event_end_dates.sort(reverse=True)
 
     # set each assignee's last_event_end_date
     for w in mission.assignees:
         await WorkerStatus.objects.filter(worker=w).update(
-            status=WorkerStatusEnum.idle.value,
-            last_event_end_date=event_end_dates[0]
+            status=WorkerStatusEnum.idle.value, last_event_end_date=event_end_dates[0]
         )
 
     # record this operation
@@ -303,9 +307,9 @@ async def delete_mission_by_id(mission_id: int):
 
 
 async def assign_mission(mission_id: int, username: str):
-    mission = await Mission.objects.select_related(["assignees", "device", "missionevents"]).get_or_none(
-        id=mission_id
-    )
+    mission = await Mission.objects.select_related(
+        ["assignees", "device", "missionevents"]
+    ).get_or_none(id=mission_id)
 
     if mission is None:
         raise HTTPException(
@@ -348,13 +352,17 @@ async def assign_mission(mission_id: int, username: str):
                 },
                 "name": mission.name,
                 "description": mission.description,
-                "events": [MissionEventOut.from_missionevent(e).dict() for e in mission.missionevents]
+                "events": [
+                    MissionEventOut.from_missionevent(e).dict()
+                    for e in mission.missionevents
+                ],
             },
             qos=1,
             retain=True,
         )
     else:
         raise HTTPException(400, detail="the user is already assigned to this mission")
+
 
 @database.transaction()
 async def request_assistance(mission_id: int, validate_user: User):
@@ -364,7 +372,9 @@ async def request_assistance(mission_id: int, validate_user: User):
         raise HTTPException(404, "the mission you request is not found")
 
     if mission.device.is_rescue == True:
-        raise HTTPException(400, "you can't mark to-rescue-station mission as emergency")
+        raise HTTPException(
+            400, "you can't mark to-rescue-station mission as emergency"
+        )
 
     if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
@@ -372,16 +382,16 @@ async def request_assistance(mission_id: int, validate_user: User):
     if mission.is_emergency:
         raise HTTPException(400, "this mission is already in emergency")
 
-    if mission.is_closed():
-        raise HTTPException(
-            400, "this mission is already closed"
-        )
+    if mission.is_closed:
+        raise HTTPException(400, "this mission is already closed")
 
     await mission.update(is_emergency=True)
 
     for worker in mission.assignees:
         try:
-            worker_device_level = await UserDeviceLevel.objects.filter(user=worker, device=mission.device).first()
+            worker_device_level = await UserDeviceLevel.objects.filter(
+                user=worker, device=mission.device
+            ).first()
 
             if worker_device_level.superior is None:
                 continue
@@ -403,11 +413,13 @@ async def request_assistance(mission_id: int, validate_user: User):
                         "line": mission.device.line,
                         "name": mission.device.device_name,
                     },
-                    "events": [MissionEventOut.from_missionevent(e).dict() for e in mission.missionevents]
+                    "events": [
+                        MissionEventOut.from_missionevent(e).dict()
+                        for e in mission.missionevents
+                    ],
                 },
-                qos=1
+                qos=1,
             )
         except:
             continue
-
 
