@@ -179,7 +179,7 @@ async def get_emergency_missions() -> List[MissionDto]:
         await Mission.objects.filter(
             is_emergency=True, repair_end_date__isnull=True, is_cancel=False
         )
-        .select_related(["assignees", 'missionevents'])
+        .select_related(["assignees", 'missionevents', 'device'])
         .all()
     )
 
