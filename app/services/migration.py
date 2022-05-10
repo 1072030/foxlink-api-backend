@@ -28,7 +28,7 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tup
 
     raw_excel: bytes = await excel_file.read()
     frame = pd.read_excel(raw_excel, sheet_name=0)
-    workshop_name: Optional[str] =None
+    workshop_name = ""
 
     create_device_bulk: List[Device] = []
     update_device_bulk: List[Device] = []
@@ -36,7 +36,7 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tup
     for index, row in frame.iterrows():
         workshop = await FactoryMap.objects.get_or_none(name=row["workshop"])
 
-        if workshop_name is None:
+        if workshop_name == "":
             workshop_name = row["workshop"]
 
         if workshop is None:

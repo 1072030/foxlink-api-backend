@@ -1,5 +1,6 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile, Form
+from ormar import NoMatch
 from app.core.database import FactoryMap, User
 from app.services.auth import get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode
@@ -53,3 +54,44 @@ async def get_workshop_device_qrcode(
         },
     )
 
+
+@router.post(
+    "/{workshop_name}/image",
+    tags=["image"],
+    description="Upload workshop image",
+    status_code=201,
+)
+async def upload_workshop_image(
+    workshop_name: str,
+    image: UploadFile = File(..., description="要上傳的廠區圖（.png)", media_type="image/png"),
+):
+    raw_image = await image.read()
+
+    try:
+        await FactoryMap.objects.filter(name=workshop_name).update(image=raw_image)
+    except NoMatch:
+        raise HTTPException(status_code=404, detail="the workshop is not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=repr(e))
+
+
+@router.get(
+    "/{workshop_name}/image",
+    tags=["image"],
+    description="Get workshop image",
+    status_code=200,
+)
+async def get_workshop_image(workshop_name: str):
+    w = (
+        await FactoryMap.objects.filter(name=workshop_name)
+        .exclude_fields(["map", "related_devices"])
+        .get_or_none()
+    )
+
+    if w is None:
+        raise HTTPException(404, "the workshop is not found")
+
+    return Response(
+        w.image,
+        media_type="image/png"
+    )

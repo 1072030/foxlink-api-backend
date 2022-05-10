@@ -1,6 +1,4 @@
 {
     "python.linting.enabled": true,
-    "python.linting.pylintEnabled": false,
-    "python.linting.mypyEnabled": true,
-    "python.pythonPath": "C:\\tools\\miniconda3\\envs\\foxlink-backend\\python.exe"
+    "python.linting.mypyEnabled": true
 }

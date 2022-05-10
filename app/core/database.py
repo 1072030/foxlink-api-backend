@@ -70,6 +70,7 @@ class FactoryMap(ormar.Model):
     name: str = ormar.String(max_length=100, index=True, unique=True)
     map: Json = ormar.JSON()
     related_devices: Json = ormar.JSON()
+    image: bytes = ormar.LargeBinary(max_length=5242880, nullable=True)
     created_date: datetime = ormar.DateTime(server_default=func.now())
     updated_date: datetime = ormar.DateTime(server_default=func.now())
 
