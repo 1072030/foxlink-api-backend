@@ -64,6 +64,7 @@ async def get_workshop_device_qrcode(
 async def upload_workshop_image(
     workshop_name: str,
     image: UploadFile = File(..., description="要上傳的廠區圖（.png)", media_type="image/png"),
+    user: User = Depends(get_manager_active_user)
 ):
     raw_image = await image.read()
 
@@ -81,7 +82,7 @@ async def upload_workshop_image(
     description="Get workshop image",
     status_code=200,
 )
-async def get_workshop_image(workshop_name: str):
+async def get_workshop_image(workshop_name: str, user: User = Depends(get_manager_active_user)):
     w = (
         await FactoryMap.objects.filter(name=workshop_name)
         .exclude_fields(["map", "related_devices"])
