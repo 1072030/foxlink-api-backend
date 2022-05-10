@@ -57,7 +57,7 @@ async def get_workshop_device_qrcode(
 
 @router.post(
     "/{workshop_name}/image",
-    tags=["image"],
+    tags=["workshop"],
     description="Upload workshop image",
     status_code=201,
 )
@@ -77,7 +77,7 @@ async def upload_workshop_image(
 
 @router.get(
     "/{workshop_name}/image",
-    tags=["image"],
+    tags=["workshop"],
     description="Get workshop image",
     status_code=200,
 )
