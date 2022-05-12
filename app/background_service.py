@@ -202,6 +202,10 @@ async def worker_monitor_routine():
             if worker_status.status == WorkerStatusEnum.leave.value:
                 continue
 
+            if worker_status.at_device is None:
+                await worker_status.update(at_device=rescue_stations[0])
+                continue
+
             if worker_status.at_device.is_rescue == True:
                 continue
 

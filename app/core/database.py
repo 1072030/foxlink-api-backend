@@ -249,7 +249,7 @@ class WorkerStatus(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True)
     worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE")
-    at_device: Device = ormar.ForeignKey(Device)
+    at_device: Device = ormar.ForeignKey(Device, nullable=True, ondelete="SET NULL")
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime()
     dispatch_count: int = ormar.Integer(default=0)
