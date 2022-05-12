@@ -142,7 +142,7 @@ class SubordinateOut(BaseModel):
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]
-    parameters: Optional[Any]
+    parameter: Optional[str]
 
 class DeviceExp(BaseModel):
     project: str

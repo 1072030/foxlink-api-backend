@@ -83,10 +83,13 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tup
 # TODO: remove orphan category priorities
 # 匯入 Device's Category & Priority
 @database.transaction()
-async def import_workshop_events(excel_file: UploadFile):
+async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
+    """
+    Return: parameters in pandas format
+    """
     raw_excel: bytes = await excel_file.read()
     data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
-    df = data["result"]
+    df, param = data["result"], data['parameter']
 
     project_name = df["project"].unique()[0]
 
@@ -117,6 +120,8 @@ async def import_workshop_events(excel_file: UploadFile):
         for d in devices:
             await p.devices.add(d)  # type: ignore
 
+    return param
+
 
 async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame) -> pd.DataFrame:
     data = data_converter.fn_factorymap(frame)
@@ -133,7 +138,7 @@ async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame
 
 
 @database.transaction()
-async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile):
+async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile) -> pd.DataFrame:
     raw_excel: bytes = await excel_file.read()
 
     try:
@@ -141,7 +146,7 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
 
-    factory_worker_info = data["result"]
+    factory_worker_info, params = data["result"], data['parameter']
 
     full_name_mapping: Dict[str, str] = {}
     create_user_bulk: List[User] = []
@@ -233,4 +238,6 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
                 )
             )
         await UserDeviceLevel.objects.bulk_create(bulk)
+
+    return params
 
