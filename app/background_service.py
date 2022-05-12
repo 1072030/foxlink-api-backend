@@ -161,6 +161,21 @@ async def auto_close_missions():
 
 
 async def worker_monitor_routine():
+    # when a user import device layout to the system, some devices may have been removed.
+    # thus there's a chance that at_device could be null, so we need to address that.
+    at_device_null_worker_status = await WorkerStatus.objects.filter(
+        at_device=None
+    ).all()
+
+    for ws in at_device_null_worker_status:
+        try:
+            rescue_station = await Device.objects.filter(
+                workshop=w.location, is_rescue=True
+            ).first()
+            await ws.update(at_device=rescue_station)
+        except Exception:
+            continue
+
     workers = await User.objects.filter(
         level=UserLevel.maintainer.value, is_admin=False
     ).all()
@@ -202,10 +217,6 @@ async def worker_monitor_routine():
             if worker_status.status == WorkerStatusEnum.leave.value:
                 continue
 
-            if worker_status.at_device is None:
-                await worker_status.update(at_device=rescue_stations[0])
-                continue
-
             if worker_status.at_device.is_rescue == True:
                 continue
 
@@ -217,12 +228,14 @@ async def worker_monitor_routine():
             factory_map = await FactoryMap.objects.filter(id=w.location).get()
             rescue_distances = []
 
-            try: 
+            try:
                 worker_device_idx = find_idx_in_factory_map(
                     factory_map, worker_status.at_device.id
                 )
             except ValueError:
-                logger.error(f"{worker_status.at_device.id} is not in the map {factory_map.name}")
+                logger.error(
+                    f"{worker_status.at_device.id} is not in the map {factory_map.name}"
+                )
 
             for r in rescue_stations:
                 rescue_idx = find_idx_in_factory_map(factory_map, r.id)
