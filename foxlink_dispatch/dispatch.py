@@ -312,8 +312,10 @@ class data_convert:
                 ),  # 員工資訊
                 "parameter": self.df_factory_worker_info_parm,
             }  # 相關參數
+        except DispatchException as e:
+            raise e
         except Exception as e:
-            raise DispatchException(msg="Unexpected exception", detail=str(e))
+            raise DispatchException(msg="Unexpected exception", detail=repr(e))
 
     #%%
     """
@@ -377,9 +379,10 @@ class data_convert:
                 "result": self.df_proj_eventbooks_convert,  # 轉換完成的結果
                 "parameter": self.df_proj_eventbooks_parm,
             }  # 相關參數
-
+        except DispatchException as e:
+            raise e
         except Exception as e:
-            raise DispatchException(msg="Device 事件簿出現非預期的錯誤！", detail=str(e))
+            raise DispatchException(msg="Device 事件簿出現非預期的錯誤！", detail=repr(e))
 
     #%%
     """
@@ -562,6 +565,8 @@ class data_convert:
                 "result": self.df_movingMatrix,  # 轉換完成的結果
                 "parameter": self.df_factorymap_parm,
             }  # 相關參數
+        except DispatchException as e:
+            raise e
         except Exception as e:
             raise DispatchException(msg="處理計算機台間移動距離矩陣表時發生錯誤：", detail=repr(e))
 
