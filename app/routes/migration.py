@@ -14,7 +14,7 @@ from typing import List
 router = APIRouter(prefix="/migration")
 
 
-@router.post("/devices", tags=["migration"], status_code=201)
+@router.post("/devices", tags=["migration"], status_code=201, response_model=ImportDevicesOut)
 async def import_devices_from_excel(
     file: UploadFile = File(...),
     clear_all: bool = Form(default=False),
@@ -41,7 +41,16 @@ async def import_devices_from_excel(
         raise HTTPException(status_code=400, detail=repr(e))
 
 
-@router.post("/workshop-eventbook", tags=["migration"], status_code=201)
+@router.post("/workshop-eventbook", tags=["migration"], status_code=201,
+    responses={
+        201: {
+            "content": {"image/csv": {}},
+            "description": "Return parameters in csv format",
+        },
+        400: {"description": "There's is an error in your document."},
+        415: {"description": "The file you uploaded is not in correct format.",},
+    }
+)
 async def import_workshop_eventbooks_from_excel(
     file: UploadFile = File(...),
     # clear_all: bool = Form(default=False),
@@ -67,7 +76,16 @@ async def import_workshop_eventbooks_from_excel(
         raise HTTPException(status_code=400, detail=repr(e))
 
 
-@router.post("/factory-worker-infos", tags=["migration"], status_code=201)
+@router.post("/factory-worker-infos", tags=["migration"], status_code=201,
+    responses={
+        201: {
+            "content": {"image/csv": {}},
+            "description": "Return parameters in csv format",
+        },
+        400: {"description": "There's is an error in your document."},
+        415: {"description": "The file you uploaded is not in correct format.",},
+    }
+)
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
     file: UploadFile = File(...),
