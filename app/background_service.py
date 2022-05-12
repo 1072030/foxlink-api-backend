@@ -1,4 +1,5 @@
 import logging, asyncio, aiohttp
+from ormar import or_, and_
 import pytz
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -163,9 +164,11 @@ async def auto_close_missions():
 async def worker_monitor_routine():
     # when a user import device layout to the system, some devices may have been removed.
     # thus there's a chance that at_device could be null, so we need to address that.
-    at_device_null_worker_status = await WorkerStatus.objects.filter(
-        at_device=None
-    ).select_related(['worker']).all()
+    at_device_null_worker_status = (
+        await WorkerStatus.objects.filter(at_device=None)
+        .select_related(["worker"])
+        .all()
+    )
 
     for ws in at_device_null_worker_status:
         try:
@@ -438,7 +441,11 @@ async def dispatch_routine():
         # if worker has already working on other mission, skip
         if (
             await Mission.objects.filter(
-                assignees__username=w.user.username, repair_start_date__isnull=True
+                and_(
+                    or_(and_(repair_start_date__isnull=False, repair_end_date__isnull=True), and_(repair_start_date__isnull=True, repair_end_date__isnull=True)),
+                    assignees__username=w.user.username,
+                    is_cancel=False,
+                )
             ).count()
             > 0
         ):
