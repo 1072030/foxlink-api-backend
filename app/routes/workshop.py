@@ -109,7 +109,6 @@ async def get_workshop_image(workshop_name: str, user: User = Depends(get_manage
     "/{workshop_name}/projects",
     tags=["workshop"],
     description="Get project names under a workshop",
-    response_model=List[str],
     status_code=200,
 )
 async def get_project_names_by_project(workshop_name: str, user: User = Depends(get_manager_active_user)):
