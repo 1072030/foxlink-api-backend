@@ -80,7 +80,7 @@ class WorkerStatusDto(BaseModel):
     worker_id: str
     worker_name: str
     last_event_end_date: datetime.datetime
-    at_device: str
+    at_device: Optional[str]
     status: WorkerStatusEnum
     total_dispatches: int
     mission_duration: Optional[int]
@@ -96,7 +96,7 @@ async def get_all_worker_status():
         item = {
             "worker_id": s.worker.username,
             "worker_name": s.worker.full_name,
-            "at_device": s.at_device.id,
+            "at_device": s.at_device.id if s.at_device is not None else None,
             "status": s.status,
             "last_event_end_date": s.last_event_end_date,
             "total_dispatches": s.dispatch_count,
