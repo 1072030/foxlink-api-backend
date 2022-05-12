@@ -165,12 +165,12 @@ async def worker_monitor_routine():
     # thus there's a chance that at_device could be null, so we need to address that.
     at_device_null_worker_status = await WorkerStatus.objects.filter(
         at_device=None
-    ).all()
+    ).select_related(['worker']).all()
 
     for ws in at_device_null_worker_status:
         try:
             rescue_station = await Device.objects.filter(
-                workshop=w.location, is_rescue=True
+                workshop=ws.worker.location, is_rescue=True
             ).first()
             await ws.update(at_device=rescue_station)
         except Exception:
