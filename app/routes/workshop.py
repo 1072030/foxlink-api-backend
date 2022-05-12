@@ -64,7 +64,7 @@ async def get_workshop_device_qrcode(
 async def upload_workshop_image(
     workshop_name: str,
     image: UploadFile = File(..., description="要上傳的廠區圖（.png)", media_type="image/png"),
-    user: User = Depends(get_manager_active_user)
+    user: User = Depends(get_manager_active_user),
 ):
     raw_image = await image.read()
 
@@ -90,7 +90,9 @@ async def upload_workshop_image(
         404: {"description": "workshop is not found",},
     },
 )
-async def get_workshop_image(workshop_name: str, user: User = Depends(get_manager_active_user)):
+async def get_workshop_image(
+    workshop_name: str, user: User = Depends(get_manager_active_user)
+):
     w = (
         await FactoryMap.objects.filter(name=workshop_name)
         .exclude_fields(["map", "related_devices"])
@@ -100,19 +102,19 @@ async def get_workshop_image(workshop_name: str, user: User = Depends(get_manage
     if w is None:
         raise HTTPException(404, "the workshop is not found")
 
-    return Response(
-        w.image,
-        media_type="image/png"
-    )
+    return Response(w.image, media_type="image/png")
+
 
 @router.get(
     "/{workshop_name}/projects",
     tags=["workshop"],
     description="Get project names under a workshop",
-    response_class=List[str],
+    response_model=List[str],
     status_code=200,
 )
-async def get_project_names_by_project(workshop_name: str, user: User = Depends(get_manager_active_user)):
+async def get_project_names_by_project(
+    workshop_name: str, user: User = Depends(get_manager_active_user)
+):
     w = (
         await FactoryMap.objects.filter(name=workshop_name)
         .exclude_fields(["map", "related_devices"])
@@ -124,7 +126,8 @@ async def get_project_names_by_project(workshop_name: str, user: User = Depends(
 
     project_names: List[Mapping[str, str]] = await database.fetch_all(
         "SELECT DISTINCT d.project FROM devices d INNER JOIN factorymaps f ON d.workshop = :workshop_id WHERE d.project != 'rescue';",
-        {"workshop_id": w.id}
+        {"workshop_id": w.id},
     )
 
-    return [item['project'] for item in project_names]
+    return [item.project for item in project_names]  # type: ignore
+

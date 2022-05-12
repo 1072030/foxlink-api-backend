@@ -113,7 +113,7 @@ class UserDeviceLevel(ormar.Model):
         constraints = [ormar.UniqueColumns("device", "user", "shift")]
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    device: Device = ormar.ForeignKey(Device, index=True)
+    device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
     superior: Optional[User] = ormar.ForeignKey(
         User, nullable=True, ondelete="SET NULL", related_name="superior",
