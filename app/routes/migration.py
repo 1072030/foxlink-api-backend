@@ -1,5 +1,5 @@
 from app.models.schema import ImportDevicesOut
-from app.services.auth import get_admin_active_user
+from app.services.auth import get_admin_active_user, get_manager_active_user
 from app.services.migration import (
     import_devices,
     import_workshop_events,
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/migration")
 async def import_devices_from_excel(
     file: UploadFile = File(...),
     clear_all: bool = Form(default=False),
-    user: User = Depends(get_admin_active_user),
+    user: User = Depends(get_manager_active_user),
 ):
     if file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
@@ -54,7 +54,7 @@ async def import_devices_from_excel(
 async def import_workshop_eventbooks_from_excel(
     file: UploadFile = File(...),
     # clear_all: bool = Form(default=False),
-    user: User = Depends(get_admin_active_user),
+    user: User = Depends(get_manager_active_user),
 ):
     if file.filename.split(".")[1] != "xlsx" and file.filename.split(".")[1] != "xls":
         raise HTTPException(415)
@@ -89,7 +89,7 @@ async def import_workshop_eventbooks_from_excel(
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
     file: UploadFile = File(...),
-    user: User = Depends(get_admin_active_user),
+    user: User = Depends(get_manager_active_user),
 ):
     if file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
