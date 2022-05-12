@@ -22,16 +22,14 @@ def generate_device_id(project: str, line: int, device_name: str) -> str:
 
 
 @database.transaction()
-async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tuple[List[str], pd.DataFrame]:
-    if clear_all is True:
-        await Device.objects.delete(each=True)
-
+async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFrame]:
     raw_excel: bytes = await excel_file.read()
     frame = pd.read_excel(raw_excel, sheet_name=0)
     workshop_name = ""
 
     create_device_bulk: List[Device] = []
     update_device_bulk: List[Device] = []
+    device_name_dict: Dict[str, bool] = {}
 
     for index, row in frame.iterrows():
         workshop = await FactoryMap.objects.get_or_none(name=row["workshop"])
@@ -53,6 +51,7 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tup
                 row["project"], row["line"], row["device_name"]
             )
         frame.at[index, "id"] = device_id
+        device_name_dict[device_id] = True
 
         device = Device(
             id=device_id,
@@ -73,10 +72,22 @@ async def import_devices(excel_file: UploadFile, clear_all: bool = False) -> Tup
         else:
             update_device_bulk.append(device)
 
+    w = await FactoryMap.objects.exclude_fields(["map", "image"]).get(
+        name=workshop_name
+    )
+
+    bulk_delete_ids: List[str] = []
+
+    for original_d in w.related_devices:
+        if original_d not in device_name_dict.keys():
+            bulk_delete_ids.append(original_d)
+
+    await Device.objects.filter(id__in=bulk_delete_ids).delete(each=True)
     await Device.objects.bulk_update(update_device_bulk)
     await Device.objects.bulk_create(create_device_bulk)
     # calcuate factroy map matrix
     params = await calcuate_factory_layout_matrix(workshop_name, frame)
+
     return frame["id"].unique().tolist(), params
 
 
@@ -89,7 +100,7 @@ async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
     """
     raw_excel: bytes = await excel_file.read()
     data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
-    df, param = data["result"], data['parameter']
+    df, param = data["result"], data["parameter"]
 
     project_name = df["project"].unique()[0]
 
@@ -123,7 +134,9 @@ async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
     return param
 
 
-async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame) -> pd.DataFrame:
+async def calcuate_factory_layout_matrix(
+    workshop_name: str, frame: pd.DataFrame
+) -> pd.DataFrame:
     data = data_converter.fn_factorymap(frame)
     matrix: List[List[float]] = []
 
@@ -134,11 +147,13 @@ async def calcuate_factory_layout_matrix(workshop_name: str, frame: pd.DataFrame
         related_devices=data["result"].columns.values.tolist(), map=matrix
     )
 
-    return data['parameter']
+    return data["parameter"]
 
 
 @database.transaction()
-async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile) -> pd.DataFrame:
+async def import_factory_worker_infos(
+    workshop_name: str, excel_file: UploadFile
+) -> pd.DataFrame:
     raw_excel: bytes = await excel_file.read()
 
     try:
@@ -146,7 +161,7 @@ async def import_factory_worker_infos(workshop_name: str, excel_file: UploadFile
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
 
-    factory_worker_info, params = data["result"], data['parameter']
+    factory_worker_info, params = data["result"], data["parameter"]
 
     full_name_mapping: Dict[str, str] = {}
     create_user_bulk: List[User] = []

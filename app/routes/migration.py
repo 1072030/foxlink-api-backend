@@ -17,14 +17,13 @@ router = APIRouter(prefix="/migration")
 @router.post("/devices", tags=["migration"], status_code=201, response_model=ImportDevicesOut)
 async def import_devices_from_excel(
     file: UploadFile = File(...),
-    clear_all: bool = Form(default=False),
     user: User = Depends(get_manager_active_user),
 ):
     if file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
 
     try:
-        device_ids, params = await import_devices(file, clear_all)
+        device_ids, params = await import_devices(file)
         await AuditLogHeader.objects.create(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,

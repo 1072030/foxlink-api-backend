@@ -144,7 +144,7 @@ class Mission(ormar.Model):
         pass
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    device: Device = ormar.ForeignKey(Device)
+    device: Device = ormar.ForeignKey(Device, ondelete='CASCADE')
     assignees: List[User] = ormar.ManyToMany(User)
     name: str = ormar.String(max_length=100, nullable=False)
     description: Optional[str] = ormar.String(max_length=256)

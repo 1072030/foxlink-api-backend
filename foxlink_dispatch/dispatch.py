@@ -353,7 +353,9 @@ class data_convert:
                     )
                 _events_["project"] = _project_name_.lower()  # 新增專案名稱欄位；小寫
                 _events_["Device_Name"] = j.lower()  # 新增機台名稱欄位；小寫
-                self.df_proj_eventbooks_convert = pd.concat([self.df_proj_eventbooks_convert, _events_], ignore_index=True) # 一筆筆df新增
+                self.df_proj_eventbooks_convert = pd.concat(
+                    [self.df_proj_eventbooks_convert, _events_], ignore_index=True
+                )  # 一筆筆df新增
 
             "Category欄位參數資訊；篩選 优先顺序 欄位有值者，代表需要指派"
             parm = {
@@ -561,7 +563,7 @@ class data_convert:
                 "parameter": self.df_factorymap_parm,
             }  # 相關參數
         except Exception as e:
-            raise DispatchException(msg="處理計算機台間移動距離矩陣表時發生錯誤：", detail=str(e))
+            raise DispatchException(msg="處理計算機台間移動距離矩陣表時發生錯誤：", detail=repr(e))
 
     #%%
     """
