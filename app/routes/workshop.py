@@ -1,7 +1,7 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
-from app.core.database import FactoryMap, User
+from app.core.database import FactoryMap, User, database
 from app.services.auth import get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode
 from urllib.parse import quote
@@ -81,6 +81,14 @@ async def upload_workshop_image(
     tags=["workshop"],
     description="Get workshop image",
     status_code=200,
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"image/png": {}},
+            "description": "Return workshop's image in png format.",
+        },
+        404: {"description": "workshop is not found",},
+    },
 )
 async def get_workshop_image(workshop_name: str, user: User = Depends(get_manager_active_user)):
     w = (
@@ -96,3 +104,27 @@ async def get_workshop_image(workshop_name: str, user: User = Depends(get_manage
         w.image,
         media_type="image/png"
     )
+
+@router.get(
+    "/{workshop_name}/projects",
+    tags=["workshop"],
+    description="Get project names under a workshop",
+    response_model=List[str],
+    status_code=200,
+)
+async def get_project_names_by_project(workshop_name: str, user: User = Depends(get_manager_active_user)):
+    w = (
+        await FactoryMap.objects.filter(name=workshop_name)
+        .exclude_fields(["map", "related_devices"])
+        .get_or_none()
+    )
+
+    if w is None:
+        raise HTTPException(404, "the workshop is not found")
+
+    project_names = await database.fetch_all(
+        "SELECT DISTINCT d.project FROM devices d INNER JOIN factorymaps f ON d.workshop = :workshop_id WHERE d.project != 'rescue';",
+        {"workshop_id": w.id}
+    )
+
+    return project_names
