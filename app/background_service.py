@@ -213,9 +213,12 @@ async def worker_monitor_routine():
             factory_map = await FactoryMap.objects.filter(id=w.location).get()
             rescue_distances = []
 
-            worker_device_idx = find_idx_in_factory_map(
-                factory_map, worker_status.at_device.id
-            )
+            try: 
+                worker_device_idx = find_idx_in_factory_map(
+                    factory_map, worker_status.at_device.id
+                )
+            except ValueError:
+                logger.error(f"{worker_status.at_device.id} is not in the map {factory_map.name}")
 
             for r in rescue_stations:
                 rescue_idx = find_idx_in_factory_map(factory_map, r.id)
