@@ -144,7 +144,7 @@ class Mission(ormar.Model):
         pass
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    device: Device = ormar.ForeignKey(Device, ondelete='CASCADE')
+    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
     assignees: List[User] = ormar.ManyToMany(User)
     name: str = ormar.String(max_length=100, nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
@@ -249,7 +249,9 @@ class WorkerStatus(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True)
     worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE")
-    at_device: Device = ormar.ForeignKey(Device, nullable=True, ondelete="SET NULL")
+    at_device: Optional[Device] = ormar.ForeignKey(
+        Device, nullable=True, ondelete="SET NULL"
+    )
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime()
     dispatch_count: int = ormar.Integer(default=0)
