@@ -442,6 +442,7 @@ async def dispatch_routine():
         if (
             await Mission.objects.filter(
                 and_(
+                    # left: user still working on a mission, right: user is not accept a mission yet.
                     or_(and_(repair_start_date__isnull=False, repair_end_date__isnull=True), and_(repair_start_date__isnull=True, repair_end_date__isnull=True)),
                     assignees__username=w.user.username,
                     is_cancel=False,
@@ -481,7 +482,7 @@ async def dispatch_routine():
         w_list.append(item)
 
     if len(w_list) == 0:
-        logger.error("no worker available to fix devices")
+        logger.warn(f"no worker available to dispatch for mission: (mission_id: {mission_1st_id}, device_id: {mission_1st.device.id})")
         publish(
             "foxlink/no-available-worker",
             MissionDto.from_mission(mission_1st).dict(),
