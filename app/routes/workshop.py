@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Mapping, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
 from app.core.database import FactoryMap, User, database
@@ -109,6 +109,7 @@ async def get_workshop_image(workshop_name: str, user: User = Depends(get_manage
     "/{workshop_name}/projects",
     tags=["workshop"],
     description="Get project names under a workshop",
+    response_class=List[str],
     status_code=200,
 )
 async def get_project_names_by_project(workshop_name: str, user: User = Depends(get_manager_active_user)):
@@ -121,9 +122,9 @@ async def get_project_names_by_project(workshop_name: str, user: User = Depends(
     if w is None:
         raise HTTPException(404, "the workshop is not found")
 
-    project_names = await database.fetch_all(
+    project_names: List[Mapping[str, str]] = await database.fetch_all(
         "SELECT DISTINCT d.project FROM devices d INNER JOIN factorymaps f ON d.workshop = :workshop_id WHERE d.project != 'rescue';",
         {"workshop_id": w.id}
     )
 
-    return project_names
+    return [item['project'] for item in project_names]
