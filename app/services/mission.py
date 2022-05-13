@@ -10,12 +10,10 @@ from app.core.database import (
     UserDeviceLevel,
     WorkerStatus,
     WorkerStatusEnum,
-    UserLevel,
-    Device,
     database,
 )
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionCreate, MissionEventOut, MissionUpdate
+from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt.main import publish
 import logging
 from app.services.user import get_user_by_username, move_user_to_position
@@ -64,27 +62,14 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
         if dto.description is not None:
             updateDict["description"] = dto.description
 
+        if dto.is_cancel is not None:
+            updateDict["is_cancel"] = dto.is_cancel
+
         await mission.update(None, **updateDict)
     except:
         raise HTTPException(status_code=400, detail="cannot update mission")
 
     return True
-
-
-async def create_mission(dto: MissionCreate):
-    try:
-        created_mission = await Mission.objects.create(**dto.dict())
-    except:
-        raise HTTPException(
-            status_code=400, detail="raise a error when inserting mission into databse",
-        )
-
-    await AuditLogHeader.objects.create(
-        action=AuditActionEnum.MISSION_CREATED.value,
-        table_name="missions",
-        record_pk=str(created_mission.id),
-    )
-    return created_mission
 
 
 @database.transaction()
@@ -305,6 +290,7 @@ async def delete_mission_by_id(mission_id: int):
 
     await mission.delete()
 
+
 async def cancel_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
@@ -313,6 +299,9 @@ async def cancel_mission_by_id(mission_id: int):
 
     if mission.is_cancel:
         raise HTTPException(400, "this mission is already canceled")
+
+    if mission.is_closed:
+        raise HTTPException(400, "this mission is already finished")
 
     await mission.update(is_cancel=True)
 

@@ -51,16 +51,10 @@ class MissionBase(BaseModel):
     description: Optional[str]
 
 
-class MissionCreate(MissionBase):
-    name: str
-    device: str
-    required_expertises: List[str]
-    related_event_id: Optional[int]
-
-
 class MissionUpdate(MissionBase):
     name: Optional[str]
     device_id: Optional[str]
+    is_cancel: Optional[bool]
 
 
 class DeviceDto(BaseModel):
@@ -144,11 +138,13 @@ class ImportDevicesOut(BaseModel):
     device_ids: List[str]
     parameter: Optional[str]
 
+
 class DeviceExp(BaseModel):
     project: str
     process: Optional[str]
     line: int
     exp: int
+
 
 class UserOverviewOut(BaseModel):
     username: str
@@ -159,9 +155,11 @@ class UserOverviewOut(BaseModel):
     superior: Optional[str]
     experiences: List[DeviceExp]
 
+
 class DayAndNightUserOverview(BaseModel):
     day_shift: List[UserOverviewOut]
     night_shift: List[UserOverviewOut]
+
 
 class DeviceOut(BaseModel):
     id: str
@@ -172,7 +170,7 @@ class DeviceOut(BaseModel):
     workshop: str
     x_axis: float
     y_axis: float
-    is_rescue:bool
+    is_rescue: bool
     sop_link: Optional[str]
 
     @classmethod
@@ -190,12 +188,14 @@ class DeviceOut(BaseModel):
             is_rescue=device.is_rescue,
         )
 
+
 class CategoryPriorityDeviceInfo(BaseModel):
     device_id: str
     project: str
     line: int
     device_name: str
-    
+
+
 class CategoryPriorityOut(BaseModel):
     category: int
     priority: int
@@ -208,12 +208,19 @@ class CategoryPriorityOut(BaseModel):
             category=pri.category,
             priority=pri.priority,
             message=pri.message,
-            devices=[]
+            devices=[],
         )
 
         if pri.devices is not None:
             obj.devices = [
-                CategoryPriorityDeviceInfo(device_id=x.id, project=x.project, line=x.line, device_name=x.device_name) for x in pri.devices if pri.devices is not None
+                CategoryPriorityDeviceInfo(
+                    device_id=x.id,
+                    project=x.project,
+                    line=x.line,
+                    device_name=x.device_name,
+                )
+                for x in pri.devices
+                if pri.devices is not None
             ]
-            
+
         return obj

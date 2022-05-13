@@ -1,8 +1,7 @@
 import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission
+from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission, database
 from app.services.mission import (
     accept_mission,
     cancel_mission_by_id,
@@ -17,12 +16,10 @@ from app.services.mission import (
 )
 from app.services.auth import (
     get_current_active_user,
-    get_admin_active_user,
     get_manager_active_user,
 )
-from app.models.schema import MissionCreate, MissionUpdate
+from app.models.schema import MissionUpdate, MissionDto
 from fastapi.exceptions import HTTPException
-from app.models.schema import MissionDto, DeviceDto
 
 router = APIRouter(prefix="/missions")
 
@@ -42,7 +39,7 @@ async def get_missions_by_query(
         "created_date__gte": start_date,
         "created_date__lte": end_date,
         "assignees__username": worker,
-        'is_cancel': is_cancel,
+        "is_cancel": is_cancel,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
@@ -73,7 +70,7 @@ async def get_self_mission(
     params = {
         "created_date__gte": start_date,
         "created_date__lte": end_date,
-        'is_cancel': is_cancel,
+        "is_cancel": is_cancel,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
@@ -107,10 +104,18 @@ async def assign_mission_to_user(
 ):
     await assign_mission(mission_id, user_name)
 
+
 @router.post("/{mission_id}/cancel", tags=["missions"])
-async def cancel_a_mission_by_id(mission_id: int, user: User = Depends(get_manager_active_user)):
+async def cancel_a_mission_by_id(
+    mission_id: int, user: User = Depends(get_manager_active_user)
+):
     await cancel_mission_by_id(mission_id)
-    await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_CANCELED.value, table_name="missions", record_pk=str(mission_id), user=user)
+    await AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_CANCELED.value,
+        table_name="missions",
+        record_pk=str(mission_id),
+        user=user,
+    )
 
 
 @router.post("/{mission_id}/start", tags=["missions"])
@@ -143,16 +148,24 @@ async def finish_mission(
 async def mark_mission_emergency(
     mission_id: int, user: User = Depends(get_current_active_user)
 ):
-    return await request_assistance(mission_id, user)
+    await request_assistance(mission_id, user)
 
 
+@database.transaction()
 @router.patch("/{mission_id}", tags=["missions"])
 async def update_mission(
     mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)
 ):
-    return await update_mission_by_id(mission_id, dto)
+    await update_mission_by_id(mission_id, dto)
+    await AuditLogHeader.objects.create(
+        table_name="missions",
+        action=AuditActionEnum.MISSION_UPDATED.value,
+        record_pk=str(mission_id),
+        user=user,
+    )
 
 
+@database.transaction()
 @router.delete("/{mission_id}", tags=["missions"])
 async def delete_mission(
     mission_id: int, user: User = Depends(get_manager_active_user)

@@ -42,7 +42,7 @@ if PY_ENV not in ["production", "dev"]:
 FOXLINK_DB_HOSTS = get_env("FOXLINK_DB_HOSTS", List[str])
 FOXLINK_DB_USER = get_env("FOXLINK_DB_USER", str)
 FOXLINK_DB_PWD = get_env("FOXLINK_DB_PWD", str)
-FOXLINK_DB_NAME = get_env("FOXLINK_DB_NAME", str, 'aoi')
+FOXLINK_DB_NAME = get_env("FOXLINK_DB_NAME", str, "aoi")
 
 if len(FOXLINK_DB_HOSTS) == 0:
     logger.error("FOXLINK_DB_HOSTS env should not be empty!")
@@ -73,17 +73,14 @@ WORKER_REJECT_AMOUNT_NOTIFY = get_env("WORKER_REJECT_AMOUNT_NOTIFY", int, 2)
 MISSION_REJECT_AMOUT_NOTIFY = get_env("MISSION_REJECT_AMOUT_NOTIFY", int, 2)
 DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "07:40")
 DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "19:40")
-NIGHT_SHIFT_BEGIN = get_env("NIGHT_SHIFT_BEGIN", str, "19:40")
-NIGHT_SHIFT_END = get_env("NIGHT_SHIFT_END", str, "07:40")
-# 當員工
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
-# 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
 
 
 OVERTIME_MISSION_NOTIFY_PERIOD = get_env(
     "OVERTIME_MISSION_NOTIFY_PERIOD", List[int], [20, 10, 10]
 )
 
+# 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
 MOVE_TO_RESCUE_STATION_TIME = get_env(
     "MOVE_TO_RESCUE_STATION_TIME", int, 5
 )  # unit: minutes")
