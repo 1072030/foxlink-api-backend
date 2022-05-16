@@ -116,6 +116,8 @@ async def get_all_worker_status():
 
             duration = datetime.datetime.utcnow() - mission.repair_start_date
             item["mission_duration"] = duration.total_seconds()
+        except:
+            pass
         finally:
             resp.append(item)
 
