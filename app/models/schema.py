@@ -229,3 +229,8 @@ class CategoryPriorityOut(BaseModel):
             ]
 
         return obj
+
+class WorkerMissionStats(BaseModel):
+    username: str
+    full_name: str
+    count: int

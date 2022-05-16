@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.core.database import Mission, UserLevel, WorkerStatus, database, User
 from datetime import datetime
 
-from app.models.schema import MissionDto, WorkerStatusDto
+from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 
 
 class UserInfo(BaseModel):
@@ -119,7 +119,7 @@ async def get_top_abnormal_devices(limit: int = 10):
     return abnormal_devices
 
 
-async def get_top_most_accept_mission_employees(limit: int):
+async def get_top_most_accept_mission_employees(limit: int) -> List[WorkerMissionStats]:
     """取得當月最常接受任務的員工"""
 
     query = await database.fetch_all(
@@ -135,10 +135,10 @@ async def get_top_most_accept_mission_employees(limit: int):
         {"limit": limit},
     )
 
-    return query
+    return [WorkerMissionStats(**m) for m in query]
 
 
-async def get_top_most_reject_mission_employees(limit: int):
+async def get_top_most_reject_mission_employees(limit: int) -> List[WorkerMissionStats]:
     """取得當月最常拒絕任務的員工"""
 
     query = await database.fetch_all(
@@ -154,7 +154,7 @@ async def get_top_most_reject_mission_employees(limit: int):
         {"limit": limit},
     )
 
-    return query
+    return [WorkerMissionStats(**m) for m in query]
 
 
 async def get_login_users_percentage_by_recent_24_hours() -> float:

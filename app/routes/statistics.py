@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app.core.database import Mission, WorkerStatus
 import asyncio
 from app.env import LOGGER_NAME
-from app.models.schema import MissionDto, WorkerStatusDto
+from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 
 from app.services.statistics import (
     AbnormalDeviceInfo,
@@ -34,8 +34,8 @@ class DeviceStats(BaseModel):
 
 class Stats(BaseModel):
     devices_stats: DeviceStats
-    top_most_reject_mission_employees: List[Any]
-    top_most_accept_mission_employees: List[Any]
+    top_most_reject_mission_employees: List[WorkerMissionStats]
+    top_most_accept_mission_employees: List[WorkerMissionStats]
     login_users_percentage_this_week: float
     current_emergency_mission: List[MissionDto]
 
@@ -74,7 +74,6 @@ async def get_overall_statistics():
     )
 
 
-
 """
 SELECT u.username, u.full_name, ws.at_device, ws.dispatch_count, ws.last_event_end_date,  mu.mission as mission_id, (UTC_TIMESTAMP() - m2.created_date) as mission_duration FROM worker_status ws
 LEFT JOIN missions_users mu ON mu.id = (
@@ -87,6 +86,8 @@ LEFT JOIN missions_users mu ON mu.id = (
 LEFT JOIN missions m2 ON m2.id = mu.mission
 LEFT JOIN users u ON u.username = ws.worker;
 """
+
+
 @router.get("/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
 async def get_all_worker_status():
     states = await WorkerStatus.objects.select_related(["worker"]).all()
