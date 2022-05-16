@@ -126,13 +126,18 @@ class MissionDto(BaseModel):
             updated_date=m.updated_date,
         )
 
+class WorkerStatusDto(BaseModel):
+    worker_id: str
+    worker_name: str
+    last_event_end_date: datetime.datetime
+    at_device: Optional[str]
+    status: WorkerStatusEnum
+    total_dispatches: int
+    mission_duration: Optional[float]
 
-class SubordinateOut(BaseModel):
-    username: str
-    full_name: str
+
+class SubordinateOut(WorkerStatusDto):
     shift: ShiftType
-    status: Optional[WorkerStatusEnum]
-
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]

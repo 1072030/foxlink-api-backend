@@ -3,7 +3,13 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 from fastapi.exceptions import HTTPException
 import ormar
-from app.models.schema import DayAndNightUserOverview, DeviceExp, SubordinateOut, UserCreate, UserOverviewOut
+from app.models.schema import (
+    DayAndNightUserOverview,
+    DeviceExp,
+    SubordinateOut,
+    UserCreate,
+    UserOverviewOut,
+)
 from passlib.context import CryptContext
 from app.core.database import (
     AuditActionEnum,
@@ -109,21 +115,32 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
 async def get_user_subordinates_by_username(username: str):
     result = await database.fetch_all(
         """
-        SELECT DISTINCT user as username, u.full_name as full_name, shift, ws.status as status
-        FROM userdevicelevels
-        INNER JOIN users u ON u.username = `user`
-        LEFT JOIN worker_status ws ON ws.worker = `user`
-        WHERE superior = :superior AND user != superior;
+        SELECT DISTINCT u.username, u.full_name, ws.at_device, udl.shift, ws.dispatch_count, ws.last_event_end_date, mu.mission as mission_id, (UTC_TIMESTAMP() - m2.created_date) as mission_duration FROM worker_status ws
+        LEFT JOIN missions_users mu ON mu.id = (
+            SELECT mu2.id FROM missions m
+            INNER JOIN missions_users mu2
+            ON mu2.user = ws.worker
+            WHERE m.repair_end_date IS NULL AND m.is_cancel = False
+            LIMIT 1
+        )
+        LEFT JOIN missions m2 ON m2.id = mu.mission
+        LEFT JOIN users u ON u.username = ws.worker
+        LEFT JOIN userdevicelevels AS udl ON udl.user = ws.worker
+        WHERE udl.superior = :superior;
         """,
         values={"superior": username},
     )
 
     return [
         SubordinateOut(
-            username=x["username"],
-            full_name=x["full_name"],
+            worker_id=x["username"],
+            worker_name=x["full_name"],
+            at_device=x["at_device"],
             shift=x["shift"],
             status=x["status"],
+            total_dispatches=x["dispatch_count"],
+            last_event_end_date=x["last_event_end_date"],
+            mission_duration=x['mission_duration'],
         )
         for x in result
     ]
@@ -146,7 +163,11 @@ async def move_user_to_position(username: str, device_id: str):
 
     try:
         worker_status = await WorkerStatus.objects.filter(worker=user).get()
-        original_at_device = worker_status.at_device.id
+        original_at_device = (
+            worker_status.at_device.id
+            if worker_status.at_device is not None
+            else "None"
+        )
 
         log, _ = await asyncio.gather(
             AuditLogHeader.objects.create(

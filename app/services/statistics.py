@@ -1,9 +1,9 @@
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, UserLevel, database, User
-import datetime
+from app.core.database import Mission, UserLevel, WorkerStatus, database, User
+from datetime import datetime
 
-from app.models.schema import MissionDto
+from app.models.schema import MissionDto, WorkerStatusDto
 
 
 class UserInfo(BaseModel):
@@ -21,7 +21,7 @@ class EmergencyMissionInfo(BaseModel):
     assignees: List[UserInfo]
     description: Optional[str]
     category: str
-    created_date: datetime.datetime
+    created_date: datetime
 
 
 class AbnormalDeviceInfo(BaseModel):
@@ -38,7 +38,7 @@ class AbnormalMissionInfo(BaseModel):
     category: int
     message: Optional[str]
     duration: int
-    created_date: datetime.datetime
+    created_date: datetime
 
 
 async def get_top_most_crashed_devices(limit: int):
@@ -179,11 +179,46 @@ async def get_emergency_missions() -> List[MissionDto]:
         await Mission.objects.filter(
             is_emergency=True, repair_end_date__isnull=True, is_cancel=False
         )
-        .select_related(["assignees", 'missionevents', 'device'])
+        .select_related(["assignees", "missionevents", "device"])
         .all()
     )
 
-    return [
-        MissionDto.from_mission(m)
-        for m in missions
-    ]
+    return [MissionDto.from_mission(m) for m in missions]
+
+
+async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
+    s = (
+        await WorkerStatus.objects.filter(worker=username)
+        .select_related(["worker"])
+        .get_or_none()
+    )
+
+    if s is None:
+        return None
+
+    item = WorkerStatusDto(
+        worker_id=s.username,
+        worker_name=s.full_name,
+        status=s.status,
+        last_event_end_date=s.last_event_end_date,
+        total_dispatches=s.dispatch_count,
+    )
+
+    item.at_device = s.at_device.id if s.at_device is not None else None
+
+    try:
+        mission = (
+            await Mission.objects.filter(
+                assignees__username=username,
+                repair_start_date__isnull=False,
+                repair_end_date__isnull=True,
+            )
+            .order_by("repair_start_date")
+            .first()
+        )
+
+        if mission.repair_start_date is not None:
+            duration = datetime.utcnow() - mission.repair_start_date
+            item.mission_duration = duration.total_seconds()
+    finally:
+        return item

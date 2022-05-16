@@ -1,17 +1,15 @@
-import datetime
-import logging
-from typing import List, Any, Optional
+import datetime, logging
+from typing import List, Any
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.core.database import Mission, WorkerStatus, WorkerStatusEnum
+from app.core.database import Mission, WorkerStatus
 import asyncio
 from app.env import LOGGER_NAME
-from app.models.schema import MissionDto
+from app.models.schema import MissionDto, WorkerStatusDto
 
 from app.services.statistics import (
     AbnormalDeviceInfo,
     AbnormalMissionInfo,
-    EmergencyMissionInfo,
     get_top_abnormal_missions,
     get_top_most_crashed_devices,
     get_login_users_percentage_by_recent_24_hours,
@@ -76,16 +74,19 @@ async def get_overall_statistics():
     )
 
 
-class WorkerStatusDto(BaseModel):
-    worker_id: str
-    worker_name: str
-    last_event_end_date: datetime.datetime
-    at_device: Optional[str]
-    status: WorkerStatusEnum
-    total_dispatches: int
-    mission_duration: Optional[int]
 
-
+"""
+SELECT u.username, u.full_name, ws.at_device, ws.dispatch_count, ws.last_event_end_date,  mu.mission as mission_id, (UTC_TIMESTAMP() - m2.created_date) as mission_duration FROM worker_status ws
+LEFT JOIN missions_users mu ON mu.id = (
+	SELECT mu2.id FROM missions m
+	INNER JOIN missions_users mu2
+	ON mu2.user = ws.worker
+	WHERE m.repair_end_date IS NULL AND m.is_cancel = False
+	LIMIT 1
+)
+LEFT JOIN missions m2 ON m2.id = mu.mission
+LEFT JOIN users u ON u.username = ws.worker;
+"""
 @router.get("/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
 async def get_all_worker_status():
     states = await WorkerStatus.objects.select_related(["worker"]).all()
@@ -102,16 +103,20 @@ async def get_all_worker_status():
             "total_dispatches": s.dispatch_count,
         }
 
-        missions = await Mission.objects.filter(
-            assignees__username=s.worker.username,
-            repair_start_date__isnull=False,
-            repair_end_date__isnull=True,
-        ).order_by("repair_start_date").all()
+        try:
+            mission = (
+                await Mission.objects.filter(
+                    assignees__username=s.worker.username,
+                    repair_start_date__isnull=False,
+                    repair_end_date__isnull=True,
+                )
+                .order_by("repair_start_date")
+                .first()
+            )
 
-        if len(missions) > 0:
-            duration = datetime.datetime.utcnow() - missions[0].repair_start_date
+            duration = datetime.datetime.utcnow() - mission.repair_start_date
             item["mission_duration"] = duration.total_seconds()
-
-        resp.append(item)
+        finally:
+            resp.append(item)
 
     return resp
