@@ -221,6 +221,7 @@ class data_convert:
                 raise Error_None(
                     msg=f'{filename} 的"尚未填寫"的部分~', detail=self.df_error_list
                 )
+                
             for w in tqdm(range(len(self.df_worker_info))):  # 員工數量
                 for p in range(len(self.df_project_info.columns)):  # 所有專案中機台數量
                     self.df_factory_worker_info_convert = pd.concat(
@@ -290,8 +291,14 @@ class data_convert:
                 "process": self.natural_sort(
                     list(set(self.df_factory_worker_info_convert["process"]))
                 ),
-                "device": self.natural_sort(
-                    list(set(self.df_factory_worker_info_convert["device_name"]))
+                # "device":self.natural_sort(list(set(self.df_factory_worker_info_convert["device_name"]))),
+                "device": list(
+                    zip(
+                        self.df_project_info.loc["專案"],
+                        self.df_project_info.loc["自動機製程段"],
+                        self.df_project_info.loc["Device"],
+                        self.df_project_info.loc["設備中文名稱"],
+                    )
                 ),
                 "shift": sorted(
                     list(set(self.df_factory_worker_info_convert["shift"]))
@@ -299,6 +306,8 @@ class data_convert:
                 "exp": sorted(list(set(self.df_factory_worker_info_convert["level"]))),
                 "job": sorted(list(set(self.df_factory_worker_info_convert["job"]))),
             }
+
+            # 參考資料(col不同長度)： https://stackoverflow.com/questions/51570405/how-to-concatenate-lists-to-dataframe-in-pandas
             self.df_factory_worker_info_parm = pd.concat(
                 [pd.Series(v, name=k) for k, v in parm.items()], axis=1
             )
@@ -574,28 +583,12 @@ class data_convert:
     """
     建立各資料之參數(parameter)表
     """
-
-    def fn_parm_update(self, parm_files: bytes):
-        columns = [
-            "worker",
-            "workshop",
-            "project",
-            "process",
-            "line",
-            "device",
-            "shift",
-            "exp",
-            "job",
-            "category",
-        ]
-        self.df_parm = pd.concat(parm_files, ignore_index=1)
-        self.df_parm = pd.concat(
-            [
-                self.df_parm[col].dropna().drop_duplicates().reset_index(drop=True)
-                for col in self.df_parm.columns
-            ],
-            axis=1,
-        )
+    # 參考資料(typing hinting)：https://stackoverflow.com/questions/38727520/how-do-i-add-default-parameters-to-functions-when-using-type-hinting
+    def fn_parm_update(self,parm_files:bytes):
+        columns=["worker","workshop","project","process","line","device","shift","exp","job","category"]
+        self.df_parm  = pd.concat(parm_files,ignore_index=1)
+        # 參考資料(移除各col 的 nan， 數值往上移): https://stackoverflow.com/questions/33530601/pandas-force-nan-to-bottom-of-each-column-at-each-index
+        self.df_parm  = pd.concat([self.df_parm[col].dropna().drop_duplicates().reset_index(drop=True) for col in self.df_parm.columns], axis=1)
         self.df_parm = self.df_parm[columns]
         return self.df_parm
 
