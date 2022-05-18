@@ -181,15 +181,19 @@ class data_convert:
         except Error_FileContent:
             print("oh oh~ "+ str(raw_excel) +"的\"欄位名稱\"可能有誤喔~")
             print(self.df_error_list)
+            raise Error_FileContent
         except Error_None:
             print("oh oh~ "+ str(raw_excel) +"有\"尚未填寫\"的部分喔~")
             print(self.df_error_list)
+            raise Error_None
         except Error_Superior:
             print("oh oh~ "+ str(raw_excel) +"中有不存在的\"負責人\"喔~")
             print(self.df_error_list),print("錯誤值:\n",value)
+            raise Error_Superior
         except Exception as e:
             print(e)
-            print("oh oh~ 資料表可能有內容不符合相關要求喔~")
+            print("oh oh~ 資料表可能有內容不符合相關要求喔~ 資料表名稱是否存在?")
+            raise Exception
 #%%
     """
     專案 Device 事件簿
@@ -227,12 +231,15 @@ class data_convert:
         except Error_None:
             print("oh oh~ 在",filename,"的 Worksheet:",j,"中有\"尚未填寫\"的部分喔~")
             print(self.df_error_list)
+            raise Error_None
         except Error_FileContent:
             print("oh oh~ 在",filename,"的 Worksheet:",j,"的內容值可能不對喔~")
             print(self.df_error_list),print("錯誤值:\n",value)
+            raise Error_FileContent
         except Exception as e:
             print(e)
-            print("oh oh~ "+_project_name_+"device事件簿可能有內容不符合相關要求喔~")
+            print("oh oh~ "+_project_name_+"device事件簿可能有內容不符合相關要求喔~ 資料表名稱是否存在?")
+            raise Exception
 #%%    
     """
     車間 Layout 座標表
@@ -311,15 +318,19 @@ class data_convert:
         except Error_None:
             print("oh oh~ 車間layout座標表中有\"尚未填寫\"的部分喔~")
             print(self.df_error_list)
+            raise Error_None
         except Error_FileContent:
             print("oh oh~ 車間layout座標表的欄位名稱可能有誤喔~")
             print(self.df_error_list)
+            raise Error_FileContent
         except Error_Axis:
             print("oh oh~ 車間layout座標表中的\"座標\"填寫有誤喔~")
             print(self.df_error_list),print("錯誤值:\n",value)
+            raise Error_Axis
         except Exception as e:
             print(e)
-            print("oh oh~ 車間layout座標表可能有其他內容不符合相關要求喔~")       
+            print("oh oh~ 車間layout座標表可能有其他內容不符合相關要求喔~ 資料表名稱是否存在?")
+            raise Exception
 #%%
     """
     建立各資料之參數(parameter)表
@@ -339,15 +350,15 @@ class data_convert:
 
 #%%
 """測試資料匯入"""
-# test_data_import = data_convert() # 建立物件
+test_data_import = data_convert() # 建立物件
 
 '測試員工資訊表 轉換'
 # test_file_path_workerinfo = "test_data/車間員工資訊表_公版_TEST用.xlsx" # 測試員工資訊表資料路徑
-# test_file_path_workerinfo = "test_data/員工車間專職管理表20408[3].xlsx" # 測試員工資訊表資料路徑
-# test_workerinfo = test_data_import.fn_factory_worker_info(test_file_path_workerinfo)
+test_file_path_workerinfo = "test_data/員工車間專職管理表20408[3].xlsx" # 測試員工資訊表資料路徑
+test_workerinfo = test_data_import.fn_factory_worker_info(test_file_path_workerinfo)
 
 '測試機種事件簿 轉換'
-# test_file_path_eventbook = "test_data/D5X Device 事件簿[2].xlsx" # 測試機種事件簿資料路徑
+test_file_path_eventbook = "test_data/D5X Device 事件簿[2].xlsx" # 測試機種事件簿資料路徑
 # test_file_path_eventbook = "test_data/N104 Device 事件簿.xlsx" # 資料路徑
 # test_file_path_eventbook = "test_data/Z104 Device 事件簿_[不存在專案].xlsx" # 資料路徑
 # test_file_path_eventbook = "test_data/N84 Device 事件簿.xls" # 資料路徑
@@ -355,7 +366,7 @@ class data_convert:
 
 '測試機台座標表 計算移動距離矩陣'
 # test_file_path_layout = "test_data/車間 Layout 座標表_公版_TEST用.xlsx" # 資料路徑
-# test_file_path_layout = "test_data/車間 Layout 座標表_第九車間_Q2預估[2].xlsx"
+test_file_path_layout = "test_data/車間 Layout 座標表_第九車間_Q2預估[2].xlsx"
 # test_moving_matrix = test_data_import.fn_factorymap(test_file_path_layout)
         
 "測試三表更新參數表"
