@@ -350,15 +350,15 @@ class data_convert:
 
 #%%
 """測試資料匯入"""
-test_data_import = data_convert() # 建立物件
+# test_data_import = data_convert() # 建立物件
 
 '測試員工資訊表 轉換'
 # test_file_path_workerinfo = "test_data/車間員工資訊表_公版_TEST用.xlsx" # 測試員工資訊表資料路徑
-test_file_path_workerinfo = "test_data/員工車間專職管理表20408[3].xlsx" # 測試員工資訊表資料路徑
-test_workerinfo = test_data_import.fn_factory_worker_info(test_file_path_workerinfo)
+# test_file_path_workerinfo = "test_data/員工車間專職管理表20408[3].xlsx" # 測試員工資訊表資料路徑
+# test_workerinfo = test_data_import.fn_factory_worker_info(test_file_path_workerinfo)
 
 '測試機種事件簿 轉換'
-test_file_path_eventbook = "test_data/D5X Device 事件簿[2].xlsx" # 測試機種事件簿資料路徑
+# test_file_path_eventbook = "test_data/D5X Device 事件簿[2].xlsx" # 測試機種事件簿資料路徑
 # test_file_path_eventbook = "test_data/N104 Device 事件簿.xlsx" # 資料路徑
 # test_file_path_eventbook = "test_data/Z104 Device 事件簿_[不存在專案].xlsx" # 資料路徑
 # test_file_path_eventbook = "test_data/N84 Device 事件簿.xls" # 資料路徑
@@ -366,7 +366,7 @@ test_file_path_eventbook = "test_data/D5X Device 事件簿[2].xlsx" # 測試機�
 
 '測試機台座標表 計算移動距離矩陣'
 # test_file_path_layout = "test_data/車間 Layout 座標表_公版_TEST用.xlsx" # 資料路徑
-test_file_path_layout = "test_data/車間 Layout 座標表_第九車間_Q2預估[2].xlsx"
+# test_file_path_layout = "test_data/車間 Layout 座標表_第九車間_Q2預估[2].xlsx"
 # test_moving_matrix = test_data_import.fn_factorymap(test_file_path_layout)
         
 "測試三表更新參數表"
