@@ -1,34 +1,63 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta
-from app.core.database import CategoryPRI, Device, FactoryMap, Mission, MissionEvent, database
+
+from ormar import NoMatch
+from app.core.database import (
+    CategoryPRI,
+    Device,
+    FactoryMap,
+    Mission,
+    MissionEvent,
+    database,
+)
 import random
 
 router = APIRouter(prefix="/test")
 
+
 @database.transaction()
 @router.post("/missions", status_code=201, tags=["test"])
 async def create_fake_mission(workshop_name: str):
-    w = await FactoryMap.objects.exclude_fields(['image', 'map']).filter(name=workshop_name).get_or_none()
+    w = (
+        await FactoryMap.objects.exclude_fields(["image", "map"])
+        .filter(name=workshop_name)
+        .get_or_none()
+    )
 
     if w is None:
         raise HTTPException(status_code=404, detail="workshop is not found")
 
-    pick_device_id = random.randint(0, len(w.related_devices) - 1)
+    while True:
+        try:
+            pick_device_id = w.related_devices[
+                random.randint(0, len(w.related_devices) - 1)
+            ]
 
-    random_category = await CategoryPRI.objects.filter(
-        devices__id=pick_device_id
-    ).first()
+            random_category = await CategoryPRI.objects.filter(
+                devices__id=pick_device_id
+            ).first()
 
-    new_mission = await Mission.objects.create(device=pick_device_id, name="測試任務")
+            break
+        except NoMatch:
+            continue
 
-    await MissionEvent.objects.create(
-        mission=new_mission,
-        event_id=0,
-        table_name="test",
-        category=random_category.category,
-        message=random_category.message,
-        event_start_date=datetime.utcnow() + timedelta(hours=8),
+    new_mission = await Mission.objects.create(
+        device=pick_device_id, name="測試任務", description="測試任務", required_expertises=[]
     )
+
+    while True:
+        try:
+            await MissionEvent.objects.create(
+                mission=new_mission,
+                event_id=random.randint(0, 99999999),
+                table_name="test",
+                category=random_category.category,
+                message=random_category.message,
+                event_start_date=datetime.utcnow() + timedelta(hours=8),
+            )
+            break
+        except Exception:
+            continue
 
     return {
         "fake_mission_id": new_mission.id,
@@ -51,7 +80,6 @@ async def mark_mission_as_done(mission_id: int):
 
     for e in mission.missionevents:
         await e.update(
-            done_verified=True,
-            event_end_date=datetime.utcnow() + timedelta(hours=8),
+            done_verified=True, event_end_date=datetime.utcnow() + timedelta(hours=8),
         )
 
