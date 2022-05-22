@@ -1,10 +1,11 @@
 import logging
 from fastapi import FastAPI
-from app.env import MQTT_BROKER, MQTT_PORT, PY_ENV
+from app.env import MQTT_BROKER, MQTT_PORT
 from logging.config import dictConfig
 from app.routes import (
     health,
     migration,
+    test,
     user,
     auth,
     mission,
@@ -52,6 +53,7 @@ app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(workshop.router)
+app.include_router(test.router)
 
 
 foxlink_db = FoxlinkDbPool()
