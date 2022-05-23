@@ -141,7 +141,8 @@ async def calcuate_factory_layout_matrix(
     matrix: List[List[float]] = []
 
     for index, row in data["result"].iterrows():
-        matrix.append(row.values.tolist())
+        native_arr = [int(x) for x in row.values.tolist()]
+        matrix.append(native_arr)
 
     await FactoryMap.objects.filter(name=workshop_name).update(
         related_devices=data["result"].columns.values.tolist(), map=matrix

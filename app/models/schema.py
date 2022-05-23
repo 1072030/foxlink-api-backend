@@ -98,6 +98,7 @@ class MissionDto(BaseModel):
     is_started: bool
     is_closed: bool
     is_cancel: bool
+    is_emergency: bool
     created_date: datetime.datetime
     updated_date: datetime.datetime
 
@@ -117,6 +118,7 @@ class MissionDto(BaseModel):
             is_started=m.is_started,
             is_closed=m.is_closed,
             is_cancel=m.is_cancel,
+            is_emergency=m.is_emergency,
             assignees=[
                 UserNameDto(username=u.username, full_name=u.full_name)
                 for u in m.assignees
