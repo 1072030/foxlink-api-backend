@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Optional, List
 from pydantic import BaseModel
 import datetime
@@ -128,6 +129,7 @@ class MissionDto(BaseModel):
             updated_date=m.updated_date,
         )
 
+
 class WorkerStatusDto(BaseModel):
     worker_id: str
     worker_name: str
@@ -140,6 +142,7 @@ class WorkerStatusDto(BaseModel):
 
 class SubordinateOut(WorkerStatusDto):
     shift: ShiftType
+
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]
@@ -232,7 +235,21 @@ class CategoryPriorityOut(BaseModel):
 
         return obj
 
+
 class WorkerMissionStats(BaseModel):
     username: str
     full_name: str
     count: int
+
+
+class DeviceStatusEnum(Enum):
+    working = 0
+    repairing = 1
+    halt = 2
+
+
+class DeviceStatus(BaseModel):
+    device_id: str
+    x_axis: float
+    y_axis: float
+    status: DeviceStatusEnum
