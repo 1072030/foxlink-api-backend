@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
@@ -6,6 +7,8 @@ from datetime import timedelta
 from app.core.database import (
     AuditLogHeader,
     AuditActionEnum,
+    Device,
+    Mission,
     UserLevel,
     WorkerStatus,
     WorkerStatusEnum,
@@ -43,6 +46,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
 
+    today_login_timestamp = await get_user_first_login_time_today(user.username)
+    is_first_login_today = today_login_timestamp is None
+
     await AuditLogHeader.objects.create(
         table_name="users",
         record_pk=user.username,
@@ -51,16 +57,23 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
 
     # if user is a maintainer, then we should mark his status as idle
-    if user.level == UserLevel.maintainer.value:
-        worker_status = await WorkerStatus.objects.filter(worker=user).get()
-        today_login_timestamp = await get_user_first_login_time_today(user.username)
+    if user.level == UserLevel.maintainer.value and is_first_login_today:
+        worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
+        if worker_status is not None:
+            worker_status.last_event_end_date = today_login_timestamp  # type: ignore
 
-        if today_login_timestamp is None:
-            worker_status.last_event_end_date = today_login_timestamp # type: ignore
+            if worker_status.status == WorkerStatusEnum.leave.value:
+                worker_status.status = WorkerStatusEnum.idle.value
 
-        if worker_status.status == WorkerStatusEnum.leave.value:
-            worker_status.status = WorkerStatusEnum.idle.value
+            await Mission.objects.filter(
+                assignees__username=user.username, is_cancel=False, is_rescue=True
+            ).update(is_cancel=True)
 
-        await worker_status.update()
+            first_rescue_station = await Device.objects.filter(
+                workshop=user.location, is_rescue=True
+            ).first()
+
+            worker_status.at_device = first_rescue_station
+            await worker_status.update()
 
     return {"access_token": access_token, "token_type": "bearer"}
