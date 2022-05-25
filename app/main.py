@@ -15,12 +15,10 @@ from app.routes import (
     workshop,
 )
 from app.core.database import database
-from app.daemon.daemon import FoxlinkDbPool
-from app.background_service import main_routine
-from app.utils.timer import Ticker
 from app.mqtt.main import connect_mqtt, disconnect_mqtt
 from app.my_log_conf import LOGGER_NAME, LogConfig
 from fastapi.middleware.cors import CORSMiddleware
+from app.foxlink_db import foxlink_db
 
 
 dictConfig(LogConfig().dict())
@@ -55,23 +53,16 @@ app.include_router(device.router)
 app.include_router(workshop.router)
 app.include_router(test.router)
 
-
-foxlink_db = FoxlinkDbPool()
-dispatcher = Ticker(main_routine, 10)
-
-
 @app.on_event("startup")
 async def startup():
     connect_mqtt(MQTT_BROKER, MQTT_PORT, "foxlink-api-server")
     await database.connect()
     await foxlink_db.connect()
-    await dispatcher.start()
     logger.info("Foxlink API Server startup complete.")
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    await dispatcher.stop()
     await foxlink_db.close()
     await database.disconnect()
     disconnect_mqtt()

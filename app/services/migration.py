@@ -13,6 +13,7 @@ from app.services.user import get_password_hash
 from fastapi import UploadFile
 import pandas as pd
 from foxlink_dispatch.dispatch import data_convert
+from app.foxlink_db import foxlink_db
 
 data_converter = data_convert()
 
@@ -24,12 +25,18 @@ def generate_device_id(project: str, line: int, device_name: str) -> str:
 @database.transaction()
 async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFrame]:
     raw_excel: bytes = await excel_file.read()
-    frame = pd.read_excel(raw_excel, sheet_name=0)
-    workshop_name = ""
+    frame: pd.DataFrame = pd.read_excel(raw_excel, sheet_name=0)
+    workshop_name: str = ""
 
     create_device_bulk: List[Device] = []
     update_device_bulk: List[Device] = []
     device_name_dict: Dict[str, bool] = {}
+
+    device_infos = await foxlink_db.get_device_cname("FQ-9車間")
+
+    # if device_infos is not None:
+    #     for d in create_device_bulk:
+    #         d.device_cname =
 
     for index, row in frame.iterrows():
         workshop = await FactoryMap.objects.get_or_none(name=row["workshop"])
@@ -83,6 +90,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
             bulk_delete_ids.append(original_d)
 
     await Device.objects.filter(id__in=bulk_delete_ids).delete(each=True)
+
     await Device.objects.bulk_update(update_device_bulk)
     await Device.objects.bulk_create(create_device_bulk)
     # calcuate factroy map matrix
@@ -141,7 +149,7 @@ async def calcuate_factory_layout_matrix(
     matrix: List[List[float]] = []
 
     for index, row in data["result"].iterrows():
-        native_arr = [int(x) for x in row.values.tolist()]
+        native_arr = [float(x) for x in row.values.tolist()]
         matrix.append(native_arr)
 
     await FactoryMap.objects.filter(name=workshop_name).update(
