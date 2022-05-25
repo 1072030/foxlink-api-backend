@@ -1,11 +1,14 @@
+import cv2
+import numpy as np
 from typing import List, Mapping, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
 from app.core.database import FactoryMap, User, database
-from app.models.schema import DeviceStatus
+from app.models.schema import DeviceStatus, DeviceStatusEnum
 from app.services.auth import get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
 from urllib.parse import quote
+
 
 router = APIRouter(prefix="/workshop")
 
@@ -94,6 +97,7 @@ async def upload_workshop_image(
 async def get_workshop_image(
     workshop_name: str, user: User = Depends(get_manager_active_user)
 ):
+    # teddy-dev
     w = (
         await FactoryMap.objects.filter(name=workshop_name)
         .exclude_fields(["map", "related_devices"])
@@ -103,7 +107,44 @@ async def get_workshop_image(
     if w is None:
         raise HTTPException(404, "the workshop is not found")
 
-    return Response(w.image, media_type="image/png")
+    # process
+    """
+    Define color
+    """
+    WORKING = (0, 255, 0)  # green 0
+    REPAIRING = (0, 69, 255)  # orange 1
+    HALT = (0, 0, 255)  # red 2
+    POINT_SCALE = 120
+
+    all_devices_status = await get_all_devices_status(workshop_name)
+
+    img_buffer_numpy = np.frombuffer(w.image, dtype=np.uint8)
+    img = cv2.imdecode(img_buffer_numpy, 1)
+    height, width, _ = img.shape
+
+    for i, obj in enumerate(all_devices_status):
+
+        if obj.x_axis >= width or obj.y_axis >= height:
+            raise HTTPException(404, "(x, y) is out of range")
+
+        color = (255, 255, 255)
+        if obj.status == DeviceStatusEnum.working:
+            color = WORKING
+        elif obj.status == DeviceStatusEnum.repairing:
+            color = REPAIRING
+        else:
+            color = HALT
+
+        cv2.circle(
+            img,
+            (int(obj.x_axis), int(obj.y_axis)),
+            int(height / POINT_SCALE),
+            color,
+            -1,
+        )
+
+    _, im_buf_arr = cv2.imencode(".png", img)
+    return Response(im_buf_arr.tobytes(), media_type="image/png")
 
 
 @router.get(
@@ -133,7 +174,11 @@ async def get_project_names_by_project(
     return [item.project for item in project_names]  # type: ignore
 
 
-@router.get("/{workshop_name}/device_status", tags=["workshop"], response_model=List[DeviceStatus],)
+@router.get(
+    "/{workshop_name}/device_status",
+    tags=["workshop"],
+    response_model=List[DeviceStatus],
+)
 async def get_all_devices_status_in_workshop(
     workshop_name: str, user: User = Depends(get_manager_active_user)
 ):
