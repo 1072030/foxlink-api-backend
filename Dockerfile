@@ -20,6 +20,9 @@ WORKDIR /app
 COPY requirements.txt /app/
 COPY prestart.sh /app/
 
+# install cv2 dependencies
+RUN apt-get install ffmpeg libsm6 libxext6  -y
+
 # install dependencies
 RUN pip install -r requirements.txt
 
