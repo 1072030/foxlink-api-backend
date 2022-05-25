@@ -97,7 +97,7 @@ async def upload_workshop_image(
 async def get_workshop_image(
     workshop_name: str, user: User = Depends(get_manager_active_user)
 ):
-    # teddy-dev 
+    # teddy-dev
     w = (
         await FactoryMap.objects.filter(name=workshop_name)
         .exclude_fields(["map", "related_devices"])
@@ -108,12 +108,12 @@ async def get_workshop_image(
         raise HTTPException(404, "the workshop is not found")
 
     # process
-    '''
+    """
     Define color
-    '''
-    WORKING = (0, 255, 0) # green 0
-    REPAIRING = (0, 69, 255) # orange 1
-    HALT = (0, 0, 255) # red 2
+    """
+    WORKING = (0, 255, 0)  # green 0
+    REPAIRING = (0, 69, 255)  # orange 1
+    HALT = (0, 0, 255)  # red 2
     POINT_SCALE = 120
 
     all_devices_status = await get_all_devices_status(workshop_name)
@@ -123,19 +123,27 @@ async def get_workshop_image(
     height, width, _ = img.shape
 
     for i, obj in enumerate(all_devices_status):
-        
+
         if obj.x_axis >= width or obj.y_axis >= height:
             raise HTTPException(404, "(x, y) is out of range")
 
         color = (255, 255, 255)
-        if obj.status == 0: color = WORKING
-        elif obj.status == 1: color = REPAIRING
-        else: color = HALT
+        if obj.status == 0:
+            color = WORKING
+        elif obj.status == 1:
+            color = REPAIRING
+        else:
+            color = HALT
 
-        cv2.circle(img, (int(obj.x_axis), int(obj.y_axis)), int(height / POINT_SCALE), color, -1)
-    
-    im_buf_arr = cv2.imencode('.png', img)
-    
+        cv2.circle(
+            img,
+            (int(obj.x_axis), int(obj.y_axis)),
+            int(height / POINT_SCALE),
+            color,
+            -1,
+        )
+
+    _, im_buf_arr = cv2.imencode(".png", img)
     return Response(im_buf_arr.tobytes(), media_type="image/png")
 
 
@@ -166,7 +174,11 @@ async def get_project_names_by_project(
     return [item.project for item in project_names]  # type: ignore
 
 
-@router.get("/{workshop_name}/device_status", tags=["workshop"], response_model=List[DeviceStatus],)
+@router.get(
+    "/{workshop_name}/device_status",
+    tags=["workshop"],
+    response_model=List[DeviceStatus],
+)
 async def get_all_devices_status_in_workshop(
     workshop_name: str, user: User = Depends(get_manager_active_user)
 ):
