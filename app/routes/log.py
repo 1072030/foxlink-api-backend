@@ -8,6 +8,7 @@ from typing import Optional
 
 router = APIRouter(prefix="/logs")
 
+
 class LogValueOut(BaseModel):
     field: str
     previous_value: str
@@ -20,6 +21,7 @@ class LogValueOut(BaseModel):
             previous_value=logvalue.previous_value,
             new_value=logvalue.new_value,
         )
+
 
 class LogOut(BaseModel):
     id: int

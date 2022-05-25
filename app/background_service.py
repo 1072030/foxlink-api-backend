@@ -4,7 +4,7 @@ import pytz
 from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
-from app.models.schema import MissionDto, MissionEventOut
+from app.models.schema import MissionDto
 from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission
 from app.services.user import get_user_first_login_time_today
@@ -446,7 +446,15 @@ async def dispatch_routine():
             await Mission.objects.filter(
                 and_(
                     # left: user still working on a mission, right: user is not accept a mission yet.
-                    or_(and_(repair_start_date__isnull=False, repair_end_date__isnull=True), and_(repair_start_date__isnull=True, repair_end_date__isnull=True)),
+                    or_(
+                        and_(
+                            repair_start_date__isnull=False,
+                            repair_end_date__isnull=True,
+                        ),
+                        and_(
+                            repair_start_date__isnull=True, repair_end_date__isnull=True
+                        ),
+                    ),
                     assignees__username=w.user.username,
                     is_cancel=False,
                 )
@@ -485,7 +493,9 @@ async def dispatch_routine():
         w_list.append(item)
 
     if len(w_list) == 0:
-        logger.warn(f"no worker available to dispatch for mission: (mission_id: {mission_1st_id}, device_id: {mission_1st.device.id})")
+        logger.warn(
+            f"no worker available to dispatch for mission: (mission_id: {mission_1st_id}, device_id: {mission_1st.device.id})"
+        )
         publish(
             "foxlink/no-available-worker",
             MissionDto.from_mission(mission_1st).dict(),
