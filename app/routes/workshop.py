@@ -4,7 +4,7 @@ from typing import List, Mapping, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
 from app.core.database import FactoryMap, User, database
-from app.models.schema import DeviceStatus
+from app.models.schema import DeviceStatus, DeviceStatusEnum
 from app.services.auth import get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
 from urllib.parse import quote
@@ -128,9 +128,9 @@ async def get_workshop_image(
             raise HTTPException(404, "(x, y) is out of range")
 
         color = (255, 255, 255)
-        if obj.status == 0:
+        if obj.status == DeviceStatusEnum.working:
             color = WORKING
-        elif obj.status == 1:
+        elif obj.status == DeviceStatusEnum.repairing:
             color = REPAIRING
         else:
             color = HALT
