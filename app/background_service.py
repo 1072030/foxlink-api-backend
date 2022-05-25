@@ -200,6 +200,9 @@ async def worker_monitor_routine():
         if working_mission_count > 0:
             continue
 
+        if w.location is None:
+            continue
+
         rescue_stations = await Device.objects.filter(
             workshop=w.location, is_rescue=True
         ).all()
