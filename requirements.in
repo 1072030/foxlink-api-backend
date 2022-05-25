@@ -35,3 +35,4 @@ pillow
 aiohttp
 tqdm
 scipy
+opencv-python
