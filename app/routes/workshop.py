@@ -93,6 +93,7 @@ async def upload_workshop_image(
 async def get_workshop_image(
     workshop_name: str, user: User = Depends(get_manager_active_user)
 ):
+    # teddy-dev 
     w = (
         await FactoryMap.objects.filter(name=workshop_name)
         .exclude_fields(["map", "related_devices"])
