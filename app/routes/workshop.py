@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 from typing import List, Mapping, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
@@ -6,6 +8,7 @@ from app.models.schema import DeviceStatus
 from app.services.auth import get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
 from urllib.parse import quote
+
 
 router = APIRouter(prefix="/workshop")
 
@@ -104,7 +107,36 @@ async def get_workshop_image(
     if w is None:
         raise HTTPException(404, "the workshop is not found")
 
-    return Response(w.image, media_type="image/png")
+    # process
+    '''
+    Define color
+    '''
+    WORKING = (0, 255, 0) # green 0
+    REPAIRING = (0, 69, 255) # orange 1
+    HALT = (0, 0, 255) # red 2
+    POINT_SCALE = 120
+
+    all_devices_status = await get_all_devices_status(workshop_name)
+
+    img_buffer_numpy = np.frombuffer(w.image, dtype=np.uint8)
+    img = cv2.imdecode(img_buffer_numpy, 1)
+    height, width, _ = img.shape
+
+    for i, obj in enumerate(all_devices_status):
+        
+        if obj.x_axis >= width or obj.y_axis >= height:
+            raise HTTPException(404, "(x, y) is out of range")
+
+        color = (255, 255, 255)
+        if obj.status == 0: color = WORKING
+        elif obj.status == 1: color = REPAIRING
+        else: color = HALT
+
+        cv2.circle(img, (obj.x_axis, obj.y_axis), int(height / POINT_SCALE), color, -1)
+    
+    im_buf_arr = cv2.imencode('.png', img)
+    
+    return Response(im_buf_arr.tobytes(), media_type="image/png")
 
 
 @router.get(
