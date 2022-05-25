@@ -2,11 +2,15 @@ import io
 import qrcode
 from qrcode.constants import ERROR_CORRECT_M
 from fastapi.exceptions import HTTPException
-from app.core.database import FactoryMap
+from app.core.database import Device, FactoryMap, Mission
 from zipfile import ZipFile
 from PIL import ImageDraw, ImageFont
+from typing import List
+from app.models.schema import DeviceStatus, DeviceStatusEnum
 
 font = ImageFont.truetype("./data/NotoSansTC-Regular.otf", 14)
+
+
 
 
 async def get_all_factory_maps():
@@ -19,6 +23,45 @@ async def get_factory_map_by_id(factory_map_id: int):
 
 async def get_factory_map_by_name(factory_map_name: str):
     return await FactoryMap.objects.filter(name=factory_map_name).get_or_none()
+
+
+async def get_all_devices_status(workshop_name: str):
+    workshop = await get_factory_map_by_name(workshop_name)
+    if workshop is None:
+        raise HTTPException(404, "workshop is not found")
+
+    device_status_arr: List[DeviceStatus] = []
+    devices = await Device.objects.filter(workshop=workshop, is_rescue=False).all()
+
+    for d in devices:
+        related_missions = (
+            await Mission.objects.filter(
+                device=d, is_cancel=False, repair_end_date__isnull=True
+            )
+            .select_related(["assignees"])
+            .order_by("-created_date")
+            .all()
+        )
+
+        device_status = DeviceStatus(
+            device_id=d.id,
+            x_axis=d.x_axis,
+            y_axis=d.y_axis,
+            status=DeviceStatusEnum.working,
+        )
+
+        if len(related_missions) == 0:
+            device_status.status = DeviceStatusEnum.working
+        else:
+            m = related_missions[0]
+            if len(m.assignees) > 0:
+                device_status.status = DeviceStatusEnum.repairing
+            else:
+                device_status.status = DeviceStatusEnum.halt
+
+        device_status_arr.append(device_status)
+
+    return device_status_arr
 
 
 async def create_workshop_device_qrcode(workshop_name: str):

@@ -2,8 +2,9 @@ from typing import List, Mapping, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
 from app.core.database import FactoryMap, User, database
+from app.models.schema import DeviceStatus
 from app.services.auth import get_manager_active_user
-from app.services.workshop import create_workshop_device_qrcode
+from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
 from urllib.parse import quote
 
 router = APIRouter(prefix="/workshop")
@@ -130,4 +131,11 @@ async def get_project_names_by_project(
     )
 
     return [item.project for item in project_names]  # type: ignore
+
+
+@router.get("/{workshop_name}/device_status", tags=["workshop"], response_model=List[DeviceStatus],)
+async def get_all_devices_status_in_workshop(
+    workshop_name: str, user: User = Depends(get_manager_active_user)
+):
+    return await get_all_devices_status(workshop_name)
 
