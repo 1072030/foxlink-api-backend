@@ -99,6 +99,7 @@ class Device(ormar.Model):
     process: Optional[str] = ormar.String(max_length=50, nullable=True)
     line: int = ormar.Integer(nullable=True)
     device_name: str = ormar.String(max_length=20, nullable=False)
+    device_cname: Optional[str] = ormar.String(max_length=100, nullable=True)
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
     is_rescue: bool = ormar.Boolean(default=False)
@@ -258,6 +259,13 @@ class WorkerStatus(ormar.Model):
     dispatch_count: int = ormar.Integer(default=0)
     updated_date: datetime = ormar.DateTime(server_default=func.now())
     check_alive_time: datetime = ormar.DateTime(server_default=func.now())
+
+
+class TestLog(ormar.Model):
+    id: int = ormar.Integer(primary_key=True)
+    content: str = ormar.String(max_length=2048)
+    created_date: datetime = ormar.DateTime(server_default=func.now())
+
 
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus])
