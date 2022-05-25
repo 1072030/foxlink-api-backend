@@ -132,7 +132,7 @@ async def get_workshop_image(
         elif obj.status == 1: color = REPAIRING
         else: color = HALT
 
-        cv2.circle(img, (obj.x_axis, obj.y_axis), int(height / POINT_SCALE), color, -1)
+        cv2.circle(img, (int(obj.x_axis), int(obj.y_axis)), int(height / POINT_SCALE), color, -1)
     
     im_buf_arr = cv2.imencode('.png', img)
     
