@@ -321,6 +321,11 @@ async def assign_mission(mission_id: int, username: str):
             status_code=400, detail="the mission you requested is closed"
         )
 
+    if len(mission.assignees) > 0:
+        raise HTTPException(
+            status_code=400, detail="the mission is already assigned"
+        )
+
     the_user = await get_user_by_username(username)
 
     if the_user is None:
