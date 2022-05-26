@@ -112,7 +112,7 @@ async def get_workshop_image(
     Define color
     """
     WORKING = (0, 255, 0)  # green 0
-    REPAIRING = (0, 69, 255)  # orange 1
+    REPAIRING = (0, 140, 255)  # orange 1
     HALT = (0, 0, 255)  # red 2
     POINT_SCALE = 120
 
