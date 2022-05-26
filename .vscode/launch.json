@@ -5,11 +5,21 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python: Background Daemon",
+      "type": "python",
+      "request": "launch",
+      "module": "app.background_service",
+      "justMyCode": true
+    },
+    {
       "name": "Python: FastAPI",
       "type": "python",
       "request": "launch",
       "module": "uvicorn",
-      "args": ["app.main:app", "--reload"],
+      "args": [
+        "app.main:app",
+        "--reload"
+      ],
       "jinja": true
     }
   ]
