@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 from fastapi.exceptions import HTTPException
-import ormar
+from ormar import or_, and_
 from app.models.schema import (
     DayAndNightUserOverview,
     DeviceExp,
@@ -140,7 +140,7 @@ async def get_user_subordinates_by_username(username: str):
             status=x["status"],
             total_dispatches=x["dispatch_count"],
             last_event_end_date=x["last_event_end_date"],
-            mission_duration=x['mission_duration'],
+            mission_duration=x["mission_duration"],
         )
         for x in result
     ]
@@ -191,6 +191,37 @@ async def move_user_to_position(username: str, device_id: str):
         )
 
 
+async def is_user_working_on_mission(username: str) -> bool:
+
+    the_user = await User.objects.filter(username=username).get_or_none()
+
+    if the_user is None:
+        raise HTTPException(
+            status_code=404, detail="the user with this id is not found"
+        )
+
+    # if worker has already working on other mission, skip
+    if (
+        await Mission.objects.filter(
+            and_(
+                # left: user still working on a mission, right: user is not accept a mission yet.
+                or_(
+                    and_(
+                        repair_start_date__isnull=False, repair_end_date__isnull=True,
+                    ),
+                    and_(repair_start_date__isnull=True, repair_end_date__isnull=True),
+                ),
+                assignees__username=username,
+                is_cancel=False,
+            )
+        ).count()
+        > 0
+    ):
+        return True
+
+    return False
+
+
 async def get_users_overview() -> DayAndNightUserOverview:
     users = await User.objects.select_related("location").all()
 
@@ -216,6 +247,9 @@ async def get_users_overview() -> DayAndNightUserOverview:
                 .filter(user=u, shift=s)
                 .all()
             )
+
+            if len(device_levels) == 0:
+                continue
 
             for dl in device_levels:
                 if overview.superior is None and dl.superior is not None:

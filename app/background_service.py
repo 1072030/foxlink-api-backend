@@ -3,7 +3,6 @@ import uuid
 import signal
 import time
 from databases import Database
-from ormar import or_, and_
 import pytz
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -12,7 +11,10 @@ from app.models.schema import MissionDto
 from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission
-from app.services.user import get_user_first_login_time_today
+from app.services.user import (
+    get_user_first_login_time_today,
+    is_user_working_on_mission,
+)
 from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import CST_TIMEZONE, get_shift_type_now, get_shift_type_by_datetime
 from app.mqtt.main import connect_mqtt, publish, disconnect_mqtt
@@ -464,25 +466,7 @@ async def dispatch_routine():
             continue
 
         # if worker has already working on other mission, skip
-        if (
-            await Mission.objects.filter(
-                and_(
-                    # left: user still working on a mission, right: user is not accept a mission yet.
-                    or_(
-                        and_(
-                            repair_start_date__isnull=False,
-                            repair_end_date__isnull=True,
-                        ),
-                        and_(
-                            repair_start_date__isnull=True, repair_end_date__isnull=True
-                        ),
-                    ),
-                    assignees__username=w.user.username,
-                    is_cancel=False,
-                )
-            ).count()
-            > 0
-        ):
+        if (await is_user_working_on_mission(w.user.username)) == True:
             continue
 
         worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
