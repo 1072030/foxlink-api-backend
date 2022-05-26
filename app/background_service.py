@@ -255,6 +255,9 @@ async def worker_monitor_routine():
             ):
                 continue
 
+            if (await is_user_working_on_mission(w.username)) is True:
+                continue
+
             factory_map = await FactoryMap.objects.filter(id=w.location).get()
             rescue_distances = []
 
@@ -275,6 +278,10 @@ async def worker_monitor_routine():
                         "distance": factory_map.map[worker_device_idx][rescue_idx],
                     }
                 )
+
+            await WorkerStatus.objects.filter(worker=w.username).update(
+                status=WorkerStatusEnum.working.value
+            )
 
             # create a go-to-rescue-station mission for those workers who are not at rescue station and idle above threshold duration.
             to_rescue_station = dispatch.move_to_rescue(rescue_distances)
