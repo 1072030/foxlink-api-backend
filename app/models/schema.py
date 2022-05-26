@@ -61,6 +61,7 @@ class MissionUpdate(MissionBase):
 class DeviceDto(BaseModel):
     device_id: str
     device_name: str
+    device_cname: Optional[str]
     project: str
     process: Optional[str]
     line: Optional[int]
@@ -111,6 +112,7 @@ class MissionDto(BaseModel):
             device=DeviceDto(
                 device_id=m.device.id,
                 device_name=m.device.device_name,
+                device_cname=m.device.device_cname,
                 project=m.device.project,
                 process=m.device.process,
                 line=m.device.line,
@@ -177,6 +179,7 @@ class DeviceOut(BaseModel):
     process: Optional[str]
     line: Optional[int]
     device_name: str
+    device_cname: Optional[str]
     workshop: str
     x_axis: float
     y_axis: float
@@ -191,6 +194,7 @@ class DeviceOut(BaseModel):
             process=device.process,
             line=device.line,
             device_name=device.device_name,
+            device_cname=device.device_cname,
             workshop=device.workshop.name,
             sop_link=device.sop_link,
             x_axis=device.x_axis,

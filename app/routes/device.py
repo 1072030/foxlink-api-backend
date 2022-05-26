@@ -17,7 +17,7 @@ async def get_all_devices(
 
     devices = (
         await Device.objects.select_related("workshop")
-        .exclude_fields(["workshop__map", "workshop__related_devices"])
+        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
         .filter(**params)  # type:ignore
         .all()
     )
@@ -54,7 +54,7 @@ async def get_device_by_id(
 ):
     device = (
         await Device.objects.select_related("workshop")
-        .exclude_fields(["workshop__map", "workshop__related_devices"])
+        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
         .filter(id=device_id)
         .get_or_none()
     )
