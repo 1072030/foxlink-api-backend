@@ -26,23 +26,20 @@ def generate_device_id(project: str, line: int, device_name: str) -> str:
 async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFrame]:
     raw_excel: bytes = await excel_file.read()
     frame: pd.DataFrame = pd.read_excel(raw_excel, sheet_name=0)
-    workshop_name: str = ""
+    workshop_name: str = frame.workshop.unique()[0]
 
     create_device_bulk: List[Device] = []
     update_device_bulk: List[Device] = []
     device_name_dict: Dict[str, bool] = {}
 
-    device_infos = await foxlink_db.get_device_cname("FQ-9車間")
+    device_infos = await foxlink_db.get_device_cname(workshop_name)
 
     # if device_infos is not None:
     #     for d in create_device_bulk:
     #         d.device_cname =
 
     for index, row in frame.iterrows():
-        workshop = await FactoryMap.objects.get_or_none(name=row["workshop"])
-
-        if workshop_name == "":
-            workshop_name = row["workshop"]
+        workshop = await FactoryMap.objects.exclude_fields(['related_devices', 'map', 'image']).get_or_none(name=row["workshop"])
 
         if workshop is None:
             workshop = await FactoryMap.objects.create(
@@ -72,6 +69,18 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
             is_rescue=is_rescue,
             workshop=workshop,
         )
+
+        if device.is_rescue:
+            device.device_cname = f"{workshop_name} - {device.device_name} 號救援站"
+
+        if device_infos is not None and not device.is_rescue:
+            mapping_project = [k for k in device_infos.keys() if device.project in k]
+            if len(mapping_project) != 0:
+                infos = device_infos[mapping_project[0]]
+                for item in infos:
+                    if item['Line'] == device.line and item['Device_Name'] == device.device_name:
+                        device.device_cname = ', '.join(item['Dev_Func'])
+                        break
 
         is_device_existed = await Device.objects.filter(id=device_id).count()
         if is_device_existed == 0:
