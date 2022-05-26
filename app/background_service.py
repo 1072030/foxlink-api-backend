@@ -1,4 +1,5 @@
 import logging, asyncio, aiohttp
+import uuid
 import signal
 import time
 from databases import Database
@@ -14,7 +15,7 @@ from app.services.mission import assign_mission
 from app.services.user import get_user_first_login_time_today
 from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import CST_TIMEZONE, get_shift_type_now, get_shift_type_by_datetime
-from app.mqtt.main import publish
+from app.mqtt.main import connect_mqtt, publish, disconnect_mqtt
 from app.env import (
     FOXLINK_DB_HOSTS,
     FOXLINK_DB_PWD,
@@ -24,6 +25,7 @@ from app.env import (
     EMQX_USERNAME,
     EMQX_PASSWORD,
     MOVE_TO_RESCUE_STATION_TIME,
+    MQTT_PORT,
     OVERTIME_MISSION_NOTIFY_PERIOD,
 )
 from app.core.database import (
@@ -513,7 +515,7 @@ async def dispatch_routine():
         w_list.append(item)
 
     if len(w_list) == 0:
-        logger.warn(
+        logger.warning(
             f"no worker available to dispatch for mission: (mission_id: {mission_1st_id}, device_id: {mission_1st.device.id})"
         )
         publish(
@@ -747,11 +749,11 @@ def graceful_shutdown(signal, frame):
 async def main_routine():
     global kill_now
 
+    connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
     await database.connect()
     await foxlink_daemon.connect()
 
     while not kill_now:
-        logger.info("run")
         await asyncio.gather(
             auto_close_missions(),
             worker_monitor_routine(),
@@ -763,7 +765,9 @@ async def main_routine():
 
         time.sleep(5)
 
+    logger.warning("Shutting down...")
     await database.disconnect()
+    disconnect_mqtt()
 
 
 if __name__ == "__main__":

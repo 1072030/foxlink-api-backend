@@ -19,6 +19,7 @@ from app.mqtt.main import connect_mqtt, disconnect_mqtt
 from app.my_log_conf import LOGGER_NAME, LogConfig
 from fastapi.middleware.cors import CORSMiddleware
 from app.foxlink_db import foxlink_db
+import uuid
 
 
 dictConfig(LogConfig().dict())
@@ -53,9 +54,10 @@ app.include_router(device.router)
 app.include_router(workshop.router)
 app.include_router(test.router)
 
+
 @app.on_event("startup")
 async def startup():
-    connect_mqtt(MQTT_BROKER, MQTT_PORT, "foxlink-api-server")
+    connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
     await database.connect()
     await foxlink_db.connect()
     logger.info("Foxlink API Server startup complete.")
