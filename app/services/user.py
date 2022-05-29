@@ -260,6 +260,7 @@ async def get_users_overview() -> DayAndNightUserOverview:
                     DeviceExp(
                         project=dl.device.project,
                         process=dl.device.process,
+                        device_name=dl.device.device_name,
                         line=dl.device.line,
                         exp=dl.level,
                     )

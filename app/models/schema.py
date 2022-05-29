@@ -156,6 +156,7 @@ class ImportDevicesOut(BaseModel):
 class DeviceExp(BaseModel):
     project: str
     process: Optional[str]
+    device_name: str
     line: int
     exp: int
 
