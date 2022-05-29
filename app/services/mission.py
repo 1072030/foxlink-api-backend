@@ -35,9 +35,10 @@ async def get_mission_by_id(id: int) -> Optional[Mission]:
 
 async def get_missions_by_username(username: str):
     missions = (
-        await Mission.objects.select_related(["assignees", "device", "missionevents"])
+        await Mission.objects.select_related(["assignees", "device", "missionevents", "workshop"])
+        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
         .filter(assignees__username=username)
-        .order_by("created_date")
+        .order_by("-created_date")
         .all()
     )
     return missions

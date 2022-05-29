@@ -103,7 +103,8 @@ async def get_user_first_login_time_today(username: str) -> Optional[datetime]:
 async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(assignees__username=username)
-        .select_related("device")
+        .select_related(["device", "workshop"])
+        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
         .order_by("-created_date")
         .limit(10)
         .all()

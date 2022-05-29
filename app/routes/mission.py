@@ -48,7 +48,17 @@ async def get_missions_by_query(
 
     params = {k: v for k, v in params.items() if v is not None}
 
-    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(**params).order_by("-created_date").all()  # type: ignore
+    missions = (
+        await Mission.objects.select_related(
+            ["device", "assignees", "missionevents", "workshop"]
+        )
+        .exclude_fields(
+            ["workshop__map", "workshop__related_devices", "workshop__image"]
+        )
+        .filter(**params) # type: ignore
+        .order_by("-created_date")
+        .all()
+    )
 
     if is_assigned is not None:
         if is_assigned:
@@ -78,7 +88,18 @@ async def get_self_mission(
     }
     params = {k: v for k, v in params.items() if v is not None}
 
-    missions = await Mission.objects.select_related(["device", "assignees", "missionevents"]).filter(assignees__username=user.username, **params).order_by("-created_date").all()  # type: ignore
+    missions = (
+        await Mission.objects.select_related(
+            ["device", "assignees", "missionevents", "workshop"]
+        )
+        .exclude_fields(
+            ["workshop__map", "workshop__related_devices", "workshop__image"]
+        )
+        .filter(assignees__username=user.username, **params) # type: ignore
+        .order_by("-created_date")
+        .all()
+    )
+    
     if is_assigned is not None:
         if is_assigned:
             missions = [mission for mission in missions if len(mission.assignees) > 0]

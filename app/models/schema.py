@@ -62,6 +62,7 @@ class DeviceDto(BaseModel):
     device_id: str
     device_name: str
     device_cname: Optional[str]
+    workshop: str
     project: str
     process: Optional[str]
     line: Optional[int]
@@ -113,6 +114,7 @@ class MissionDto(BaseModel):
                 device_id=m.device.id,
                 device_name=m.device.device_name,
                 device_cname=m.device.device_cname,
+                workshop=m.device.workshop.name,
                 project=m.device.project,
                 process=m.device.process,
                 line=m.device.line,
