@@ -29,8 +29,22 @@ async def get_missions() -> List[Mission]:
 
 
 async def get_mission_by_id(id: int) -> Optional[Mission]:
-    item = await Mission.objects.select_all().get_or_none(id=id)
-    return item
+    mission = (
+        await Mission.objects.select_related(
+            ["assignees", "device", "missionevents", "device__workshop"]
+        )
+        .exclude_fields(
+            [
+                "device__workshop__map",
+                "device__workshop__related_devices",
+                "device__workshop__image",
+            ]
+        )
+        .filter(id=id)
+        .get_or_none()
+    )
+
+    return mission
 
 
 async def get_missions_by_username(username: str):
