@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFil
 from ormar import NoMatch
 from app.core.database import FactoryMap, User, database
 from app.models.schema import DeviceStatus, DeviceStatusEnum
-from app.services.auth import get_manager_active_user
+from app.services.auth import get_current_active_user, get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
 from urllib.parse import quote
 
@@ -95,7 +95,7 @@ async def upload_workshop_image(
     },
 )
 async def get_workshop_image(
-    workshop_name: str, user: User = Depends(get_manager_active_user)
+    workshop_name: str, user: User = Depends(get_current_active_user)
 ):
     # teddy-dev
     w = (
