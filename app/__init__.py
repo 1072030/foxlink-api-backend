@@ -1,6 +1,5 @@
 import pymysql
+from app.env import PY_ENV
 
-# import nest_asyncio
-
-pymysql.install_as_MySQLdb()
-# nest_asyncio.apply()
+if PY_ENV == "dev":
+    pymysql.install_as_MySQLdb()
