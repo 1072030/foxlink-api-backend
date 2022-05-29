@@ -442,7 +442,7 @@ async def dispatch_routine():
     )
 
     if len(can_dispatch_workers) == 0:
-        logger.warn(f"No workers available to dispatch for mission {mission_1st.id}")
+        logger.warning(f"No workers available to dispatch for mission {mission_1st.id}")
         publish(
             "foxlink/no-available-worker",
             MissionDto.from_mission(mission_1st).dict(),
