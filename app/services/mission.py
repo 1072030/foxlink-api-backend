@@ -35,8 +35,16 @@ async def get_mission_by_id(id: int) -> Optional[Mission]:
 
 async def get_missions_by_username(username: str):
     missions = (
-        await Mission.objects.select_related(["assignees", "device", "missionevents", "workshop"])
-        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
+        await Mission.objects.select_related(
+            ["assignees", "device", "missionevents", "device__workshop"]
+        )
+        .exclude_fields(
+            [
+                "device__workshop__map",
+                "device__workshop__related_devices",
+                "device__workshop__image",
+            ]
+        )
         .filter(assignees__username=username)
         .order_by("-created_date")
         .all()
@@ -323,9 +331,7 @@ async def assign_mission(mission_id: int, username: str):
         )
 
     if len(mission.assignees) > 0:
-        raise HTTPException(
-            status_code=400, detail="the mission is already assigned"
-        )
+        raise HTTPException(status_code=400, detail="the mission is already assigned")
 
     the_user = await get_user_by_username(username)
 
