@@ -21,7 +21,7 @@ async def get_workshop_info_by_query(
 ):
     query = {"id": workshop_id, "name": workshop_name}
     query = {k: v for k, v in query.items() if v is not None}
-    return await FactoryMap.objects.filter(**query).all()  # type: ignore
+    return await FactoryMap.objects.filter(**query).exclude_fields(["image", "map"]).all()  # type: ignore
 
 
 @router.get("/list", tags=["workshop"], description="Get a list of all workshop's name")
