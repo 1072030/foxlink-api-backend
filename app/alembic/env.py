@@ -7,6 +7,9 @@ from app.core.database import metadata
 from alembic import context
 import os, sys
 from dotenv import load_dotenv
+import pymysql
+pymysql.install_as_MySQLdb()
+
 
 myPath = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, myPath + "/../../")
