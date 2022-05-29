@@ -62,7 +62,7 @@ class DeviceDto(BaseModel):
     device_id: str
     device_name: str
     device_cname: Optional[str]
-    workshop: str
+    workshop: Optional[str]
     project: str
     process: Optional[str]
     line: Optional[int]
