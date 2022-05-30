@@ -331,7 +331,7 @@ async def check_mission_duration_routine():
 
     for m in working_missions:
         for idx in range(len(standardize_thresholds) - 1, -1, -1):
-            if m.duration.total_seconds() >= standardize_thresholds[idx]:
+            if m.duration.total_seconds() >= standardize_thresholds[idx] * 60:
                 is_sent = await AuditLogHeader.objects.filter(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
