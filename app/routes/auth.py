@@ -65,7 +65,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             if worker_status.status == WorkerStatusEnum.leave.value:
                 worker_status.status = WorkerStatusEnum.idle.value
 
-            await Mission.objects.select_related(['device']).filter(
+            await Mission.objects.select_related(['device', 'assignees']).filter(
                 assignees__username=user.username, is_cancel=False, device__is_rescue=True,
             ).update(is_cancel=True)
 
