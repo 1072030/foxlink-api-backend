@@ -39,7 +39,9 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
     #         d.device_cname =
 
     for index, row in frame.iterrows():
-        workshop = await FactoryMap.objects.exclude_fields(['related_devices', 'map', 'image']).get_or_none(name=row["workshop"])
+        workshop = await FactoryMap.objects.exclude_fields(
+            ["related_devices", "map", "image"]
+        ).get_or_none(name=row["workshop"])
 
         if workshop is None:
             workshop = await FactoryMap.objects.create(
@@ -78,8 +80,11 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
             if len(mapping_project) != 0:
                 infos = device_infos[mapping_project[0]]
                 for item in infos:
-                    if item['Line'] == device.line and item['Device_Name'] == device.device_name:
-                        device.device_cname = ', '.join(item['Dev_Func'])
+                    if (
+                        item["Line"] == device.line
+                        and item["Device_Name"] == device.device_name
+                    ):
+                        device.device_cname = ", ".join(item["Dev_Func"])
                         break
 
         is_device_existed = await Device.objects.filter(id=device_id).count()
@@ -180,21 +185,24 @@ async def import_factory_worker_infos(
         raise HTTPException(status_code=400, detail=repr(e))
 
     factory_worker_info, params = data["result"], data["parameter"]
-
+    workshop_id_mapping: Dict[str, int] = {}
     full_name_mapping: Dict[str, str] = {}
     create_user_bulk: List[User] = []
     update_user_bulk: List[User] = []
     for index, row in factory_worker_info.iterrows():
-        workshop = (
-            await FactoryMap.objects.filter(name=row["workshop"])
-            .fields(["id", "name"])
-            .get_or_none()
-        )
-
-        if workshop is None:
-            raise HTTPException(
-                status_code=400, detail=f"unknown workshop name: {row['workshop']}"
+        if workshop_id_mapping.get(row["workshop"]) is None:
+            workshop = (
+                await FactoryMap.objects.filter(name=row["workshop"])
+                .fields(["id", "name"])
+                .get_or_none()
             )
+
+            if workshop is None:
+                raise HTTPException(
+                    status_code=400, detail=f"unknown workshop name: {row['workshop']}"
+                )
+
+            workshop_id_mapping[workshop.name] = workshop.id
 
         full_name_mapping[row["worker_name"]] = str(row["worker_id"])
         worker = await User.objects.get_or_none(username=row["worker_id"])
@@ -216,7 +224,7 @@ async def import_factory_worker_infos(
                 username=str(row["worker_id"]),
                 full_name=row["worker_name"],
                 password_hash=get_password_hash("foxlink"),
-                location=workshop.id,
+                location=workshop_id_mapping[row["workshop"]],
                 is_active=True,
                 expertises=[],
                 level=row["job"],
@@ -226,13 +234,24 @@ async def import_factory_worker_infos(
             worker = User(
                 username=str(row["worker_id"]),
                 full_name=row["worker_name"],
-                location=workshop.id,
+                location=workshop_id_mapping[row["workshop"]],
                 level=row["job"],
                 # ignore fields to prevent pydantic error
                 expertises=[],
                 password_hash="",
             )
             update_user_bulk.append(worker)
+
+    delete_user_bulk: List[str] = []
+
+    for w_id in workshop_id_mapping.values():
+        all_workers_in_workshop = await User.objects.filter(location=w_id).all()
+
+        for u in all_workers_in_workshop:
+            if u.username not in full_name_mapping.values():
+                delete_user_bulk.append(u.username)
+
+    await User.objects.filter(username__in=delete_user_bulk).delete(each=True)
 
     await User.objects.bulk_update(
         update_user_bulk, columns=["full_name", "location", "level"]
