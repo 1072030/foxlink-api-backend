@@ -2,7 +2,7 @@ import datetime, logging
 from typing import List, Any
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.core.database import Mission, WorkerStatus
+from app.core.database import Mission, WorkerStatus, UserLevel
 import asyncio
 from app.env import LOGGER_NAME
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -90,7 +90,11 @@ LEFT JOIN users u ON u.username = ws.worker;
 
 @router.get("/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
 async def get_all_worker_status():
-    states = await WorkerStatus.objects.select_related(["worker"]).all()
+    states = (
+        await WorkerStatus.objects.select_related(["worker"])
+        .filter(worker__level=UserLevel.maintainer.value)
+        .all()
+    )
 
     resp: List[WorkerStatusDto] = []
 
