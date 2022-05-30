@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from fastapi.exceptions import HTTPException
 from ormar import or_, and_
 from app.models.schema import (
@@ -9,6 +9,7 @@ from app.models.schema import (
     SubordinateOut,
     UserCreate,
     UserOverviewOut,
+    WorkerSummary,
 )
 from passlib.context import CryptContext
 from app.core.database import (
@@ -18,10 +19,11 @@ from app.core.database import (
     Mission,
     User,
     UserDeviceLevel,
+    UserLevel,
     WorkerStatus,
     database,
 )
-from app.models.schema import DeviceDto, MissionDto
+from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -104,7 +106,13 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(assignees__username=username)
         .select_related(["device", "device__workshop"])
-        .exclude_fields(["device__workshop__map", "device__workshop__related_devices", "device__workshop__image"])
+        .exclude_fields(
+            [
+                "device__workshop__map",
+                "device__workshop__related_devices",
+                "device__workshop__image",
+            ]
+        )
         .order_by("-created_date")
         .limit(10)
         .all()
@@ -272,3 +280,92 @@ async def get_users_overview() -> DayAndNightUserOverview:
                 night_overview.append(overview)
 
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
+
+
+async def get_user_summary(username: str) -> Optional[WorkerSummary]:
+    TIMEZONE_OFFSET = 8
+    WEEK_START = 1  # the week should start on Sunday or Monday or even else.
+
+    worker = await User.objects.filter(username=username).get_or_none()
+
+    if worker is None:
+        raise HTTPException(
+            status_code=404, detail="the user with this id is not found"
+        )
+
+    if worker.level != UserLevel.maintainer.value:
+        return None
+
+    user_login_days_this_month = await database.fetch_all(
+        f"""
+        SELECT DATE(loginrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, TIME(loginrecord.created_date + HOUR({TIMEZONE_OFFSET})) as `time`, loginrecord.description
+        FROM auditlogheaders loginrecord,
+        (
+            SELECT action, MIN(created_date) min_login_date , DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+            FROM auditlogheaders
+            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
+            GROUP BY DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+        ) min_login
+        WHERE loginrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND loginrecord.created_date = min_login.min_login_date;
+        """,
+    )
+
+    user_logout_days_this_month = await database.fetch_all(
+        f"""
+        SELECT DATE(logoutrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, TIME(logoutrecord.created_date + HOUR({TIMEZONE_OFFSET})) as `time`, logoutrecord.description
+        FROM auditlogheaders logoutrecord,
+        (
+            SELECT action, MIN(created_date) max_logout_date , DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+            FROM auditlogheaders
+            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
+            GROUP BY DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+        ) max_logout
+        WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
+        """,
+    )
+
+    total_accepted_count_this_month = await database.fetch_all(
+        f"""
+        SELECT COUNT(DISTINCT record_pk)
+        FROM auditlogheaders
+        WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
+        AND user='{username}'
+        AND MONTH(`created_date` + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
+        """,
+    )
+
+    total_accepted_count_this_week = await database.fetch_all(
+        f"""
+        SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
+        WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
+        AND user='{username}'
+        AND YEARWEEK(`created_date` + HOUR({TIMEZONE_OFFSET}), {WEEK_START}) = YEARWEEK(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}), {WEEK_START})
+        """,
+    )
+
+    total_rejected_count_this_month = await database.fetch_all(
+        f"""
+        SELECT COUNT(DISTINCT record_pk)
+        FROM auditlogheaders
+        WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
+        AND user='{username}'
+        AND MONTH(`created_date` + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
+        """,
+    )
+
+    total_rejected_count_this_week = await database.fetch_all(
+        f"""
+        SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
+        WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
+        AND user='{username}'
+        AND YEARWEEK(`created_date` + HOUR({TIMEZONE_OFFSET}), {WEEK_START}) = YEARWEEK(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}), {WEEK_START})
+        """,
+    )
+
+    return WorkerSummary(
+        total_accepted_count_this_month=total_accepted_count_this_month[0][0],
+        total_accepted_count_this_week=total_accepted_count_this_week[0][0],
+        total_rejected_count_this_week=total_rejected_count_this_month[0][0],
+        total_rejected_count_this_month=total_rejected_count_this_week[0][0],
+    )
+

@@ -16,6 +16,7 @@ from app.core.database import (
 from app.services.user import (
     get_user_subordinates_by_username,
     get_user_first_login_time_today,
+    get_user_summary,
     get_users,
     create_user,
     get_password_hash,
@@ -37,7 +38,7 @@ from app.models.schema import (
     UserCreate,
     UserChangePassword,
     UserOut,
-    UserOutWithWorkTime,
+    UserOutWithWorkTimeAndSummary,
     UserOverviewOut,
     UserPatch,
     MissionDto,
@@ -76,7 +77,7 @@ async def create_a_new_user(
     return await create_user(dto)
 
 
-@router.get("/info", response_model=UserOutWithWorkTime, tags=["users"])
+@router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_active_user)):
     first_login_timestamp = await get_user_first_login_time_today(user.username)
 
@@ -95,8 +96,11 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
         ).total_seconds() / 60
     else:
         total_mins = 0
-    return UserOutWithWorkTime(
-        workshop=workshop_name, work_time=total_mins, **user.dict()
+
+    summary = await get_user_summary(user.username)
+
+    return UserOutWithWorkTimeAndSummary(
+        summary=summary, workshop=workshop_name, work_time=total_mins, **user.dict()
     )
 
 
