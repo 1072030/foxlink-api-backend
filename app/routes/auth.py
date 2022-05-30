@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 from app.services.auth import authenticate_user, create_access_token
-from datetime import timedelta
+from datetime import datetime, timedelta
 from app.core.database import (
     AuditLogHeader,
     AuditActionEnum,
@@ -60,7 +60,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if user.level == UserLevel.maintainer.value and is_first_login_today:
         worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
         if worker_status is not None:
-            worker_status.last_event_end_date = today_login_timestamp  # type: ignore
+            worker_status.last_event_end_date = datetime.utcnow()  # type: ignore
 
             if worker_status.status == WorkerStatusEnum.leave.value:
                 worker_status.status = WorkerStatusEnum.idle.value
