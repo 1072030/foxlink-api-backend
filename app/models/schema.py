@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Optional, List
 from pydantic import BaseModel
-import datetime
+from datetime import datetime, date, timedelta
 from app.core.database import (
     CategoryPRI,
     Device,
@@ -12,14 +12,19 @@ from app.core.database import (
     WorkerStatusEnum,
 )
 
-
 # * User
+class WorkerAttendance(BaseModel):
+    date: date
+    login_datetime: datetime
+    logout_datetime: Optional[datetime]
+    logout_reason: Optional[str]
+
 class WorkerSummary(BaseModel):
+    worker_attendances: List[WorkerAttendance]
     total_accepted_count_this_week: int
     total_accepted_count_this_month: int
     total_rejected_count_this_week: int
     total_rejected_count_this_month: int
-
 
 class UserBase(BaseModel):
     username: str
@@ -85,8 +90,8 @@ class MissionEventOut(BaseModel):
     category: int
     message: str
     done_verified: bool
-    event_start_date: datetime.datetime
-    event_end_date: Optional[datetime.datetime]
+    event_start_date: datetime
+    event_end_date: Optional[datetime]
 
     @classmethod
     def from_missionevent(cls, e: MissionEvent):
@@ -110,8 +115,8 @@ class MissionDto(BaseModel):
     is_closed: bool
     is_cancel: bool
     is_emergency: bool
-    created_date: datetime.datetime
-    updated_date: datetime.datetime
+    created_date: datetime
+    updated_date: datetime
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -145,7 +150,7 @@ class MissionDto(BaseModel):
 class WorkerStatusDto(BaseModel):
     worker_id: str
     worker_name: str
-    last_event_end_date: datetime.datetime
+    last_event_end_date: datetime
     at_device: Optional[str]
     status: WorkerStatusEnum
     total_dispatches: int

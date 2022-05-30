@@ -9,6 +9,7 @@ from app.models.schema import (
     SubordinateOut,
     UserCreate,
     UserOverviewOut,
+    WorkerAttendance,
     WorkerSummary,
 )
 from passlib.context import CryptContext
@@ -296,9 +297,11 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
     if worker.level != UserLevel.maintainer.value:
         return None
 
+    worker_attendances: List[WorkerAttendance] = []
+
     user_login_days_this_month = await database.fetch_all(
         f"""
-        SELECT DATE(loginrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, TIME(loginrecord.created_date + HOUR({TIMEZONE_OFFSET})) as `time`, loginrecord.description
+        SELECT DATE(loginrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
         FROM auditlogheaders loginrecord,
         (
             SELECT action, MIN(created_date) min_login_date , DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
@@ -312,17 +315,26 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
 
     user_logout_days_this_month = await database.fetch_all(
         f"""
-        SELECT DATE(logoutrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, TIME(logoutrecord.created_date + HOUR({TIMEZONE_OFFSET})) as `time`, logoutrecord.description
+        SELECT DATE(logoutrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
         FROM auditlogheaders logoutrecord,
         (
             SELECT action, MIN(created_date) max_logout_date , DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
             FROM auditlogheaders
-            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
+            WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{username}'
             GROUP BY DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
         ) max_logout
-        WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
+        WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGOUT.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
         """,
     )
+
+    for login_record in user_login_days_this_month:
+        a = WorkerAttendance(date=login_record[0], login_datetime=login_record[1])
+        for logout_record in user_logout_days_this_month:
+            if login_record[0] == logout_record[0]:
+                a.logout_datetime = logout_record[1]
+                a.logout_reason = logout_record[2]
+                break
+        worker_attendances.append(a)
 
     total_accepted_count_this_month = await database.fetch_all(
         f"""
@@ -363,6 +375,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
     )
 
     return WorkerSummary(
+        worker_attendances=worker_attendances,
         total_accepted_count_this_month=total_accepted_count_this_month[0][0],
         total_accepted_count_this_week=total_accepted_count_this_week[0][0],
         total_rejected_count_this_week=total_rejected_count_this_month[0][0],
