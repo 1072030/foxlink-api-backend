@@ -14,6 +14,13 @@ from app.core.database import (
 
 
 # * User
+class WorkerSummary(BaseModel):
+    total_accepted_count_this_week: int
+    total_accepted_count_this_month: int
+    total_rejected_count_this_week: int
+    total_rejected_count_this_month: int
+
+
 class UserBase(BaseModel):
     username: str
     full_name: str
@@ -38,8 +45,9 @@ class UserOut(UserBase):
     is_changepwd: bool
 
 
-class UserOutWithWorkTime(UserOut):
+class UserOutWithWorkTimeAndSummary(UserOut):
     work_time: int
+    summary: Optional[WorkerSummary]
 
 
 class UserChangePassword(BaseModel):
