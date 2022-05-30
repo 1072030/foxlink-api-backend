@@ -35,17 +35,7 @@
   ]
 }
 ```
-2. 當完成任務後，系統通知前往救援站待命時
-```jsonc
-{
-  "type": "rescue",
-  "mission_id": 1, // 前往救援站任務 ID
-  "name": "任務名稱",
-  "description": "任務的敘述",
-  "rescue_station": "要前往的救援站 ID"
-}
-```
-3. 當下屬標記某個任務為緊急任務時，系統通知上屬
+2. 當下屬標記某個任務為緊急任務時，系統通知上屬
 ```jsonc
 {
   "type" : "emergency",
@@ -69,6 +59,16 @@
     "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
     "event_end_date" : null
   ]
+}
+```
+- foxlink/mission/move-rescue-station - 當完成任務後，系統通知前往救援站待命時
+```jsonc
+{
+  "type": "rescue",
+  "mission_id": 1, // 前往救援站任務 ID
+  "name": "任務名稱",
+  "description": "任務的敘述",
+  "rescue_station": "要前往的救援站 ID"
 }
 ```
 - foxlink/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
