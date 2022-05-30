@@ -1,7 +1,14 @@
 import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends
-from app.core.database import AuditActionEnum, AuditLogHeader, User, Mission, database
+from app.core.database import (
+    AuditActionEnum,
+    AuditLogHeader,
+    User,
+    Mission,
+    UserLevel,
+    database,
+)
 from app.services.mission import (
     accept_mission,
     cancel_mission_by_id,
@@ -125,6 +132,11 @@ async def get_a_mission_by_id(
 
     if m is None:
         raise HTTPException(404, "the mission you request is not found")
+
+    if user.level == UserLevel.maintainer.value and user.username not in [
+        n.username for n in m.assignees
+    ]:
+        raise HTTPException(401, "you are not one of this mission's assignees")
 
     return MissionDto.from_mission(m)
 
