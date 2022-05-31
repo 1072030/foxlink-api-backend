@@ -301,13 +301,13 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
 
     user_login_days_this_month = await database.fetch_all(
         f"""
-        SELECT DATE(loginrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
+        SELECT DATE(ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
         FROM auditlogheaders loginrecord,
         (
-            SELECT action, MIN(created_date) min_login_date , DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+            SELECT action, MIN(created_date) min_login_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
             FROM auditlogheaders
             WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
-            GROUP BY DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+            GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
         ) min_login
         WHERE loginrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND loginrecord.created_date = min_login.min_login_date;
         """,
@@ -315,13 +315,13 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
 
     user_logout_days_this_month = await database.fetch_all(
         f"""
-        SELECT DATE(logoutrecord.created_date + HOUR({TIMEZONE_OFFSET})) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
+        SELECT DATE(ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
         FROM auditlogheaders logoutrecord,
         (
-            SELECT action, MIN(created_date) max_logout_date , DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+            SELECT action, MAX(created_date) max_logout_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
             FROM auditlogheaders
             WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{username}'
-            GROUP BY DAY(`created_date` + HOUR({TIMEZONE_OFFSET}))
+            GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
         ) max_logout
         WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGOUT.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
         """,
