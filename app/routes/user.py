@@ -140,11 +140,8 @@ async def get_off_work(
 async def update_user_information(
     username: str, dto: UserPatch, user: User = Depends(get_current_active_user)
 ):
-    if user.is_admin is False and username != user.username:
-        raise HTTPException(
-            status_code=400,
-            detail="You are not allowed to change other user's information",
-        )
+    if user.level < UserLevel.manager.value:
+        raise HTTPException(401, "You do not have permission to do this")
 
     return await update_user(username, **dto.dict())
 

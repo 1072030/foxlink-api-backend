@@ -67,9 +67,14 @@ async def update_user(username: str, **kwargs):
 
     try:
         filtered = {k: v for k, v in kwargs.items() if v is not None}
+
+        if filtered.get('password') is not None:
+            filtered['password_hash'] = get_password_hash(filtered['password'])
+            del filtered['password']
+            
         await user.update(None, **filtered)
     except Exception as e:
-        raise HTTPException(status_code=400, detail="cannot update user:" + str(e))
+        raise HTTPException(status_code=400, detail="cannot update user:" + repr(e))
 
     return user
 

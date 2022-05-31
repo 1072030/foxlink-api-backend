@@ -19,12 +19,14 @@ class WorkerAttendance(BaseModel):
     logout_datetime: Optional[datetime]
     logout_reason: Optional[str]
 
+
 class WorkerSummary(BaseModel):
     worker_attendances: List[WorkerAttendance]
     total_accepted_count_this_week: int
     total_accepted_count_this_month: int
     total_rejected_count_this_week: int
     total_rejected_count_this_month: int
+
 
 class UserBase(BaseModel):
     username: str
@@ -41,6 +43,7 @@ class UserCreate(UserBase):
 class UserPatch(BaseModel):
     full_name: Optional[str]
     expertises: Optional[List[str]]
+    password: Optional[str]
 
 
 class UserOut(UserBase):
