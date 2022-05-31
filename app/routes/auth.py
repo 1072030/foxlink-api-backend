@@ -66,9 +66,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         and worker_status.status == WorkerStatusEnum.leave.value
     ):
         if await is_user_working_on_mission(user.username):
-            await worker_status.update(status=WorkerStatusEnum.idle.value)
-        else:
             await worker_status.update(status=WorkerStatusEnum.working.value)
+        else:
+            await worker_status.update(status=WorkerStatusEnum.idle.value)
 
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value and is_first_login_today:
