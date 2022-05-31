@@ -107,6 +107,9 @@ async def get_workshop_image(
     if w is None:
         raise HTTPException(404, "the workshop is not found")
 
+    if w.image is None:
+        raise HTTPException(404, "the workshop image is not yet uploaded")
+
     # process
     """
     Define color
