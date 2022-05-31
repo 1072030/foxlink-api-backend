@@ -13,7 +13,10 @@ from app.core.database import (
     WorkerStatus,
     WorkerStatusEnum,
 )
-from app.services.user import get_user_first_login_time_today
+from app.services.user import (
+    get_user_first_login_time_today,
+    is_user_working_on_mission,
+)
 
 
 class Token(BaseModel):
@@ -58,17 +61,29 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
 
-    if worker_status is not None and worker_status.status == WorkerStatusEnum.leave.value:
-        await worker_status.update(status=WorkerStatusEnum.idle.value)
+    if (
+        worker_status is not None
+        and worker_status.status == WorkerStatusEnum.leave.value
+    ):
+        if await is_user_working_on_mission(user.username):
+            await worker_status.update(status=WorkerStatusEnum.idle.value)
+        else:
+            await worker_status.update(status=WorkerStatusEnum.working.value)
 
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value and is_first_login_today:
         if worker_status is not None:
             worker_status.last_event_end_date = datetime.utcnow()  # type: ignore
 
-            rescue_missions = await Mission.objects.select_related(["device", "assignees"]).filter(
-                device__is_rescue=True, assignees__username=user.username, is_cancel=False,
-            ).all()
+            rescue_missions = (
+                await Mission.objects.select_related(["device", "assignees"])
+                .filter(
+                    device__is_rescue=True,
+                    assignees__username=user.username,
+                    is_cancel=False,
+                )
+                .all()
+            )
 
             for r in rescue_missions:
                 await r.update(is_cancel=True)
