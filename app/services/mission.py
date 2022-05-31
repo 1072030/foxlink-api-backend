@@ -384,6 +384,7 @@ async def assign_mission(mission_id: int, username: str):
                 ],
             },
             qos=1,
+            retain=True,
         )
     else:
         raise HTTPException(400, detail="the user is already assigned to this mission")
