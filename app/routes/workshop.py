@@ -118,6 +118,7 @@ async def get_workshop_image(
     REPAIRING = (0, 140, 255)  # orange 1
     HALT = (0, 0, 255)  # red 2
     POINT_SCALE = 120
+    MAX_IMG_VALUE = 600
 
     all_devices_status = await get_all_devices_status(workshop_name)
 
@@ -145,6 +146,11 @@ async def get_workshop_image(
             color,
             -1,
         )
+    
+    bigger_side = max(height, width)
+    scale_rate = MAX_IMG_VALUE / bigger_side
+    n_h, n_w = int(height * scale_rate), int(width * scale_rate)
+    img = cv2.resize(img, (n_w, n_h), interpolation = cv2.INTER_AREA)
 
     _, im_buf_arr = cv2.imencode(".png", img)
     return Response(im_buf_arr.tobytes(), media_type="image/png")
