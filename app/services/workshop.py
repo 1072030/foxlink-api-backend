@@ -25,13 +25,13 @@ async def get_factory_map_by_name(factory_map_name: str):
     return await FactoryMap.objects.filter(name=factory_map_name).get_or_none()
 
 
-async def get_all_devices_status(workshop_name: str):
+async def get_all_devices_status(workshop_name: str, is_rescue=False):
     workshop = await get_factory_map_by_name(workshop_name)
     if workshop is None:
         raise HTTPException(404, "workshop is not found")
 
     device_status_arr: List[DeviceStatus] = []
-    devices = await Device.objects.filter(workshop=workshop, is_rescue=False).all()
+    devices = await Device.objects.filter(workshop=workshop, is_rescue=is_rescue).all()
 
     for d in devices:
         related_missions = (
