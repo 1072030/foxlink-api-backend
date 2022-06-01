@@ -91,7 +91,7 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
         ).name
 
     at_device = "無"
-    worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
+    worker_status = await WorkerStatus.objects.select_related(['at_device']).filter(worker=user).get_or_none()
     if worker_status is not None and worker_status.at_device is not None:
         at_device = worker_status.at_device.device_name
 
