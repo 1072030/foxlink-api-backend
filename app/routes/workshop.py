@@ -95,7 +95,10 @@ async def upload_workshop_image(
     },
 )
 async def get_workshop_image(
-    workshop_name: str, user: User = Depends(get_current_active_user), maxImgValue: Optional[int] = None
+    workshop_name: str, user: User = Depends(get_current_active_user),
+    max_img_value: Optional[int] = None,
+    navigate_device_id: Optional[str] = None
+    
 ):
     # teddy-dev
     w = (
@@ -125,38 +128,54 @@ async def get_workshop_image(
     img = cv2.imdecode(img_buffer_numpy, 1)
     height, width, _ = img.shape
 
-    for i, obj in enumerate(all_devices_status):
+    if navigate_device_id:
+        for i, obj in enumerate(all_devices_status):
+            if obj.device_id == navigate_device_id:
+                color = (0, 0, 255)
+                if obj.x_axis >= width or obj.y_axis >= height:
+                    raise HTTPException(404, "(x, y) is out of range")
+                else:
+                    cv2.circle(
+                        img,
+                        (int(obj.x_axis), int(obj.y_axis)),
+                        int(height / POINT_SCALE),
+                        color,
+                        -1,
+                    )
+    else:
+        for i, obj in enumerate(all_devices_status):
+            if obj.x_axis >= width or obj.y_axis >= height:
+                raise HTTPException(404, "(x, y) is out of range")
 
-        if obj.x_axis >= width or obj.y_axis >= height:
-            raise HTTPException(404, "(x, y) is out of range")
+            color = (255, 255, 255)
+            if obj.status == DeviceStatusEnum.working:
+                color = WORKING
+            elif obj.status == DeviceStatusEnum.repairing:
+                color = REPAIRING
+            else:
+                color = HALT
 
-        color = (255, 255, 255)
-        if obj.status == DeviceStatusEnum.working:
-            color = WORKING
-        elif obj.status == DeviceStatusEnum.repairing:
-            color = REPAIRING
-        else:
-            color = HALT
-
-        cv2.circle(
-            img,
-            (int(obj.x_axis), int(obj.y_axis)),
-            int(height / POINT_SCALE),
-            color,
-            -1,
-        )
+            cv2.circle(
+                img,
+                (int(obj.x_axis), int(obj.y_axis)),
+                int(height / POINT_SCALE),
+                color,
+                -1,
+            )
     
-    if maxImgValue:
+    if max_img_value:
         bigger_side = max(height, width)
-        if maxImgValue == 0 or maxImgValue > bigger_side:
+        if max_img_value == 0 or max_img_value > bigger_side:
             raise HTTPException(404, "maxImgValue too large or equal to zero")
 
-        scale_rate = maxImgValue / bigger_side
+        scale_rate = max_img_value / bigger_side
         n_h, n_w = int(height * scale_rate), int(width * scale_rate)
         img = cv2.resize(img, (n_w, n_h), interpolation = cv2.INTER_AREA)
 
     _, im_buf_arr = cv2.imencode(".png", img)
+    
     return Response(im_buf_arr.tobytes(), media_type="image/png")
+
 
 
 @router.get(
