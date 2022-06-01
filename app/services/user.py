@@ -68,10 +68,10 @@ async def update_user(username: str, **kwargs):
     try:
         filtered = {k: v for k, v in kwargs.items() if v is not None}
 
-        if filtered.get('password') is not None:
-            filtered['password_hash'] = get_password_hash(filtered['password'])
-            del filtered['password']
-            
+        if filtered.get("password") is not None:
+            filtered["password_hash"] = get_password_hash(filtered["password"])
+            del filtered["password"]
+
         await user.update(None, **filtered)
     except Exception as e:
         raise HTTPException(status_code=400, detail="cannot update user:" + repr(e))
@@ -162,9 +162,8 @@ async def get_user_subordinates_by_username(username: str):
 
 
 async def move_user_to_position(username: str, device_id: str):
-    user, device = await asyncio.gather(
-        get_user_by_username(username), get_device_by_id(device_id)
-    )
+    user = await get_user_by_username(username)
+    device = await get_device_by_id(device_id)
 
     if user is None:
         raise HTTPException(
@@ -184,15 +183,14 @@ async def move_user_to_position(username: str, device_id: str):
             else "None"
         )
 
-        log, _ = await asyncio.gather(
-            AuditLogHeader.objects.create(
-                table_name="worker_status",
-                record_pk=device_id,
-                action=AuditActionEnum.USER_MOVE_POSITION.value,
-                user=user,
-            ),
-            worker_status.update(at_device=device),
+        log = await AuditLogHeader.objects.create(
+            table_name="worker_status",
+            record_pk=device_id,
+            action=AuditActionEnum.USER_MOVE_POSITION.value,
+            user=user,
         )
+
+        await worker_status.update(at_device=device)
 
         await LogValue.objects.create(
             log_header=log.id,

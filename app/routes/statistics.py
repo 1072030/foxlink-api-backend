@@ -42,24 +42,13 @@ class Stats(BaseModel):
 
 @router.get("/", response_model=Stats, tags=["statistics"])
 async def get_overall_statistics():
-
-    (
-        top_crashed_devices,
-        top_abnormal_devices,
-        top_abnormal_missions,
-        login_users_percentage,
-        top_mission_accept_employees,
-        top_mission_reject_employees,
-        emergency_missions,
-    ) = await asyncio.gather(
-        get_top_most_crashed_devices(10),
-        get_top_abnormal_devices(10),
-        get_top_abnormal_missions(10),
-        get_login_users_percentage_by_recent_24_hours(),
-        get_top_most_accept_mission_employees(10),
-        get_top_most_reject_mission_employees(3),
-        get_emergency_missions(),
-    )
+    top_crashed_devices = await get_top_most_crashed_devices(10)
+    top_abnormal_devices = await get_top_abnormal_devices(10)
+    top_abnormal_missions = await get_top_abnormal_missions(10)
+    login_users_percentage = await get_login_users_percentage_by_recent_24_hours()
+    top_mission_accept_employees = await get_top_most_accept_mission_employees(10)
+    top_mission_reject_employees = await get_top_most_reject_mission_employees(3)
+    emergency_missions = await get_emergency_missions()
 
     return Stats(
         devices_stats=DeviceStats(

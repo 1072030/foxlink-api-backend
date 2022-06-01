@@ -67,10 +67,8 @@ async def get_logs(
 
     params = {k: v for k, v in params.items() if v is not None}
 
-    logs, total_count = await asyncio.gather(
-        AuditLogHeader.objects.filter(**params).select_all().paginate(page, limit).order_by("-created_date").all(),  # type: ignore
-        AuditLogHeader.objects.filter(**params).count(),  # type: ignore
-    )
+    logs = await AuditLogHeader.objects.filter(**params).select_all().paginate(page, limit).order_by("-created_date").all()  # type: ignore
+    total_count = await AuditLogHeader.objects.filter(**params).count()  # type: ignore
 
     return LogResponse(
         page=page,

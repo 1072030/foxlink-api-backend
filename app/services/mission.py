@@ -108,10 +108,8 @@ async def start_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.device.is_rescue:
-        await asyncio.gather(
-            mission.update(repair_end_date=datetime.utcnow()),
-            move_user_to_position(worker.username, mission.device.id),
-        )
+        await mission.update(repair_end_date=datetime.utcnow())
+        await move_user_to_position(worker.username, mission.device.id)
         return
 
     if mission.is_started or mission.is_closed:
@@ -137,15 +135,14 @@ async def start_mission_by_id(mission_id: int, worker: User):
         worker_status.dispatch_count += 1
         worker_status.status = WorkerStatusEnum.working.value
         await worker_status.update()
-        await asyncio.gather(
-            move_user_to_position(worker.username, mission.device.id),
-            AuditLogHeader.objects.create(
+
+        await move_user_to_position(worker.username, mission.device.id)
+        await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_STARTED.value,
                 user=worker.username,
                 table_name="missions",
                 record_pk=str(mission.id),
-            ),
-        )
+            )
 
 
 async def accept_mission(mission_id: int, worker: User):

@@ -401,13 +401,15 @@ async def dispatch_routine():
         ).count()
 
         for event in m.missionevents:
-            event_count, pri = await asyncio.gather(
-                MissionEvent.objects.select_related("mission")
+            event_count = (
+                await MissionEvent.objects.select_related("mission")
                 .filter(mission__device=m.device.id, category=event.category)
-                .count(),
-                CategoryPRI.objects.select_all()
+                .count()
+            )
+            pri = (
+                await CategoryPRI.objects.select_all()
                 .filter(devices__id=m.device.id, category=event.category)
-                .get_or_none(),
+                .get_or_none()
             )
 
             item = {
@@ -745,12 +747,11 @@ async def main_routine():
     await foxlink_daemon.connect()
 
     while not kill_now:
-        await asyncio.gather(
-            auto_close_missions(),
-            worker_monitor_routine(),
-            notify_overtime_workers(),
-            check_mission_duration_routine(),
-        )
+        await auto_close_missions()
+        await worker_monitor_routine()
+        await notify_overtime_workers()
+        await check_mission_duration_routine()
+
         await check_alive_worker_routine()
         await dispatch_routine()
 
