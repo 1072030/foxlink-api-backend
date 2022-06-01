@@ -465,11 +465,9 @@ async def dispatch_routine():
         if w.user.level != UserLevel.maintainer.value:
             continue
 
-        is_idle = (
-            await WorkerStatus.objects.filter(
-                worker=w.user, status=WorkerStatusEnum.idle.value
-            ).count()
-        ) == 1
+        is_idle = await WorkerStatus.objects.filter(
+            worker=w.user, status=WorkerStatusEnum.idle.value
+        ).exists()
 
         if not is_idle:
             continue
@@ -478,10 +476,11 @@ async def dispatch_routine():
         if (await is_user_working_on_mission(w.user.username)) == True:
             continue
 
-        worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
-
-        if worker_status.status != WorkerStatusEnum.idle.value:
+        # if worker rejects this mission once.
+        if (await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_REJECTED.value, user=w.user.username, record_pk=mission_1st.id).exists()):
             continue
+
+        worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
 
         daily_count = await AuditLogHeader.objects.filter(
             action=AuditActionEnum.MISSION_ASSIGNED.value,
