@@ -90,6 +90,11 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
             .get()
         ).name
 
+    at_device = "無"
+    worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
+    if worker_status is not None and worker_status.at_device is not None:
+        at_device = worker_status.at_device.device_name
+
     if first_login_timestamp is not None:
         total_mins = (
             datetime.datetime.utcnow() - first_login_timestamp
@@ -100,7 +105,11 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
     summary = await get_user_summary(user.username)
 
     return UserOutWithWorkTimeAndSummary(
-        summary=summary, workshop=workshop_name, work_time=total_mins, **user.dict()
+        at_device=at_device,
+        summary=summary,
+        workshop=workshop_name,
+        work_time=total_mins,
+        **user.dict()
     )
 
 

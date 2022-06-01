@@ -54,6 +54,7 @@ class UserOut(UserBase):
 
 
 class UserOutWithWorkTimeAndSummary(UserOut):
+    at_device: str
     work_time: int
     summary: Optional[WorkerSummary]
 
