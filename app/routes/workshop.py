@@ -123,7 +123,7 @@ async def get_workshop_image(
     POINT_SCALE = 120
     
     if navigate_worker_id or navigate_device_id:
-        all_devices_status = await get_all_devices_status(workshop_name, True)
+        all_devices_status = await get_all_devices_status(workshop_name, is_rescue=True)
     else:
         all_devices_status = await get_all_devices_status(workshop_name, False)
 
