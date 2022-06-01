@@ -95,7 +95,7 @@ async def upload_workshop_image(
     },
 )
 async def get_workshop_image(
-    workshop_name: str, user: User = Depends(get_current_active_user)
+    workshop_name: str, user: User = Depends(get_current_active_user), maxImgValue: Optional[int] = None
 ):
     # teddy-dev
     w = (
@@ -145,6 +145,15 @@ async def get_workshop_image(
             color,
             -1,
         )
+    
+    if maxImgValue:
+        bigger_side = max(height, width)
+        if maxImgValue == 0 or maxImgValue > bigger_side:
+            raise HTTPException(404, "maxImgValue too large or equal to zero")
+
+        scale_rate = maxImgValue / bigger_side
+        n_h, n_w = int(height * scale_rate), int(width * scale_rate)
+        img = cv2.resize(img, (n_w, n_h), interpolation = cv2.INTER_AREA)
 
     _, im_buf_arr = cv2.imencode(".png", img)
     return Response(im_buf_arr.tobytes(), media_type="image/png")
