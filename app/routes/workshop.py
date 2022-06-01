@@ -97,8 +97,8 @@ async def upload_workshop_image(
 async def get_workshop_image(
     workshop_name: str, user: User = Depends(get_current_active_user),
     max_img_value: Optional[int] = None,
-    navigate_device_id: Optional[str] = None
-    
+    navigate_device_id: Optional[str] = None,
+    navigate_worker_id: Optional[str] = None
 ):
     # teddy-dev
     w = (
@@ -121,17 +121,32 @@ async def get_workshop_image(
     REPAIRING = (0, 140, 255)  # orange 1
     HALT = (0, 0, 255)  # red 2
     POINT_SCALE = 120
-
-    all_devices_status = await get_all_devices_status(workshop_name)
+    
+    if navigate_worker_id or navigate_device_id:
+        all_devices_status = await get_all_devices_status(workshop_name, True)
+    else:
+        all_devices_status = await get_all_devices_status(workshop_name, False)
 
     img_buffer_numpy = np.frombuffer(w.image, dtype=np.uint8)
     img = cv2.imdecode(img_buffer_numpy, 1)
     height, width, _ = img.shape
 
-    if navigate_device_id:
+    if navigate_device_id or navigate_worker_id:
         for i, obj in enumerate(all_devices_status):
             if obj.device_id == navigate_device_id:
                 color = (0, 0, 255)
+                if obj.x_axis >= width or obj.y_axis >= height:
+                    raise HTTPException(404, "(x, y) is out of range")
+                else:
+                    cv2.circle(
+                        img,
+                        (int(obj.x_axis), int(obj.y_axis)),
+                        int(height / POINT_SCALE),
+                        color,
+                        -1,
+                    )
+            elif obj.device_id == navigate_worker_id:
+                color = (255, 0, 0)
                 if obj.x_axis >= width or obj.y_axis >= height:
                     raise HTTPException(404, "(x, y) is out of range")
                 else:
@@ -146,7 +161,6 @@ async def get_workshop_image(
         for i, obj in enumerate(all_devices_status):
             if obj.x_axis >= width or obj.y_axis >= height:
                 raise HTTPException(404, "(x, y) is out of range")
-
             color = (255, 255, 255)
             if obj.status == DeviceStatusEnum.working:
                 color = WORKING
@@ -173,7 +187,7 @@ async def get_workshop_image(
         img = cv2.resize(img, (n_w, n_h), interpolation = cv2.INTER_AREA)
 
     _, im_buf_arr = cv2.imencode(".png", img)
-    
+
     return Response(im_buf_arr.tobytes(), media_type="image/png")
 
 
