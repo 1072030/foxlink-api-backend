@@ -123,7 +123,7 @@ async def get_workshop_image(
     POINT_SCALE = 120
     
     if navigate_worker_id or navigate_device_id:
-        all_devices_status = await get_all_devices_status(workshop_name, has_rescue=False)
+        all_devices_status = await get_all_devices_status(workshop_name, is_rescue=True) + await get_all_devices_status(workshop_name, is_rescue=False)
     else:
         all_devices_status = await get_all_devices_status(workshop_name, False)
 
@@ -145,7 +145,7 @@ async def get_workshop_image(
                         color,
                         -1,
                     )
-            elif obj.device_id == navigate_worker_id:
+            if obj.device_id == navigate_worker_id:
                 color = (255, 0, 0)
                 if obj.x_axis >= width or obj.y_axis >= height:
                     raise HTTPException(404, "(x, y) is out of range")
