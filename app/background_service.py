@@ -406,11 +406,11 @@ async def dispatch_routine():
                 .filter(mission__device=m.device.id, category=event.category)
                 .count()
             )
-            pri = (
-                await CategoryPRI.objects.select_all()
-                .filter(devices__id=m.device.id, category=event.category)
-                .get_or_none()
-            )
+            # pri = (
+            #     await CategoryPRI.objects.select_all()
+            #     .filter(devices__id=m.device.id, category=event.category)
+            #     .get_or_none()
+            # )
 
             item = {
                 "missionID": m.id,
@@ -419,14 +419,15 @@ async def dispatch_routine():
                 "device": m.device.device_name,
                 "process": m.device.process,
                 "create_date": m.created_date,
+                "category": event.category,
             }
 
-            if pri is not None:
-                item["category"] = pri.category
-                item["priority"] = pri.priority
-            else:
-                item["category"] = 0
-                item["priority"] = 0
+            # if pri is not None:
+            #     item["category"] = pri.category
+            #     item["priority"] = pri.priority
+            # else:
+            #     item["category"] = 0
+            #     item["priority"] = 0
             m_list.append(item)
 
     dispatch.get_missions(m_list)
@@ -477,7 +478,11 @@ async def dispatch_routine():
             continue
 
         # if worker rejects this mission once.
-        if (await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_REJECTED.value, user=w.user.username, record_pk=mission_1st.id).exists()):
+        if await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_REJECTED.value,
+            user=w.user.username,
+            record_pk=mission_1st.id,
+        ).exists():
             continue
 
         worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
