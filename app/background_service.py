@@ -683,18 +683,27 @@ class FoxlinkBackground:
                     if mission_event is not None:
                         continue
 
+                    # avaliable category range: 1~199, 300~699
+                    if not ((e.category >= 1 and e.category <= 199) or (
+                        e.category >= 300 and e.category <= 699
+                    )):
+                        continue
+
                     device_id = self.generate_device_id(e)
 
                     # if this device's priority is not existed in `CategoryPRI` table, which means it's not an out-of-order event.
                     # Thus, we should skip it.
-                    priority = await CategoryPRI.objects.filter(
-                        devices__id__iexact=device_id, category=e.category
-                    ).get_or_none()
+                    # priority = await CategoryPRI.objects.filter(
+                    #     devices__id__iexact=device_id, category=e.category
+                    # ).get_or_none()
 
-                    if priority is None:
+                    # if priority is None:
+                    #     continue
+
+                    device = await Device.objects.filter(id__iexact=device_id).get_or_none()
+
+                    if device is None:
                         continue
-
-                    device = await Device.objects.filter(id__iexact=device_id).get()
 
                     # find if this device is already in a mission
                     mission = await Mission.objects.filter(
