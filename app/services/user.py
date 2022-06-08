@@ -381,7 +381,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         worker_attendances=worker_attendances,
         total_accepted_count_this_month=total_accepted_count_this_month[0][0],
         total_accepted_count_this_week=total_accepted_count_this_week[0][0],
-        total_rejected_count_this_week=total_rejected_count_this_month[0][0],
-        total_rejected_count_this_month=total_rejected_count_this_week[0][0],
+        total_rejected_count_this_month=total_rejected_count_this_month[0][0],
+        total_rejected_count_this_week=total_rejected_count_this_week[0][0],
     )
 
