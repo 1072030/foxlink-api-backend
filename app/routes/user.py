@@ -119,7 +119,7 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
     )
 
 
-@router.get("worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
+@router.get("/worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
 async def get_user_attendances(user: User = Depends(get_current_active_user)):
     return await get_worker_attendances(user.username)
 
