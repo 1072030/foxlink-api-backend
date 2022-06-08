@@ -185,6 +185,24 @@ async def auto_close_missions():
             await m.update(is_cancel=True)
 
 
+async def track_worker_status_routine():
+    worker_status = (
+        await WorkerStatus.objects.select_related(["worker"])
+        .filter(
+            status__in=[WorkerStatusEnum.working.value, WorkerStatusEnum.idle.value]
+        )
+        .all()
+    )
+
+    for s in worker_status:
+        if s.status == WorkerStatusEnum.working.value:
+            if not (await is_user_working_on_mission(s.worker.username)):
+                await s.update(status=WorkerStatusEnum.idle.value)
+        elif s.status == WorkerStatusEnum.idle.value:
+            if (await is_user_working_on_mission(s.worker.username)):
+                await s.update(status=WorkerStatusEnum.working.value)
+
+
 async def worker_monitor_routine():
     # when a user import device layout to the system, some devices may have been removed.
     # thus there's a chance that at_device could be null, so we need to address that.
@@ -684,9 +702,10 @@ class FoxlinkBackground:
                         continue
 
                     # avaliable category range: 1~199, 300~699
-                    if not ((e.category >= 1 and e.category <= 199) or (
-                        e.category >= 300 and e.category <= 699
-                    )):
+                    if not (
+                        (e.category >= 1 and e.category <= 199)
+                        or (e.category >= 300 and e.category <= 699)
+                    ):
                         continue
 
                     device_id = self.generate_device_id(e)
@@ -700,7 +719,9 @@ class FoxlinkBackground:
                     # if priority is None:
                     #     continue
 
-                    device = await Device.objects.filter(id__iexact=device_id).get_or_none()
+                    device = await Device.objects.filter(
+                        id__iexact=device_id
+                    ).get_or_none()
 
                     if device is None:
                         continue
@@ -762,12 +783,11 @@ async def main_routine():
     while not kill_now:
         await auto_close_missions()
         await worker_monitor_routine()
+        await track_worker_status_routine()
         await notify_overtime_workers()
         await check_mission_duration_routine()
-
         await check_alive_worker_routine()
         await dispatch_routine()
-
         time.sleep(5)
 
     logger.warning("Shutting down...")
