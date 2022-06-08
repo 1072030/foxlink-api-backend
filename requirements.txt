@@ -107,7 +107,7 @@ pyasn1==0.4.8
     #   rsa
 pycparser==2.21
     # via cffi
-pydantic==1.9.1
+pydantic==1.8.2
     # via
     #   fastapi
     #   ormar
