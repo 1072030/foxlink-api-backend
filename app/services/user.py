@@ -27,6 +27,9 @@ from app.core.database import (
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
 
+TIMEZONE_OFFSET = 8
+WEEK_START = 1  # the week should start on Sunday or Monday or even else.
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -287,9 +290,6 @@ async def get_users_overview() -> DayAndNightUserOverview:
 
 
 async def get_user_summary(username: str) -> Optional[WorkerSummary]:
-    TIMEZONE_OFFSET = 8
-    WEEK_START = 1  # the week should start on Sunday or Monday or even else.
-
     worker = await User.objects.filter(username=username).get_or_none()
 
     if worker is None:
@@ -299,45 +299,6 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
 
     if worker.level != UserLevel.maintainer.value:
         return None
-
-    worker_attendances: List[WorkerAttendance] = []
-
-    user_login_days_this_month = await database.fetch_all(
-        f"""
-        SELECT DATE(ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
-        FROM auditlogheaders loginrecord,
-        (
-            SELECT action, MIN(created_date) min_login_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
-            FROM auditlogheaders
-            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
-            GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
-        ) min_login
-        WHERE loginrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND loginrecord.created_date = min_login.min_login_date;
-        """,
-    )
-
-    user_logout_days_this_month = await database.fetch_all(
-        f"""
-        SELECT DATE(ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
-        FROM auditlogheaders logoutrecord,
-        (
-            SELECT action, MAX(created_date) max_logout_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
-            FROM auditlogheaders
-            WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{username}'
-            GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
-        ) max_logout
-        WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGOUT.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
-        """,
-    )
-
-    for login_record in user_login_days_this_month:
-        a = WorkerAttendance(date=login_record[0], login_datetime=login_record[1])
-        for logout_record in user_logout_days_this_month:
-            if login_record[0] == logout_record[0]:
-                a.logout_datetime = logout_record[1]
-                a.logout_reason = logout_record[2]
-                break
-        worker_attendances.append(a)
 
     total_accepted_count_this_month = await database.fetch_all(
         f"""
@@ -378,10 +339,54 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
     )
 
     return WorkerSummary(
-        worker_attendances=worker_attendances,
         total_accepted_count_this_month=total_accepted_count_this_month[0][0],
         total_accepted_count_this_week=total_accepted_count_this_week[0][0],
         total_rejected_count_this_month=total_rejected_count_this_month[0][0],
         total_rejected_count_this_week=total_rejected_count_this_week[0][0],
     )
 
+
+async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
+    if not await User.objects.filter(username=username).exists():
+        return []
+
+    worker_attendances: List[WorkerAttendance] = []
+
+    user_login_days_this_month = await database.fetch_all(
+        f"""
+        SELECT DATE(ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
+        FROM auditlogheaders loginrecord,
+        (
+            SELECT action, MIN(created_date) min_login_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
+            FROM auditlogheaders
+            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
+            GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
+        ) min_login
+        WHERE loginrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND loginrecord.created_date = min_login.min_login_date;
+        """,
+    )
+
+    user_logout_days_this_month = await database.fetch_all(
+        f"""
+        SELECT DATE(ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
+        FROM auditlogheaders logoutrecord,
+        (
+            SELECT action, MAX(created_date) max_logout_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
+            FROM auditlogheaders
+            WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{username}'
+            GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
+        ) max_logout
+        WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGOUT.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
+        """,
+    )
+
+    for login_record in user_login_days_this_month:
+        a = WorkerAttendance(date=login_record[0], login_datetime=login_record[1])
+        for logout_record in user_logout_days_this_month:
+            if login_record[0] == logout_record[0]:
+                a.logout_datetime = logout_record[1]
+                a.logout_reason = logout_record[2]
+                break
+        worker_attendances.append(a)
+
+    return worker_attendances

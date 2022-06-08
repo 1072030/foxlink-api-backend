@@ -21,7 +21,6 @@ class WorkerAttendance(BaseModel):
 
 
 class WorkerSummary(BaseModel):
-    worker_attendances: List[WorkerAttendance]
     total_accepted_count_this_week: int
     total_accepted_count_this_month: int
     total_rejected_count_this_week: int

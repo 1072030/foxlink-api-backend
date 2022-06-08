@@ -25,6 +25,7 @@ from app.services.user import (
     delete_user_by_username,
     get_worker_mission_history,
     update_user,
+    get_worker_attendances,
 )
 from app.services.auth import (
     get_current_active_user,
@@ -42,6 +43,7 @@ from app.models.schema import (
     UserOverviewOut,
     UserPatch,
     MissionDto,
+    WorkerAttendance,
 )
 
 router = APIRouter(prefix="/users")
@@ -91,7 +93,11 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
         ).name
 
     at_device = "無"
-    worker_status = await WorkerStatus.objects.select_related(['at_device']).filter(worker=user).get_or_none()
+    worker_status = (
+        await WorkerStatus.objects.select_related(["at_device"])
+        .filter(worker=user)
+        .get_or_none()
+    )
     if worker_status is not None and worker_status.at_device is not None:
         at_device = worker_status.at_device.id
 
@@ -111,6 +117,11 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
         work_time=total_mins,
         **user.dict()
     )
+
+
+@router.get("worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
+async def get_user_attendances(user: User = Depends(get_current_active_user)):
+    return await get_worker_attendances(user.username)
 
 
 @router.post("/change-password", tags=["users"])
