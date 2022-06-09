@@ -2,6 +2,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
+from app.mqtt.main import publish
 from app.services.auth import authenticate_user, create_access_token
 from datetime import datetime, timedelta
 from app.core.database import (
@@ -95,4 +96,5 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             worker_status.at_device = first_rescue_station
             await worker_status.update()
 
+    publish(f"foxlink/users/{user.username}/connected", payload={"connected": True}, qos=1)
     return {"access_token": access_token, "token_type": "bearer"}
