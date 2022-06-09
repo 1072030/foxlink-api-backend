@@ -45,15 +45,17 @@ async def get_missions_by_query(
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
     is_cancel: Optional[bool] = None,
+    is_emergency: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
-    include_overtime_mission: bool = False,
+    include_overtime_mission = False,
 ):
     params = {
         "created_date__gte": start_date,
         "created_date__lte": end_date,
         "assignees__username": worker,
         "is_cancel": is_cancel,
+        'is_emergency': is_emergency,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
