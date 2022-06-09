@@ -348,12 +348,12 @@ async def check_mission_duration_routine():
     working_missions = [m for m in working_missions if len(m.assignees) != 0]
 
     for m in working_missions:
-        for idx in range(len(standardize_thresholds) - 1, -1, -1):
-            if m.duration.total_seconds() >= standardize_thresholds[idx] * 60:
+        for idx, min in enumerate(standardize_thresholds):
+            if m.duration.total_seconds() >= min * 60:
                 is_sent = await AuditLogHeader.objects.filter(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
-                    description=str(standardize_thresholds[idx]),
+                    description=str(min),
                     record_pk=m.id,
                 ).exists()
 
@@ -392,7 +392,7 @@ async def check_mission_duration_routine():
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
-                    description=str(standardize_thresholds[idx]),
+                    description=str(min),
                     record_pk=m.id,
                     user=m.assignees[0].username,
                 )
