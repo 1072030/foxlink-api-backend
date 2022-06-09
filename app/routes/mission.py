@@ -187,7 +187,7 @@ async def get_a_mission_by_id(
 async def assign_mission_to_user(
     mission_id: int, user_name: str, user: User = Depends(get_manager_active_user)
 ):
-    if (await is_user_working_on_mission(user.username)) == True:
+    if (await is_user_working_on_mission(user_name)) == True:
         raise HTTPException(400, "the user is working on other mission")
 
     await assign_mission(mission_id, user_name)
