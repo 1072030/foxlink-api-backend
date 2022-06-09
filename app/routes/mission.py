@@ -48,7 +48,7 @@ async def get_missions_by_query(
     is_emergency: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
-    include_overtime_mission = False,
+    include_overtime_mission: bool = False,
 ):
     params = {
         "created_date__gte": start_date,
