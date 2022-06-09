@@ -46,6 +46,7 @@ async def get_missions_by_query(
     is_closed: Optional[bool] = None,
     is_cancel: Optional[bool] = None,
     is_emergency: Optional[bool] = None,
+    is_rescue: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
     include_overtime_mission: bool = False,
@@ -55,7 +56,8 @@ async def get_missions_by_query(
         "created_date__lte": end_date,
         "assignees__username": worker,
         "is_cancel": is_cancel,
-        'is_emergency': is_emergency,
+        "is_emergency": is_emergency,
+        "device__is_rescue": is_rescue,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
@@ -129,6 +131,8 @@ async def get_self_mission(
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
     is_cancel: Optional[bool] = None,
+    is_emergency: Optional[bool] = None,
+    is_rescue: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ):
@@ -136,6 +140,8 @@ async def get_self_mission(
         "created_date__gte": start_date,
         "created_date__lte": end_date,
         "is_cancel": is_cancel,
+        "is_emergency": is_emergency,
+        "device__is_rescue": is_rescue,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
