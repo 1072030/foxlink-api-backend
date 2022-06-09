@@ -71,8 +71,8 @@ class FactoryMap(ormar.Model):
     map: Json = ormar.JSON()
     related_devices: Json = ormar.JSON()
     image: bytes = ormar.LargeBinary(max_length=5242880, nullable=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now())
-    updated_date: datetime = ormar.DateTime(server_default=func.now())
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class User(ormar.Model):
@@ -154,8 +154,8 @@ class Mission(ormar.Model):
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
-    created_date: datetime = ormar.DateTime(server_default=func.now())
-    updated_date: datetime = ormar.DateTime(server_default=func.now())
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
     @property_field
     def duration(self) -> timedelta:
@@ -227,7 +227,7 @@ class AuditLogHeader(ormar.Model):
     table_name: Optional[str] = ormar.String(max_length=50, index=True)
     record_pk: Optional[str] = ormar.String(max_length=100, index=True, nullable=True)
     user: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
-    created_date: datetime = ormar.DateTime(server_default=func.now())
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
 
 
@@ -255,23 +255,17 @@ class WorkerStatus(ormar.Model):
         Device, nullable=True, ondelete="SET NULL"
     )
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
-    last_event_end_date: datetime = ormar.DateTime()
+    last_event_end_date: datetime = ormar.DateTime(timezone=True)
     dispatch_count: int = ormar.Integer(default=0)
-    updated_date: datetime = ormar.DateTime(server_default=func.now())
-    check_alive_time: datetime = ormar.DateTime(server_default=func.now())
-
-
-class TestLog(ormar.Model):
-    id: int = ormar.Integer(primary_key=True)
-    content: str = ormar.String(max_length=2048)
-    created_date: datetime = ormar.DateTime(server_default=func.now())
-
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    check_alive_time: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True
+    )
 
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
-
 
 
 if PY_ENV == "dev":
