@@ -138,11 +138,11 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
         await move_user_to_position(worker.username, mission.device.id)
         await AuditLogHeader.objects.create(
-                action=AuditActionEnum.MISSION_STARTED.value,
-                user=worker.username,
-                table_name="missions",
-                record_pk=str(mission.id),
-            )
+            action=AuditActionEnum.MISSION_STARTED.value,
+            user=worker.username,
+            table_name="missions",
+            record_pk=str(mission.id),
+        )
 
 
 async def accept_mission(mission_id: int, worker: User):
@@ -311,6 +311,7 @@ async def delete_mission_by_id(mission_id: int):
     await mission.delete()
 
 
+@database.transaction()
 async def cancel_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
@@ -324,6 +325,11 @@ async def cancel_mission_by_id(mission_id: int):
         raise HTTPException(400, "this mission is already finished")
 
     await mission.update(is_cancel=True)
+
+    for m in mission.assignees:
+        await WorkerStatus.objects.filter(worker=m).update(
+            last_event_end_date=datetime.utcnow()
+        )
 
 
 async def assign_mission(mission_id: int, username: str):
