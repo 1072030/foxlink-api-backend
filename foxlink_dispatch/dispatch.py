@@ -53,7 +53,7 @@ class Foxlink_dispatch:
                                                                 # key = []
                                                                 )
         # self.re_mission_1st = self.df_mission_rank["missionID"][0]
-        return self.df_mission_rank["missionID"] # 回傳排序過後待辦事項的 missionID 給 server
+        return self.df_mission_rank["missionID"].drop_duplicates(keep='first', ignore_index=True) # 回傳第一順位的待辦事項的 missionID 給 server；並排除相同missionID
 
     """由 server 回傳 mission_1st 的可用候選員工資訊"""
 
