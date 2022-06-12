@@ -2,7 +2,7 @@ import datetime, logging
 from typing import List, Any
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.core.database import Mission, WorkerStatus, UserLevel
+from app.core.database import Mission, WorkerStatus, UserLevel, WorkerStatusEnum
 import asyncio
 from app.env import LOGGER_NAME
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -97,22 +97,22 @@ async def get_all_worker_status():
             "total_dispatches": s.dispatch_count,
         }
 
-        try:
-            mission = (
-                await Mission.objects.filter(
-                    assignees__username=s.worker.username,
-                    repair_start_date__isnull=False,
-                    repair_end_date__isnull=True,
+        if s.status == WorkerStatusEnum.working.value:
+            try:
+                mission = (
+                    await Mission.objects.filter(
+                        assignees__username=s.worker.username,
+                        repair_start_date__isnull=False,
+                        repair_end_date__isnull=True,
+                    )
+                    .order_by("repair_start_date")
+                    .first()
                 )
-                .order_by("repair_start_date")
-                .first()
-            )
 
-            duration = datetime.datetime.utcnow() - mission.repair_start_date
-            item["mission_duration"] = duration.total_seconds()
-        except:
-            pass
-        finally:
-            resp.append(item)
+                duration = datetime.datetime.utcnow() - mission.repair_start_date
+                item["mission_duration"] = duration.total_seconds()
+            except:
+                ...
+        resp.append(item)
 
     return resp
