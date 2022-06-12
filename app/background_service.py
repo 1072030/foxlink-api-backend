@@ -199,7 +199,7 @@ async def track_worker_status_routine():
             if not (await is_user_working_on_mission(s.worker.username)):
                 await s.update(status=WorkerStatusEnum.idle.value)
         elif s.status == WorkerStatusEnum.idle.value:
-            if (await is_user_working_on_mission(s.worker.username)):
+            if await is_user_working_on_mission(s.worker.username):
                 await s.update(status=WorkerStatusEnum.working.value)
 
 
@@ -449,136 +449,119 @@ async def dispatch_routine():
             m_list.append(item)
 
     dispatch.get_missions(m_list)
-    mission_1st_id = dispatch.mission_priority().item()
-    mission_1st = await Mission.objects.filter(id=mission_1st_id).select_all().get()
 
-    can_dispatch_workers = (
-        await UserDeviceLevel.objects.select_related("user")
-        .filter(
-            device__id=mission_1st.device.id,
-            level__gt=0,
-            user__location=mission_1st.device.workshop.id,
+    mission_rank_list = dispatch.mission_priority()
+
+    for idx, mission_id in enumerate(mission_rank_list):
+        mission_1st = await Mission.objects.filter(id=mission_id).select_all().get()
+
+        can_dispatch_workers = (
+            await UserDeviceLevel.objects.select_related("user")
+            .filter(
+                device__id=mission_1st.device.id,
+                level__gt=0,
+                user__location=mission_1st.device.workshop.id,
+            )
+            .all()
         )
-        .all()
-    )
 
-    if len(can_dispatch_workers) == 0:
-        logger.warning(f"No workers available to dispatch for mission {mission_1st.id}")
-        publish(
-            "foxlink/no-available-worker",
-            MissionDto.from_mission(mission_1st).dict(),
-            qos=1,
-            retain=True,
-        )
-        return
-
-    factory_map = await FactoryMap.objects.filter(
-        id=mission_1st.device.workshop.id
-    ).get()
-
-    distance_matrix: List[List[float]] = factory_map.map
-    mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id)
-
-    w_list = []
-    for w in can_dispatch_workers:
-        if w.user.level != UserLevel.maintainer.value:
+        if len(can_dispatch_workers) == 0:
+            logger.warning(f"No workers available to dispatch for mission {mission_1st.id}")
+            publish(
+                "foxlink/no-available-worker",
+                MissionDto.from_mission(mission_1st).dict(),
+                qos=1,
+                retain=True,
+            )
             continue
 
-        is_idle = await WorkerStatus.objects.filter(
-            worker=w.user, status=WorkerStatusEnum.idle.value
-        ).exists()
+        factory_map = await FactoryMap.objects.filter(
+            id=mission_1st.device.workshop.id
+        ).get()
 
-        if not is_idle:
+        distance_matrix: List[List[float]] = factory_map.map
+        mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id)
+
+        w_list = []
+        for w in can_dispatch_workers:
+            if w.user.level != UserLevel.maintainer.value:
+                continue
+
+            is_idle = await WorkerStatus.objects.filter(
+                worker=w.user, status=WorkerStatusEnum.idle.value
+            ).exists()
+
+            if not is_idle:
+                continue
+
+            # if worker has already working on other mission, skip
+            if (await is_user_working_on_mission(w.user.username)) == True:
+                continue
+
+            # if worker rejects this mission once.
+            if await AuditLogHeader.objects.filter(
+                action=AuditActionEnum.MISSION_REJECTED.value,
+                user=w.user.username,
+                record_pk=mission_1st.id,
+            ).exists():
+                continue
+
+            worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
+
+            daily_count = await AuditLogHeader.objects.filter(
+                action=AuditActionEnum.MISSION_ASSIGNED.value,
+                user=w.user,
+                created_date__gte=datetime.now(CST_TIMEZONE)
+                .replace(hour=0, minute=0, second=0)
+                .astimezone(pytz.utc)
+                .date(),
+            ).count()
+
+            worker_device_idx = find_idx_in_factory_map(
+                factory_map, worker_status.at_device.id
+            )
+
+            item = {
+                "workerID": w.user.username,
+                "distance": distance_matrix[mission_device_idx][worker_device_idx],
+                "idle_time": (
+                    datetime.utcnow() - worker_status.last_event_end_date
+                ).total_seconds(),
+                "daily_count": daily_count,
+                "level": w.level,
+            }
+            w_list.append(item)
+
+        if len(w_list) == 0:
+            logger.warning(
+                f"no worker available to dispatch for mission: (mission_id: {mission_id}, device_id: {mission_1st.device.id})"
+            )
+            publish(
+                "foxlink/no-available-worker",
+                MissionDto.from_mission(mission_1st).dict(),
+                qos=1,
+                retain=True,
+            )
             continue
 
-        # if worker has already working on other mission, skip
-        if (await is_user_working_on_mission(w.user.username)) == True:
+        dispatch.get_dispatch_info(w_list)
+        worker_1st = dispatch.worker_dispatch()
+
+        logger.info(
+            "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
+        )
+
+        try:
+            await assign_mission(mission_1st.id, worker_1st)
+            await AuditLogHeader.objects.create(
+                table_name="missions",
+                record_pk=mission_1st.id,
+                action=AuditActionEnum.MISSION_ASSIGNED.value,
+                user=w.user.username,
+            )
+        except Exception as e:
+            logger.error(f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
             continue
-
-        # if worker rejects this mission once.
-        if await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_REJECTED.value,
-            user=w.user.username,
-            record_pk=mission_1st.id,
-        ).exists():
-            continue
-
-        worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
-
-        daily_count = await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_ASSIGNED.value,
-            user=w.user,
-            created_date__gte=datetime.now(CST_TIMEZONE)
-            .replace(hour=0, minute=0, second=0)
-            .astimezone(pytz.utc)
-            .date(),
-        ).count()
-
-        worker_device_idx = find_idx_in_factory_map(
-            factory_map, worker_status.at_device.id
-        )
-
-        item = {
-            "workerID": w.user.username,
-            "distance": distance_matrix[mission_device_idx][worker_device_idx],
-            "idle_time": (
-                datetime.utcnow() - worker_status.last_event_end_date
-            ).total_seconds(),
-            "daily_count": daily_count,
-            "level": w.level,
-        }
-        w_list.append(item)
-
-    if len(w_list) == 0:
-        logger.warning(
-            f"no worker available to dispatch for mission: (mission_id: {mission_1st_id}, device_id: {mission_1st.device.id})"
-        )
-        publish(
-            "foxlink/no-available-worker",
-            MissionDto.from_mission(mission_1st).dict(),
-            qos=1,
-            retain=True,
-        )
-        return
-
-    dispatch.get_dispatch_info(w_list)
-    worker_1st = dispatch.worker_dispatch()
-
-    logger.info(
-        "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
-    )
-
-    try:
-        await assign_mission(mission_1st.id, worker_1st)
-
-        # status = (
-        #     await WorkerStatus.objects.select_related("worker")
-        #     .filter(worker__username=worker_1st)
-        #     .get_or_none()
-        # )
-
-        # w = await User.objects.filter(username=worker_1st).get()
-
-        # if status is None:
-        #     status = await WorkerStatus.objects.create(
-        #         worker=w,
-        #         status=WorkerStatusEnum.working.value,
-        #         at_device=mission_1st.device.id,
-        #     )
-        # else:
-        #     await status.update(
-        #         status=WorkerStatusEnum.working.value, at_device=mission_1st.device.id
-        #     )
-
-        await AuditLogHeader.objects.create(
-            table_name="missions",
-            record_pk=mission_1st.id,
-            action=AuditActionEnum.MISSION_ASSIGNED.value,
-            user=w.user.username,
-        )
-    except Exception as e:
-        logger.error("cannot assign to worker {}".format(worker_1st))
-        raise e
 
 
 class FoxlinkBackground:

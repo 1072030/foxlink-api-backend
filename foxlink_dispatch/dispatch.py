@@ -48,13 +48,12 @@ class Foxlink_dispatch:
         # 用 dataframe 儲存
         # 排序規則(當前)：refuse_count、process、priority、create_time,event_count"
         # process_order = CategoricalDtype([3,1,2], ordered=True) # 製程排序；目前 M3 比較重要
-        self.df_mission_rank = self.df_mission_list.sort_values(
-            by=["refuse_count", "create_date", "process", "event_count"],
-            ascending=[False, True, False, True]
-            # key = []
-        )
-        self.re_mission_1st = self.df_mission_rank["missionID"][0]
-        return self.re_mission_1st  # 回傳第一順位的待辦事項的 missionID 給 server
+        self.df_mission_rank = self.df_mission_list.sort_values(by = ["refuse_count","create_date","process","event_count"],
+                                                                ascending = [False,True,False,True]
+                                                                # key = []
+                                                                )
+        # self.re_mission_1st = self.df_mission_rank["missionID"][0]
+        return self.df_mission_rank["missionID"] # 回傳排序過後待辦事項的 missionID 給 server
 
     """由 server 回傳 mission_1st 的可用候選員工資訊"""
 
