@@ -268,8 +268,8 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
     if not mission.is_started:
         raise HTTPException(400, "this mission hasn't started yet")
 
-    if mission.is_closed:
-        raise HTTPException(200, "this mission is already closed!")
+    if mission.is_closed or mission.is_cancel:
+        raise HTTPException(200, "this mission is already closed or canceled!")
 
     # a hack for async property_field
     is_done = await mission.is_done_events  # type: ignore
