@@ -1,6 +1,6 @@
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, UserLevel, WorkerStatus, database, User
+from app.core.database import Mission, UserLevel, WorkerStatus, WorkerStatusEnum, database, User
 from datetime import datetime
 
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -208,19 +208,21 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
 
     item.at_device = s.at_device.id if s.at_device is not None else None
 
-    try:
-        mission = (
-            await Mission.objects.filter(
-                assignees__username=username,
-                repair_start_date__isnull=False,
-                repair_end_date__isnull=True,
+    if s.status == WorkerStatusEnum.working.value:
+        try:
+            mission = (
+                await Mission.objects.filter(
+                    assignees__username=username,
+                    repair_start_date__isnull=False,
+                    repair_end_date__isnull=True,
+                )
+                .order_by("repair_start_date")
+                .first()
             )
-            .order_by("repair_start_date")
-            .first()
-        )
 
-        if mission.repair_start_date is not None:
-            duration = datetime.utcnow() - mission.repair_start_date
-            item.mission_duration = duration.total_seconds()
-    finally:
-        return item
+            if mission.repair_start_date is not None:
+                duration = datetime.utcnow() - mission.repair_start_date
+                item.mission_duration = duration.total_seconds()
+        except:
+            ...
+    return item
