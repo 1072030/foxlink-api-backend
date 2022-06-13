@@ -256,6 +256,7 @@ async def update_mission(
         action=AuditActionEnum.MISSION_UPDATED.value,
         record_pk=str(mission_id),
         user=user,
+        description=str(dto)
     )
 
 

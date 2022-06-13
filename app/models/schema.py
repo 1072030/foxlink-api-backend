@@ -70,8 +70,7 @@ class MissionBase(BaseModel):
 
 class MissionUpdate(MissionBase):
     name: Optional[str]
-    device_id: Optional[str]
-    is_cancel: Optional[bool]
+    assignees: Optional[List[str]]
 
 
 class DeviceDto(BaseModel):
