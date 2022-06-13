@@ -76,10 +76,15 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
     if dto.name is not None:
         mission.name = dto.name
 
+    if dto.description is not None:
+        mission.description = dto.description
+
     if dto.assignees is not None:
         await mission.assignees.clear() # type: ignore
         for username in dto.assignees:
             await mission.assignees.add(username) # type: ignore
+
+    await mission.update()
 
     
 
