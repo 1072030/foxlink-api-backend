@@ -105,8 +105,10 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
     await Device.objects.filter(id__in=bulk_delete_ids).delete(each=True)
 
-    await Device.objects.bulk_update(update_device_bulk)
-    await Device.objects.bulk_create(create_device_bulk)
+    if len(update_device_bulk) != 0:
+        await Device.objects.bulk_update(update_device_bulk)
+    if len(create_device_bulk) != 0:
+        await Device.objects.bulk_create(create_device_bulk)
     # calcuate factroy map matrix
     params = await calcuate_factory_layout_matrix(workshop_name, frame)
 
