@@ -154,7 +154,7 @@ class Mission(ormar.Model):
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
-    is_autocanceled: bool = ormar.Boolean(default=False)
+    is_autocanceled: bool = ormar.Boolean(default=False, nullable=False)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
