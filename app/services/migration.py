@@ -105,8 +105,10 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
     await Device.objects.filter(id__in=bulk_delete_ids).delete(each=True)
 
-    await Device.objects.bulk_update(update_device_bulk)
-    await Device.objects.bulk_create(create_device_bulk)
+    if len(update_device_bulk) != 0:
+        await Device.objects.bulk_update(update_device_bulk)
+    if len(create_device_bulk) != 0:
+        await Device.objects.bulk_create(create_device_bulk)
     # calcuate factroy map matrix
     params = await calcuate_factory_layout_matrix(workshop_name, frame)
 
@@ -253,10 +255,13 @@ async def import_factory_worker_infos(
 
     await User.objects.filter(username__in=delete_user_bulk).delete(each=True)
 
-    await User.objects.bulk_update(
-        update_user_bulk, columns=["full_name", "location", "level"]
-    )
-    await User.objects.bulk_create(create_user_bulk)
+    if len(update_user_bulk) != 0:
+        await User.objects.bulk_update(
+            update_user_bulk, columns=["full_name", "location", "level"]
+        )
+
+    if len(create_user_bulk) != 0:
+        await User.objects.bulk_create(create_user_bulk)
 
     # remove original device levels
     for username in full_name_mapping.values():

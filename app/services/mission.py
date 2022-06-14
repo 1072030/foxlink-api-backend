@@ -65,34 +65,25 @@ async def get_missions_by_username(username: str):
     )
     return missions
 
-
+@database.transaction()
 async def update_mission_by_id(id: int, dto: MissionUpdate):
     mission = await get_mission_by_id(id)
     if mission is None:
         raise HTTPException(
-            status_code=400, detail="cannot get a mission by the id",
+            status_code=404, detail="cannot get a mission by the id",
         )
 
-    updateDict: Dict[str, Any] = {}
-    try:
-        if dto.name is not None:
-            updateDict["name"] = dto.name
+    if dto.name is not None:
+        mission.name = dto.name
 
-        if dto.device_id is not None:
-            device = await get_device_by_id(dto.device_id)
-            updateDict["device"] = device
+    if dto.description is not None:
+        mission.description = dto.description
+    await mission.update()
 
-        if dto.description is not None:
-            updateDict["description"] = dto.description
-
-        if dto.is_cancel is not None:
-            updateDict["is_cancel"] = dto.is_cancel
-
-        await mission.update(None, **updateDict)
-    except:
-        raise HTTPException(status_code=400, detail="cannot update mission")
-
-    return True
+    if dto.assignees is not None:
+        await mission.assignees.clear() # type: ignore
+        for username in dto.assignees:
+            await assign_mission(id, username)
 
 
 @database.transaction()
@@ -347,8 +338,11 @@ async def assign_mission(mission_id: int, username: str):
             status_code=400, detail="the mission you requested is closed"
         )
 
-    if len(mission.assignees) > 0:
-        raise HTTPException(status_code=400, detail="the mission is already assigned")
+    if username in [x.username for x in mission.assignees]:
+        raise HTTPException(status_code=400, detail="this mission is already assigned to this user")
+
+    # if len(mission.assignees) > 0:
+    #     raise HTTPException(status_code=400, detail="the mission is already assigned")
 
     the_user = await get_user_by_username(username)
 
