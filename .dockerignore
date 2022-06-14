@@ -91,3 +91,5 @@ venv/
 */*.swp
 */*/*.swp
 */*/*/*.swp
+
+.env

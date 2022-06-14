@@ -163,10 +163,10 @@ DATABASE_HOST               | Database host                                     
 DATABASE_PORT               | Database port                                                                                                               | None          | 3306
 DATABASE_USER               | Database user                                                                                                               | None          | root
 DATABASE_PASSWORD           | Database password                                                                                                           | None          | None
-FOXLINK_DB_HOSTS            | Foxlink Db's hosts, should be an array.                                                                                     | None          | ['127.0.0.1:3306']
-FOXLINK_DB_USER             | Foxlink Db's user                                                                                                           | None          | foxlink
-FOXLINK_DB_PASSWORD         | Foxlink Db's password                                                                                                       | None          | foxlink
-JWT_SECRET                  | JWT secret.                                                                                                                 | secret        | secret
+FOXLINK_DB_HOSTS            | Foxlink DB's hosts, **first element in array** must be the main database that **contains device_cnames**                    | None          | ['127.0.0.1:3306']
+FOXLINK_DB_USER             | Foxlink DB's user                                                                                                           | None          | foxlink
+FOXLINK_DB_PASSWORD         | Foxlink DB's password                                                                                                       | None          | foxlink
+JWT_SECRET                  | JWT secret. You should change to secret value before deploying to production enviroment.                                    | secret        | secret
 MQTT_BROKER                 | IP address of MQTT broker                                                                                                   | None          | 127.0.0.1
 MQTT_PORT                   | MQTT Broker's Port                                                                                                          | 1883          | 1883
 EMQX_USERNAME               | EMQX username                                                                                                               | admin         | admin

@@ -1,0 +1,69 @@
+version: "3"
+
+services:
+  emqx:
+    image: emqx/emqx
+    restart: unless-stopped
+    ports:
+      - 18083:1883
+      - 27010:18083
+    networks:
+      - backend
+
+  foxlink-backend:
+    image: ghcr.io/jjyao88/foxlink-api-backend/backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - production.env
+    ports:
+      - 80:80
+    depends_on:
+      - emqx
+      - mysql
+    networks:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  foxlink-daemon:
+    image: ghcr.io/jjyao88/foxlink-api-backend/daemon:latest
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: daemon.Dockerfile
+    env_file:
+      - production.env
+    depends_on:
+      - foxlink-backend
+    networks:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: foxlink
+      MYSQL_ROOT_PASSWORD: AqqhQ993VNto
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    driver: local
+    driver_opts:
+      o: "size=600g,uid=1000"
+      device: tmpfs
+      type: tmpfs
