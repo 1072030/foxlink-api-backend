@@ -1,13 +1,16 @@
-from logging.config import fileConfig
+import os
 
-from sqlalchemy import engine_from_config, create_engine
+os.environ["USE_ALEMBIC"] = "1"
+
+from logging.config import fileConfig
+from sqlalchemy import create_engine
 from sqlalchemy import pool
 from app.core.database import metadata
-
 from alembic import context
-import os, sys
+import sys
 from dotenv import load_dotenv
 import pymysql
+
 pymysql.install_as_MySQLdb()
 
 
