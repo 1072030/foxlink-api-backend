@@ -1,10 +1,12 @@
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 import datetime
 from typing import List
 from pydantic import BaseModel
-from app.core.database import AuditActionEnum, AuditLogHeader, LogValue
+from app.core.database import AuditActionEnum, AuditLogHeader, LogValue, User
 from typing import Optional
+
+from app.services.auth import get_manager_active_user
 
 router = APIRouter(prefix="/logs")
 
@@ -49,6 +51,7 @@ async def get_logs(
     start_date: Optional[datetime.datetime] = None,
     username: Optional[str] = None,
     end_date: Optional[datetime.datetime] = None,
+    user: User = Depends(get_manager_active_user),
 ):
     if limit <= 0:
         raise HTTPException(400, "limit must be greater than 0")
