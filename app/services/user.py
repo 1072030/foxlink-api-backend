@@ -1,8 +1,10 @@
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
+import aiohttp
 from fastapi.exceptions import HTTPException
 from ormar import or_, and_
+from app.env import EMQX_PASSWORD, EMQX_USERNAME, MQTT_BROKER
 from app.models.schema import (
     DayAndNightUserOverview,
     DeviceExp,
@@ -390,3 +392,30 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
         worker_attendances.append(a)
 
     return worker_attendances
+
+
+async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
+    """
+    Get client connection status from EMQX API.
+
+    Returned:
+        - connected: bool - True if connected, False otherwise
+        - ip_address: str - if user is connected, this field represents the IP address of the client
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f"http://{MQTT_BROKER}:18083/api/v4/clients/{username}",
+            auth=aiohttp.BasicAuth(login=EMQX_USERNAME, password=EMQX_PASSWORD),
+        ) as resp:
+            if resp.status != 200:
+                return False, None
+
+            try:
+                content = await resp.json()
+
+                if len(content["data"]) == 0:
+                    return False, None
+
+                return content["data"][0]["connected"], content["data"][0]["ip_address"]
+            except:
+                return False, None
