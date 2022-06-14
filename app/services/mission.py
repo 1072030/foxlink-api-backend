@@ -1,7 +1,3 @@
-import asyncio
-
-from zmq import device
-from app.services.device import get_device_by_id
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from app.core.database import (
