@@ -182,7 +182,7 @@ async def auto_close_missions():
         undone_events = [x for x in m.missionevents if x.done_verified == False]
 
         if len(undone_events) == 0 and len(m.missionevents) != 0:
-            await m.update(is_cancel=True)
+            await m.update(is_cancel=True, is_autocanceled=True)
 
 
 async def track_worker_status_routine():
@@ -466,7 +466,9 @@ async def dispatch_routine():
         )
 
         if len(can_dispatch_workers) == 0:
-            logger.warning(f"No workers available to dispatch for mission {mission_1st.id}")
+            logger.warning(
+                f"No workers available to dispatch for mission {mission_1st.id}"
+            )
             publish(
                 "foxlink/no-available-worker",
                 MissionDto.from_mission(mission_1st).dict(),
@@ -573,10 +575,10 @@ class FoxlinkBackground:
     def __init__(self):
         for host in FOXLINK_DB_HOSTS:
             self._dbs += [
-                Database(f"mysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}")
+                Database(f"mysql+aiomysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}", min_size=5, max_size=20)
             ]
-        self._ticker = Ticker(self.fetch_events_from_foxlink, 3)
-        self._2ndticker = Ticker(self.check_events_is_complete, 10)
+        self._ticker = Ticker(self.fetch_events_from_foxlink, 10)
+        self._2ndticker = Ticker(self.check_events_is_complete, 5)
 
     async def connect(self):
         db_connect_routines = [db.connect() for db in self._dbs]

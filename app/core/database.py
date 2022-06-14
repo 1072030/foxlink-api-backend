@@ -18,9 +18,9 @@ from app.env import (
     PY_ENV,
 )
 
-DATABASE_URI = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
+DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-database = databases.Database(DATABASE_URI, echo=True)
+database = databases.Database(DATABASE_URI, min_size=5, max_size=20)
 metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")
@@ -154,6 +154,7 @@ class Mission(ormar.Model):
     required_expertises: sqlalchemy.JSON = ormar.JSON()
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
+    is_autocanceled: bool = ormar.Boolean(default=False)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
