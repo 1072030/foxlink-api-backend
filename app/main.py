@@ -1,6 +1,6 @@
 import logging
 from fastapi import FastAPI
-from app.env import MQTT_BROKER, MQTT_PORT
+from app.env import MQTT_BROKER, MQTT_PORT, PY_ENV
 from logging.config import dictConfig
 from app.routes import (
     health,
@@ -55,8 +55,9 @@ app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(workshop.router)
-app.include_router(test.router)
 
+if PY_ENV == 'dev':
+    app.include_router(test.router)
 
 @app.on_event("startup")
 async def startup():

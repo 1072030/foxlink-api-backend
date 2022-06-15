@@ -269,6 +269,6 @@ async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
 
 
-if PY_ENV == "dev":
-    engine = create_engine(DATABASE_URI)
-    metadata.create_all(engine)
+# if PY_ENV == "dev":
+#     engine = create_engine(DATABASE_URI)
+#     metadata.create_all(engine)
