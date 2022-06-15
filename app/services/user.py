@@ -140,7 +140,7 @@ async def get_user_subordinates_by_username(username: str):
             SELECT mu2.id FROM missions m
             INNER JOIN missions_users mu2
             ON mu2.user = ws.worker
-            WHERE m.repair_end_date IS NULL AND m.is_cancel = False
+            WHERE m.repair_end_date IS NULL AND m.is_cancel = False AND m.id = mu2.mission
             LIMIT 1
         )
         LEFT JOIN missions m2 ON m2.id = mu.mission
