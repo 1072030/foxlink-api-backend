@@ -19,6 +19,7 @@ from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import CST_TIMEZONE, get_shift_type_now, get_shift_type_by_datetime
 from app.mqtt.main import connect_mqtt, publish, disconnect_mqtt
 from app.env import (
+    DISABLE_FOXLINK_DISPATCH,
     FOXLINK_DB_HOSTS,
     FOXLINK_DB_PWD,
     FOXLINK_DB_USER,
@@ -567,7 +568,11 @@ class FoxlinkBackground:
     def __init__(self):
         for host in FOXLINK_DB_HOSTS:
             self._dbs += [
-                Database(f"mysql+aiomysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}", min_size=5, max_size=20)
+                Database(
+                    f"mysql+aiomysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}",
+                    min_size=5,
+                    max_size=20,
+                )
             ]
         self._ticker = Ticker(self.fetch_events_from_foxlink, 10)
         self._2ndticker = Ticker(self.check_events_is_complete, 5)
@@ -755,7 +760,8 @@ async def main_routine():
 
     connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
     await database.connect()
-    await foxlink_daemon.connect()
+    if not DISABLE_FOXLINK_DISPATCH:
+        await foxlink_daemon.connect()
 
     while not kill_now:
         await auto_close_missions()
@@ -768,6 +774,8 @@ async def main_routine():
         time.sleep(5)
 
     logger.warning("Shutting down...")
+    if not DISABLE_FOXLINK_DISPATCH:
+        await foxlink_daemon.close()
     await database.disconnect()
     disconnect_mqtt()
 

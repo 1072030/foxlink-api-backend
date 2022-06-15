@@ -69,6 +69,9 @@ MOVE_TO_RESCUE_STATION_TIME = get_env(
     "MOVE_TO_RESCUE_STATION_TIME", int, 5
 )  # unit: minutes")
 
+# TEST USAGE
+DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
+
 
 if os.environ.get("USE_ALEMBIC") is None:
     if PY_ENV not in ["production", "dev"]:
