@@ -281,6 +281,7 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
     # set each assignee's last_event_end_date
     for w in mission.assignees:
         await WorkerStatus.objects.filter(worker=w).update(
+            # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
             status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow()
             # status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow() if len(event_end_dates) == 0 else event_end_dates[0]
         )
