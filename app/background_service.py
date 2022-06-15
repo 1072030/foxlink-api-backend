@@ -770,7 +770,10 @@ async def main_routine():
         await notify_overtime_workers()
         await check_mission_duration_routine()
         await check_alive_worker_routine()
-        await dispatch_routine()
+
+        if not DISABLE_FOXLINK_DISPATCH:
+            await dispatch_routine()
+            
         time.sleep(5)
 
     logger.warning("Shutting down...")
