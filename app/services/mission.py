@@ -281,7 +281,8 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
     # set each assignee's last_event_end_date
     for w in mission.assignees:
         await WorkerStatus.objects.filter(worker=w).update(
-            status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow() if len(event_end_dates) == 0 else event_end_dates[0]
+            status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow()
+            # status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow() if len(event_end_dates) == 0 else event_end_dates[0]
         )
 
     # record this operation
