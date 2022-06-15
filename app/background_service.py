@@ -232,16 +232,6 @@ async def worker_monitor_routine():
             .get_or_none()
         )
 
-        # if worker is still working on mission, then we should not modify its state
-        working_mission_count = (
-            await Mission.objects.select_related("assignees")
-            .filter(repair_end_date__isnull=True, assignees__username=w.username)
-            .count()
-        )
-
-        if working_mission_count > 0:
-            continue
-
         if w.location is None:
             continue
 
@@ -312,6 +302,8 @@ async def worker_monitor_routine():
                 description=f"請前往救援站 {to_rescue_station}",
             )
             await mission.assignees.add(w)
+
+            await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_ASSIGNED.value, user=w.username, table_name="missions", record_pk=str(mission.id), description="前往消防站")
 
             publish(
                 f"foxlink/users/{w.username}/move-rescue-station",
