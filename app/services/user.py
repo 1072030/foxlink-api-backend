@@ -195,7 +195,7 @@ async def move_user_to_position(username: str, device_id: str):
             user=user,
         )
 
-        await worker_status.update(at_device=device)
+        await worker_status.update(at_device=device, last_event_end_date=datetime.utcnow())
 
         await LogValue.objects.create(
             log_header=log.id,
