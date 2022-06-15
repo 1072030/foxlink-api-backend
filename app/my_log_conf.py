@@ -27,7 +27,7 @@ class LogConfig(BaseModel):
     }
     loggers = {
         f"{LOGGER_NAME}": {"handlers": ["default"], "level": LOG_LEVEL},
-        "uvicorn.access": {"handlers": ["default"], "level": LOG_LEVEL},
+        "uvicorn.access": {"handlers": ["default"], "level": "INFO"},
         # "uvicorn": {"handlers": ["default"], "level": "INFO"},
         "uvicorn.error": {"handlers": ["default"], "level": "ERROR"},
     }
