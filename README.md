@@ -61,7 +61,7 @@
   ]
 }
 ```
-- foxlink/mission/move-rescue-station - 當完成任務後，系統通知前往救援站待命時
+- foxlink/users/{username}/move-rescue-station - 當完成任務後，系統通知前往救援站待命時
 ```jsonc
 {
   "type": "rescue",
