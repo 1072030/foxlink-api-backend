@@ -19,6 +19,7 @@ class UserInfoWithDuration(UserInfo):
 class EmergencyMissionInfo(BaseModel):
     mission_id: str
     device_id: str
+    device_cname: Optional[str]
     assignees: List[UserInfo]
     description: Optional[str]
     category: str
@@ -27,6 +28,7 @@ class EmergencyMissionInfo(BaseModel):
 
 class AbnormalDeviceInfo(BaseModel):
     device_id: str
+    device_cname: Optional[str]
     message: Optional[str]
     category: int
     duration: int
@@ -36,6 +38,7 @@ class AbnormalDeviceInfo(BaseModel):
 class AbnormalMissionInfo(BaseModel):
     mission_id: str
     device_id: str
+    device_cname: Optional[str]
     category: int
     message: Optional[str]
     duration: int
@@ -48,9 +51,10 @@ async def get_top_most_crashed_devices(limit: int):
     """
     query = await database.fetch_all(
         """
-        SELECT device, count(*) AS count FROM missions
-        WHERE MONTH(created_date) = MONTH(CURRENT_DATE())
-        GROUP BY device
+        SELECT m.device as device_id, d.device_cname, count(*) AS count FROM missions m
+        INNER JOIN devices d ON d.id = m.device
+        WHERE MONTH(m.created_date) = MONTH(CURRENT_DATE()) AND d.is_rescue = FALSE
+        GROUP BY m.device
         ORDER BY count DESC
         LIMIT :limit;
         """,
@@ -64,10 +68,11 @@ async def get_top_abnormal_missions(limit: int = 10) -> List[AbnormalMissionInfo
     """統計當月異常任務，根據處理時間由高排序到低。"""
     abnormal_missions = await database.fetch_all(
         """
-        SELECT mission as mission_id, m.device as device_id, message, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, created_date
+        SELECT mission as mission_id, m.device as device_id, d.device_cname,  message, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, m.created_date
         FROM missionevents
         INNER JOIN missions m ON m.id = mission
-        WHERE event_end_date IS NOT NULL AND MONTH(event_start_date) = MONTH(CURRENT_DATE())
+        INNER JOIN devices d ON d.id = m.device 
+        WHERE event_end_date IS NOT NULL AND MONTH(event_start_date) = MONTH(CURRENT_DATE()) AND d.is_rescue = FALSE
         ORDER BY duration DESC
         LIMIT :limit;
         """,
@@ -81,9 +86,10 @@ async def get_top_abnormal_devices(limit: int = 10):
     """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
     abnormal_devices: List[AbnormalDeviceInfo] = await database.fetch_all(
         """
-        SELECT device as device_id, max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
+        SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
         FROM missionevents
         INNER JOIN missions m ON m.id = mission
+        INNER JOIN devices d ON d.id = m.device 
         WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL
         GROUP BY device
         ORDER BY duration DESC
