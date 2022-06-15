@@ -257,6 +257,9 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
     if not mission.is_started:
         raise HTTPException(400, "this mission hasn't started yet")
 
+    if mission.device.is_rescue:
+        raise HTTPException(200, "this mission is to-rescue mission, no need to call finish")
+
     if mission.is_closed or mission.is_cancel:
         raise HTTPException(200, "this mission is already closed or canceled!")
 
