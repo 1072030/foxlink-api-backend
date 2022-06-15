@@ -294,7 +294,9 @@ async def import_factory_worker_infos(
                     level=row["level"],
                 )
             )
-        await UserDeviceLevel.objects.bulk_create(bulk)
+
+        if len(bulk) != 0:
+            await UserDeviceLevel.objects.bulk_create(bulk)
 
     return params
 
