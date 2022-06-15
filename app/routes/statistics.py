@@ -17,6 +17,7 @@ from app.services.statistics import (
     get_top_most_reject_mission_employees,
     get_top_abnormal_devices,
     get_emergency_missions,
+    get_worker_status,
 )
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -87,32 +88,6 @@ async def get_all_worker_status():
 
     resp: List[WorkerStatusDto] = []
 
-    for s in states:
-        item = {
-            "worker_id": s.worker.username,
-            "worker_name": s.worker.full_name,
-            "at_device": s.at_device.id if s.at_device is not None else None,
-            "status": s.status,
-            "last_event_end_date": s.last_event_end_date,
-            "total_dispatches": s.dispatch_count,
-        }
-
-        if s.status == WorkerStatusEnum.working.value:
-            try:
-                mission = (
-                    await Mission.objects.filter(
-                        assignees__username=s.worker.username,
-                        repair_start_date__isnull=False,
-                        repair_end_date__isnull=True,
-                    )
-                    .order_by("repair_start_date")
-                    .first()
-                )
-
-                duration = datetime.datetime.utcnow() - mission.repair_start_date
-                item["mission_duration"] = duration.total_seconds()
-            except:
-                ...
-        resp.append(item)
-
+    promises = [get_worker_status(s.worker.username) for s in states]
+    resp = await asyncio.gather(*promises)
     return resp

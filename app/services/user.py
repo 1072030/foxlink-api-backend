@@ -135,7 +135,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
 async def get_user_subordinates_by_username(username: str):
     result = await database.fetch_all(
         """
-        SELECT DISTINCT u.username, u.full_name, ws.at_device, ws.status, udl.shift, ws.dispatch_count, ws.last_event_end_date, mu.mission as mission_id, (UTC_TIMESTAMP() - m2.created_date) as mission_duration FROM worker_status ws
+        SELECT DISTINCT u.username, u.full_name, ws.at_device, ws.status, udl.shift, ws.dispatch_count, ws.last_event_end_date, mu.mission as mission_id, TIMESTAMPDIFF(SECOND, m2.created_date, UTC_TIMESTAMP) as mission_duration FROM worker_status ws
         LEFT JOIN missions_users mu ON mu.id = (
             SELECT mu2.id FROM missions m
             INNER JOIN missions_users mu2

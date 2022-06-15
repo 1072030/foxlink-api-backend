@@ -2,6 +2,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from app.core.database import Mission, UserLevel, WorkerStatus, WorkerStatusEnum, database, User
 from datetime import datetime
+from ormar import and_, or_
 
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 
@@ -199,8 +200,8 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
         return None
 
     item = WorkerStatusDto(
-        worker_id=s.username,
-        worker_name=s.full_name,
+        worker_id=username,
+        worker_name=s.worker.full_name,
         status=s.status,
         last_event_end_date=s.last_event_end_date,
         total_dispatches=s.dispatch_count,
@@ -211,18 +212,24 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
     if s.status == WorkerStatusEnum.working.value:
         try:
             mission = (
-                await Mission.objects.filter(
-                    assignees__username=username,
-                    repair_start_date__isnull=False,
-                    repair_end_date__isnull=True,
+                await Mission.objects.select_related(['assignees']).filter(
+                    and_(
+                        # left: user still working on a mission, right: user is not accept a mission yet.
+                        or_(
+                            and_(
+                                repair_start_date__isnull=False, repair_end_date__isnull=True,
+                            ),
+                            and_(repair_start_date__isnull=True, repair_end_date__isnull=True),
+                        ),
+                        assignees__username=username,
+                        is_cancel=False,
+                    )
                 )
-                .order_by("repair_start_date")
+                .order_by("-id")
                 .first()
             )
 
-            if mission.repair_start_date is not None:
-                duration = datetime.utcnow() - mission.repair_start_date
-                item.mission_duration = duration.total_seconds()
+            item.mission_duration = mission.duration.total_seconds() # type: ignore
         except:
             ...
     return item
