@@ -56,10 +56,12 @@ async def create_fake_mission(workshop_name: str):
     if w is None:
         raise HTTPException(status_code=404, detail="workshop is not found")
 
+    all_device_ids = [x for x in w.related_devices if not x.startswith('rescue')]
+
     pick_device_id = None
-    for device in w.related_devices:
+    for device in all_device_ids:
         if await Mission.objects.filter(
-            device=pick_device_id, repair_end_date__isnull=True, is_cancel=False
+            device=device, repair_end_date__isnull=True, is_cancel=False
         ).exists():
             continue
         else:
@@ -80,7 +82,7 @@ async def create_fake_mission(workshop_name: str):
                 event_id=random.randint(0, 99999999),
                 table_name="test",
                 category=random.randint(1, 200),
-                message=random.sample(CRASH_MESSAGES, 1),
+                message=random.sample(CRASH_MESSAGES, 1)[0],
                 event_start_date=datetime.utcnow() + timedelta(hours=8),
             )
             break
