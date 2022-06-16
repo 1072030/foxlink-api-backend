@@ -18,10 +18,12 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
             if os.environ.get("USE_ALEMBIC") is None:
                 raise KeyError(f"{key} is not set")
             else:
-                return None #type: ignore
+                return None  # type: ignore
     else:
         if dtype is List[int] or dtype is List[str]:
             return literal_eval(val)
+        elif dtype is bool:
+            return dtype(int(val))
         else:
             return dtype(val)  # type: ignore
 
@@ -73,7 +75,7 @@ MOVE_TO_RESCUE_STATION_TIME = get_env(
 DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
 
 
-if os.environ.get("USE_ALEMBIC") is None:
+if os.environ.get("USE_ALEMBIC") is  None:
     if PY_ENV not in ["production", "dev"]:
         logger.error("PY_ENV env should be either production or dev!")
         exit(1)
@@ -90,4 +92,7 @@ if os.environ.get("USE_ALEMBIC") is None:
     if MQTT_BROKER is None:
         logger.error("MQTT_BROKER is not set")
         exit(1)
+
+    if DISABLE_FOXLINK_DISPATCH is True:
+        logger.warn("DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")
 
