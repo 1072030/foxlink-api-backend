@@ -14,6 +14,35 @@ import random
 
 router = APIRouter(prefix="/test")
 
+CRASH_MESSAGES = [
+    "进料打码站故障",
+    "PP搬运站故障",
+    "扫码读取站故障",
+    "出料反转站故障",
+    "扫码重复异常",
+    "扫码检查连线异常",
+    "扫码格式错误",
+    "house上料站故障",
+    "Bracket组装站故障",
+    "转盘下料站故障",
+    "DD转盘站故障",
+    "出料站故障",
+    "tray盘站故障",
+    "UV检测站故障",
+    "供料站故障",
+    "搬送站故障",
+    "托盘站故障",
+    "进料站故障",
+    "搬送站故障",
+    "CCD站故障",
+    "产品翻转站故障",
+    "扫码站故障",
+    "排不良站画面",
+    "包装搬送站故障",
+    "1#包装站故障",
+    "2#包装站故障",
+]
+
 
 @database.transaction()
 @router.post("/missions", status_code=201, tags=["test"])
@@ -27,22 +56,18 @@ async def create_fake_mission(workshop_name: str):
     if w is None:
         raise HTTPException(status_code=404, detail="workshop is not found")
 
-    while True:
-        try:
-            pick_device_id = w.related_devices[
-                random.randint(0, len(w.related_devices) - 1)
-            ]
-
-            if await Mission.objects.filter(device=pick_device_id, repair_end_date__isnull=True, is_cancel=False).exists():
-                continue
-
-            random_category = await CategoryPRI.objects.filter(
-                devices__id=pick_device_id
-            ).first()
-
-            break
-        except NoMatch:
+    pick_device_id = None
+    for device in w.related_devices:
+        if await Mission.objects.filter(
+            device=pick_device_id, repair_end_date__isnull=True, is_cancel=False
+        ).exists():
             continue
+        else:
+            pick_device_id = device
+            break
+            
+    if pick_device_id is None:
+        raise HTTPException(status_code=404, detail="no device is available")
 
     new_mission = await Mission.objects.create(
         device=pick_device_id, name="測試任務", description="測試任務", required_expertises=[]
@@ -50,12 +75,12 @@ async def create_fake_mission(workshop_name: str):
 
     while True:
         try:
-            await MissionEvent.objects.create(
+            event = await MissionEvent.objects.create(
                 mission=new_mission,
                 event_id=random.randint(0, 99999999),
                 table_name="test",
-                category=random_category.category,
-                message=random_category.message,
+                category=random.randint(1, 200),
+                message=random.sample(CRASH_MESSAGES, 1),
                 event_start_date=datetime.utcnow() + timedelta(hours=8),
             )
             break
@@ -65,8 +90,8 @@ async def create_fake_mission(workshop_name: str):
     return {
         "fake_mission_id": new_mission.id,
         "device_id": pick_device_id,
-        "category": random_category.category,
-        "message": random_category.message,
+        "category": event.category,
+        "message": event.message,
     }
 
 
