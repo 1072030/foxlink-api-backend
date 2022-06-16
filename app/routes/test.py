@@ -33,6 +33,9 @@ async def create_fake_mission(workshop_name: str):
                 random.randint(0, len(w.related_devices) - 1)
             ]
 
+            if await Mission.objects.filter(device=pick_device_id, repair_end_date__isnull=True, is_cancel=False).exists():
+                continue
+
             random_category = await CategoryPRI.objects.filter(
                 devices__id=pick_device_id
             ).first()
