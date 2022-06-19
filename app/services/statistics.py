@@ -174,7 +174,11 @@ async def get_login_users_percentage_by_recent_24_hours() -> float:
         return 0.0
 
     result = await database.fetch_all(
-        f"SELECT count(DISTINCT user) FROM `auditlogheaders` WHERE action='USER_LOGIN' AND created_date >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY;"
+        f"""
+        SELECT count(DISTINCT user) FROM `auditlogheaders` a
+        INNER JOIN users u ON a.user = u.username
+        WHERE action='USER_LOGIN' AND u.level = 1 AND created_date >= UTC_TIMESTAMP - INTERVAL 1 DAY;
+        """
     )
 
     return round(result[0][0] / total_user_count, 3)
