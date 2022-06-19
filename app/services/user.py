@@ -8,7 +8,6 @@ from app.env import EMQX_PASSWORD, EMQX_USERNAME, MQTT_BROKER
 from app.models.schema import (
     DayAndNightUserOverview,
     DeviceExp,
-    SubordinateOut,
     UserCreate,
     UserOverviewOut,
     WorkerAttendance,
@@ -28,6 +27,7 @@ from app.core.database import (
 )
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
+from app.services.statistics import get_worker_status
 
 TIMEZONE_OFFSET = 8
 WEEK_START = 1  # the week should start on Sunday or Monday or even else.
@@ -131,39 +131,40 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
 
     return [MissionDto.from_mission(x) for x in missions]
 
+async def get_subordinates_list_by_username(username: str):
+    the_user = await User.objects.filter(username=username).get_or_none()
 
-async def get_user_subordinates_by_username(username: str):
-    result = await database.fetch_all(
-        """
-        SELECT DISTINCT u.username, u.full_name, ws.at_device, ws.status, udl.shift, ws.dispatch_count, ws.last_event_end_date, mu.mission as mission_id, TIMESTAMPDIFF(SECOND, m2.created_date, UTC_TIMESTAMP) as mission_duration FROM worker_status ws
-        LEFT JOIN missions_users mu ON mu.id = (
-            SELECT mu2.id FROM missions m
-            INNER JOIN missions_users mu2
-            ON mu2.user = ws.worker
-            WHERE m.repair_end_date IS NULL AND m.is_cancel = False AND m.id = mu2.mission
-            LIMIT 1
-        )
-        LEFT JOIN missions m2 ON m2.id = mu.mission
-        LEFT JOIN users u ON u.username = ws.worker
-        LEFT JOIN userdevicelevels AS udl ON udl.user = ws.worker
-        WHERE udl.superior = :superior;
-        """,
-        values={"superior": username},
-    )
+    if the_user is None:
+        raise HTTPException(404, "the user with this id is not found")
 
-    return [
-        SubordinateOut(
-            worker_id=x["username"],
-            worker_name=x["full_name"],
-            at_device=x["at_device"],
-            shift=x["shift"],
-            status=x["status"],
-            total_dispatches=x["dispatch_count"],
-            last_event_end_date=x["last_event_end_date"],
-            mission_duration=x["mission_duration"],
-        )
-        for x in result
-    ]
+    async def get_subsordinates_list(username: str) -> List[str]:
+        result = await database.fetch_all("""
+        SELECT DISTINCT user FROM userdevicelevels u 
+        WHERE u.superior = :superior
+        """, {'superior': username})
+
+        return [row[0] for row in result]
+
+    all_subsordinates = await get_subsordinates_list(username)
+
+    while True:
+        temp = []
+        for name in all_subsordinates:
+            t2 = await get_subsordinates_list(name)
+
+            for x in t2:
+                if x not in temp and x not in all_subsordinates:
+                    temp.append(x)
+        if len(temp) == 0:
+            break
+        all_subsordinates.extend(temp)
+    return all_subsordinates
+        
+async def get_user_all_level_subordinates_by_username(username: str):
+    subsordinates = await get_subordinates_list_by_username(username)
+    promises = [get_worker_status(name) for name in subsordinates]
+    result = await asyncio.gather(*promises)
+    return [x for x in result if x is not None]
 
 
 async def move_user_to_position(username: str, device_id: str):
@@ -195,7 +196,9 @@ async def move_user_to_position(username: str, device_id: str):
             user=user,
         )
 
-        await worker_status.update(at_device=device, last_event_end_date=datetime.utcnow())
+        await worker_status.update(
+            at_device=device, last_event_end_date=datetime.utcnow()
+        )
 
         await LogValue.objects.create(
             log_header=log.id,

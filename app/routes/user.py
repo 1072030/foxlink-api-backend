@@ -14,10 +14,9 @@ from app.core.database import (
     database,
 )
 from app.services.user import (
-    get_user_subordinates_by_username,
+    get_user_all_level_subordinates_by_username,
     get_user_first_login_time_today,
     get_user_summary,
-    get_users,
     create_user,
     get_password_hash,
     get_users_overview,
@@ -35,15 +34,14 @@ from app.services.auth import (
 )
 from app.models.schema import (
     DayAndNightUserOverview,
-    SubordinateOut,
     UserCreate,
     UserChangePassword,
     UserOut,
     UserOutWithWorkTimeAndSummary,
-    UserOverviewOut,
     UserPatch,
     MissionDto,
     WorkerAttendance,
+    WorkerStatusDto,
 )
 
 router = APIRouter(prefix="/users")
@@ -179,9 +177,9 @@ async def get_user_mission_history(user: User = Depends(get_current_active_user)
     return await get_worker_mission_history(user.username)
 
 
-@router.get("/subordinates", tags=["users"], response_model=List[SubordinateOut])
+@router.get("/subordinates", tags=["users"], response_model=List[WorkerStatusDto])
 async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
-    return await get_user_subordinates_by_username(user.username)
+    return await get_user_all_level_subordinates_by_username(user.username)
 
 
 @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)

@@ -159,10 +159,6 @@ class WorkerStatusDto(BaseModel):
     mission_duration: Optional[float]
 
 
-class SubordinateOut(WorkerStatusDto):
-    shift: ShiftType
-
-
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]
     parameter: Optional[str]
