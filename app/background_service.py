@@ -142,12 +142,14 @@ async def overtime_workers_routine():
     for m in working_missions:
         for u in m.assignees:
             first_login_timestamp = await get_user_first_login_time_today(u.username)
-            if first_login_timestamp is None:
-                continue
+            if first_login_timestamp is not None:
+                duty_shift = get_shift_type_by_datetime(first_login_timestamp)
 
-            if get_shift_type_now() != get_shift_type_by_datetime(
-                first_login_timestamp
-            ):
+            device_level = await UserDeviceLevel.objects.get_or_none(device=m.device, user=u.username)
+            if device_level is not None:
+                duty_shift = device_level.shift
+
+            if get_shift_type_now() != duty_shift:
                 await m.assignees.remove(u)
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
@@ -446,6 +448,7 @@ async def dispatch_routine():
                 device__id=mission_1st.device.id,
                 level__gt=0,
                 user__location=mission_1st.device.workshop.id,
+                shift=get_shift_type_now().value,
             )
             .all()
         )
