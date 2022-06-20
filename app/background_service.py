@@ -136,9 +136,11 @@ async def check_alive_worker_routine():
 
 @database.transaction()
 async def overtime_workers_routine():
-    working_missions = await Mission.objects.select_related(['assignees', 'device']).filter(
+    working_missions = await Mission.objects.select_related(['assignees', 'device', 'missionevents']).filter(
         repair_end_date__isnull=True, is_cancel=False, device__is_rescue=False,
     ).all()
+  
+    working_missions = [x for x in working_missions if len(x.assignees) > 0]
 
     for m in working_missions:
         for u in m.assignees:
@@ -165,6 +167,30 @@ async def overtime_workers_routine():
                     qos=1,
                 )
 
+        if len(m.assignees) != 0:
+            continue
+
+        await m.update(is_cancel=True, description='換班任務，自動結案')
+
+        copied_mission = await Mission.objects.create(
+            name=m.name,
+            description=f"換班任務，沿用 Mission ID: {m.id}",
+            device=m.device,
+            required_expertises=[],
+            is_emergency=m.is_emergency
+        )
+
+        for e in m.missionevents:
+            new_missionevent = MissionEvent(
+                event_id=e.event_id,
+                table_name=e.table_name,
+                category=e.category,
+                message=e.message,
+                done_verified=e.done_verified,
+                event_start_date=e.event_start_date,
+                event_end_date=e.event_end_date
+            )
+            await copied_mission.missionevents.add(new_missionevent)
 
 async def auto_close_missions():
     working_missions = (
