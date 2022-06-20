@@ -150,7 +150,7 @@ async def overtime_workers_routine():
             ):
                 await m.assignees.remove(u)
                 await AuditLogHeader.objects.create(
-                    action=AuditActionEnum.MISSION_USER_OVERTIME.value,
+                    action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
                     table_name="missions",
                     description="員工換班",
                     user=u.username,
