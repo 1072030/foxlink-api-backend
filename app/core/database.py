@@ -127,7 +127,7 @@ class UserDeviceLevel(ormar.Model):
 
 class MissionEvent(ormar.Model):
     class Meta(MainMeta):
-        constraints = [ormar.UniqueColumns("event_id", "table_name")]
+        constraints = [ormar.UniqueColumns("event_id", "table_name", "mission")]
 
     id: int = ormar.Integer(primary_key=True)
     mission: MissionRef = ormar.ForeignKey(MissionRef, index=True, ondelete="CASCADE")  # type: ignore
