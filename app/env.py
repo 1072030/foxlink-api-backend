@@ -23,12 +23,13 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
         if dtype is List[int] or dtype is List[str]:
             return literal_eval(val)
         elif dtype is bool:
-            return dtype(int(val))
+            return dtype(int(val)) # type: ignore
         else:
             return dtype(val)  # type: ignore
 
 
 logger = logging.getLogger(LOGGER_NAME)
+
 
 load_dotenv()
 
@@ -75,7 +76,7 @@ MOVE_TO_RESCUE_STATION_TIME = get_env(
 DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
 
 
-if os.environ.get("USE_ALEMBIC") is  None:
+if os.environ.get("USE_ALEMBIC") is None:
     if PY_ENV not in ["production", "dev"]:
         logger.error("PY_ENV env should be either production or dev!")
         exit(1)
@@ -95,4 +96,6 @@ if os.environ.get("USE_ALEMBIC") is  None:
 
     if DISABLE_FOXLINK_DISPATCH is True:
         logger.warn("DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")
+
+    logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
 

@@ -35,6 +35,7 @@ from app.core.database import (
     FactoryMap,
     Mission,
     MissionEvent,
+    ShiftType,
     User,
     AuditLogHeader,
     AuditActionEnum,
@@ -135,19 +136,21 @@ async def check_alive_worker_routine():
 
 @database.transaction()
 async def overtime_workers_routine():
-    working_missions = await Mission.objects.filter(
-        repair_end_date__isnull=True, is_cancel=False
+    working_missions = await Mission.objects.select_related(['assignees', 'device']).filter(
+        repair_end_date__isnull=True, is_cancel=False, device__is_rescue=False,
     ).all()
 
     for m in working_missions:
         for u in m.assignees:
             first_login_timestamp = await get_user_first_login_time_today(u.username)
-            if first_login_timestamp is None:
-                continue
+            if first_login_timestamp is not None:
+                duty_shift = get_shift_type_by_datetime(first_login_timestamp)
 
-            if get_shift_type_now() != get_shift_type_by_datetime(
-                first_login_timestamp
-            ):
+            device_level = await UserDeviceLevel.objects.get_or_none(device=m.device, user=u.username)
+            if device_level is not None:
+                duty_shift = ShiftType.day if device_level.shift == False else ShiftType.night
+
+            if get_shift_type_now() != duty_shift:
                 await m.assignees.remove(u)
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
@@ -446,6 +449,7 @@ async def dispatch_routine():
                 device__id=mission_1st.device.id,
                 level__gt=0,
                 user__location=mission_1st.device.workshop.id,
+                shift=get_shift_type_now().value,
             )
             .all()
         )
@@ -534,7 +538,7 @@ async def dispatch_routine():
         dispatch.get_dispatch_info(w_list)
         worker_1st = dispatch.worker_dispatch()
 
-        logger.info(
+        logger.warning(
             "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
         )
 
@@ -544,7 +548,7 @@ async def dispatch_routine():
                 table_name="missions",
                 record_pk=mission_1st.id,
                 action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=w.user.username,
+                user=worker_1st,
             )
         except Exception as e:
             logger.error(f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
@@ -736,9 +740,6 @@ class FoxlinkBackground:
     def generate_device_id(self, event: FoxlinkEvent) -> str:
         project = event.project.split(" ")[0]
         return f"{project}@{event.line}@{event.device_name}"
-
-
-foxlink_daemon = FoxlinkBackground()
 kill_now = False
 
 
@@ -750,6 +751,9 @@ def graceful_shutdown(signal, frame):
 async def main_routine():
     global kill_now
 
+    
+    foxlink_daemon = FoxlinkBackground()
+
     connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
     await database.connect()
     if not DISABLE_FOXLINK_DISPATCH:
@@ -758,8 +762,8 @@ async def main_routine():
     while not kill_now:
         await auto_close_missions()
         await worker_monitor_routine()
-        await track_worker_status_routine()
         await overtime_workers_routine()
+        await track_worker_status_routine()
         await check_mission_duration_routine()
         await check_alive_worker_routine()
 
