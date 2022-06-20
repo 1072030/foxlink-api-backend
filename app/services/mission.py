@@ -63,6 +63,7 @@ async def get_missions_by_username(username: str):
     )
     return missions
 
+
 @database.transaction()
 async def update_mission_by_id(id: int, dto: MissionUpdate):
     mission = await get_mission_by_id(id)
@@ -79,7 +80,7 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
     await mission.update()
 
     if dto.assignees is not None:
-        await mission.assignees.clear() # type: ignore
+        await mission.assignees.clear()  # type: ignore
         for username in dto.assignees:
             await assign_mission(id, username)
 
@@ -101,37 +102,39 @@ async def start_mission_by_id(mission_id: int, worker: User):
         await move_user_to_position(worker.username, mission.device.id)
         return
 
-    if mission.is_started or mission.is_closed:
-        raise HTTPException(400, "this mission is already started or closed")
+    if mission.is_closed or mission.is_cancel:
+        raise HTTPException(200, "this mission is already closed or canceled")
 
-    for worker in mission.assignees:
-        # Check worker has accepted the mission or not.
-        accept_count = await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_ACCEPTED.value,
-            user=worker.username,
-            record_pk=str(mission_id),
-        ).count()
+    if await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_STARTED.value, user=worker.username, record_pk=str(mission_id)).exists():
+        raise HTTPException(200, 'you have already started the mission')
 
-        if accept_count == 0:
-            raise HTTPException(
-                400, "one of the assignees hasn't accepted the mission yet!"
-            )
-
-    await mission.update(repair_start_date=datetime.utcnow())
-
-    for worker in mission.assignees:
-        worker_status = await WorkerStatus.objects.filter(worker=worker).get()
-        worker_status.dispatch_count += 1
-        worker_status.status = WorkerStatusEnum.working.value
-        await worker_status.update()
-
-        await move_user_to_position(worker.username, mission.device.id)
-        await AuditLogHeader.objects.create(
-            action=AuditActionEnum.MISSION_STARTED.value,
-            user=worker.username,
-            table_name="missions",
-            record_pk=str(mission.id),
+    # check if worker has accepted this mission
+    if not await AuditLogHeader.objects.filter(
+        action=AuditActionEnum.MISSION_ACCEPTED.value,
+        user=worker.username,
+        record_pk=str(mission_id),
+    ).exists():
+        raise HTTPException(
+            400, "one of the assignees hasn't accepted the mission yet!"
         )
+        
+    # if mission is already started,
+    # for example there is previous worker who has started the mission, then we shouldn't update repair start date.
+    if mission.repair_start_date is None:
+        await mission.update(repair_start_date=datetime.utcnow())
+
+    worker_status = await WorkerStatus.objects.filter(worker=worker).get()
+    worker_status.dispatch_count += 1
+    worker_status.status = WorkerStatusEnum.working.value
+    await worker_status.update()
+
+    await move_user_to_position(worker.username, mission.device.id)
+    await AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_STARTED.value,
+        user=worker.username,
+        table_name="missions",
+        record_pk=str(mission.id),
+    )
 
 
 async def accept_mission(mission_id: int, worker: User):
@@ -258,7 +261,9 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
         raise HTTPException(400, "this mission hasn't started yet")
 
     if mission.device.is_rescue:
-        raise HTTPException(200, "this mission is to-rescue mission, no need to call finish")
+        raise HTTPException(
+            200, "this mission is to-rescue mission, no need to call finish"
+        )
 
     if mission.is_closed or mission.is_cancel:
         raise HTTPException(200, "this mission is already closed or canceled!")
@@ -282,7 +287,8 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
     for w in mission.assignees:
         await WorkerStatus.objects.filter(worker=w).update(
             # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
-            status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow()
+            status=WorkerStatusEnum.idle.value,
+            last_event_end_date=datetime.utcnow()
             # status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow() if len(event_end_dates) == 0 else event_end_dates[0]
         )
 
@@ -342,7 +348,9 @@ async def assign_mission(mission_id: int, username: str):
         )
 
     if username in [x.username for x in mission.assignees]:
-        raise HTTPException(status_code=400, detail="this mission is already assigned to this user")
+        raise HTTPException(
+            status_code=400, detail="this mission is already assigned to this user"
+        )
 
     # if len(mission.assignees) > 0:
     #     raise HTTPException(status_code=400, detail="the mission is already assigned")
