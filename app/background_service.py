@@ -135,8 +135,8 @@ async def check_alive_worker_routine():
 
 @database.transaction()
 async def overtime_workers_routine():
-    working_missions = await Mission.objects.filter(
-        repair_end_date__isnull=True, is_cancel=False
+    working_missions = await Mission.objects.select_related(['assignees', 'device']).filter(
+        repair_end_date__isnull=True, is_cancel=False, device__is_rescue=False,
     ).all()
 
     for m in working_missions:

@@ -20,7 +20,7 @@ def get_shift_type_by_datetime(dt: datetime) -> ShiftType:
     day_begin = datetime.time(datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M"))
     day_end = datetime.time(datetime.strptime(DAY_SHIFT_END, "%H:%M"))
 
-    china_tz_dt = CST_TIMEZONE.localize(dt)
+    china_tz_dt = dt + CST_TIMEZONE.utcoffset(dt)
 
     if china_tz_dt.time() >= day_begin and china_tz_dt.time() <= day_end:
         return ShiftType.day
