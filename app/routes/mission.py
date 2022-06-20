@@ -28,11 +28,7 @@ from app.services.auth import (
 from app.models.schema import MissionUpdate, MissionDto
 from fastapi.exceptions import HTTPException
 
-from app.services.user import (
-    get_user_first_login_time_today,
-    is_user_working_on_mission,
-)
-from app.utils.utils import get_shift_type_by_datetime, get_shift_type_now
+from app.services.user import is_user_working_on_mission
 
 router = APIRouter(prefix="/missions")
 
@@ -49,7 +45,6 @@ async def get_missions_by_query(
     is_rescue: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
-    include_overtime_mission: bool = False,
 ):
     params = {
         "created_date__gte": start_date,
@@ -87,39 +82,6 @@ async def get_missions_by_query(
             missions = [mission for mission in missions if len(mission.assignees) == 0]
 
     mission_list = [MissionDto.from_mission(x) for x in missions]
-
-    if include_overtime_mission:
-        missions = (
-            await Mission.objects.select_related(
-                ["device", "assignees", "missionevents", "device__workshop"]
-            )
-            .exclude_fields(
-                [
-                    "device__workshop__map",
-                    "device__workshop__related_devices",
-                    "device__workshop__image",
-                ]
-            )
-            .filter(repair_end_date__isnull=True)
-            .order_by("-created_date")
-            .all()
-        )
-
-        missions = [m for m in missions if len(m.assignees) > 0]
-
-        for m in missions:
-            for u in m.assignees:
-                first_login_timestamp = await get_user_first_login_time_today(
-                    u.username
-                )
-                if first_login_timestamp is None:
-                    continue
-
-                if get_shift_type_now() != get_shift_type_by_datetime(
-                    first_login_timestamp
-                ):
-                    mission_list.append(MissionDto.from_mission(m))
-                    break
 
     return mission_list
 
@@ -256,7 +218,7 @@ async def update_mission(
         action=AuditActionEnum.MISSION_UPDATED.value,
         record_pk=str(mission_id),
         user=user,
-        description=str(dto)
+        description=str(dto),
     )
 
 

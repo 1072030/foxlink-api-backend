@@ -32,7 +32,6 @@ from app.env import (
     OVERTIME_MISSION_NOTIFY_PERIOD,
 )
 from app.core.database import (
-    CategoryPRI,
     FactoryMap,
     Mission,
     MissionEvent,
@@ -134,10 +133,11 @@ async def check_alive_worker_routine():
                     continue
 
 
-async def notify_overtime_workers():
-    working_missions = await Mission.objects.filter(repair_end_date__isnull=True).all()
-
-    overtime_workers: List[OvertimeWorkerInfo] = []
+@database.transaction()
+async def overtime_workers_routine():
+    working_missions = await Mission.objects.filter(
+        repair_end_date__isnull=True, is_cancel=False
+    ).all()
 
     for m in working_missions:
         for u in m.assignees:
@@ -148,22 +148,19 @@ async def notify_overtime_workers():
             if get_shift_type_now() != get_shift_type_by_datetime(
                 first_login_timestamp
             ):
-
-                overtime_workers.append(
-                    {
-                        "worker_id": u.username,
-                        "worker_name": u.full_name,
-                        "working_on_mission": {
-                            "mission_id": m.id,
-                            "mission_name": m.name,
-                            "device_id": m.device.id,
-                            "mission_start_date": m.created_date,
-                        },
-                    }
+                await m.assignees.remove(u)
+                await AuditLogHeader.objects.create(
+                    action=AuditActionEnum.MISSION_USER_OVERTIME.value,
+                    table_name="missions",
+                    description="員工換班",
+                    user=u.username,
+                    record_pk=m.id,
                 )
-
-    if len(overtime_workers) > 0:
-        publish("foxlink/overtime-workers", overtime_workers, qos=1, retain=True)
+                publish(
+                    f"foxlink/users/{u.username}/notify",
+                    {"message": "因為您超時工作，所以您目前的任務已被移除。"},
+                    qos=1,
+                )
 
 
 async def auto_close_missions():
@@ -304,7 +301,13 @@ async def worker_monitor_routine():
             )
             await mission.assignees.add(w)
 
-            await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_ASSIGNED.value, user=w.username, table_name="missions", record_pk=str(mission.id), description="前往消防站")
+            await AuditLogHeader.objects.create(
+                action=AuditActionEnum.MISSION_ASSIGNED.value,
+                user=w.username,
+                table_name="missions",
+                record_pk=str(mission.id),
+                description="前往消防站",
+            )
 
             publish(
                 f"foxlink/users/{w.username}/move-rescue-station",
@@ -395,7 +398,7 @@ async def check_mission_duration_routine():
 async def dispatch_routine():
     avaliable_missions = (
         await Mission.objects.select_related(["device", "assignees", "missionevents"])
-        .filter(is_cancel=False, repair_start_date__isnull=True)
+        .filter(is_cancel=False, repair_end_date__isnull=True)
         .all()
     )
 
@@ -417,11 +420,6 @@ async def dispatch_routine():
                 .filter(mission__device=m.device.id, category=event.category)
                 .count()
             )
-            # pri = (
-            #     await CategoryPRI.objects.select_all()
-            #     .filter(devices__id=m.device.id, category=event.category)
-            #     .get_or_none()
-            # )
 
             item = {
                 "missionID": m.id,
@@ -433,12 +431,6 @@ async def dispatch_routine():
                 "category": event.category,
             }
 
-            # if pri is not None:
-            #     item["category"] = pri.category
-            #     item["priority"] = pri.priority
-            # else:
-            #     item["category"] = 0
-            #     item["priority"] = 0
             m_list.append(item)
 
     dispatch.get_missions(m_list)
@@ -767,13 +759,13 @@ async def main_routine():
         await auto_close_missions()
         await worker_monitor_routine()
         await track_worker_status_routine()
-        await notify_overtime_workers()
+        await overtime_workers_routine()
         await check_mission_duration_routine()
         await check_alive_worker_routine()
 
         if not DISABLE_FOXLINK_DISPATCH:
             await dispatch_routine()
-            
+
         time.sleep(5)
 
     logger.warning("Shutting down...")
