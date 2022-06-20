@@ -248,13 +248,16 @@ async def reject_mission_by_id(mission_id: int, user: User):
 
 
 @database.transaction()
-async def finish_mission_by_id(mission_id: int, validate_user: User):
+async def finish_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
         raise HTTPException(404, "the mission you request to start is not found")
 
-    if len([x for x in mission.assignees if x.username == validate_user.username]) == 0:
+    if await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value, user=worker.username, record_pk=str(mission_id)).exists():
+        raise HTTPException(200, "you're no longer this missions assignee")
+
+    if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if not mission.is_started:
@@ -278,18 +281,12 @@ async def finish_mission_by_id(mission_id: int, validate_user: User):
         repair_end_date=datetime.utcnow(), is_cancel=False,
     )
 
-    event_end_dates: List[datetime] = [
-        e.event_end_date - timedelta(hours=8) for e in mission.missionevents
-    ]
-    event_end_dates.sort(reverse=True)
-
     # set each assignee's last_event_end_date
     for w in mission.assignees:
         await WorkerStatus.objects.filter(worker=w).update(
             # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
             status=WorkerStatusEnum.idle.value,
             last_event_end_date=datetime.utcnow()
-            # status=WorkerStatusEnum.idle.value, last_event_end_date=datetime.utcnow() if len(event_end_dates) == 0 else event_end_dates[0]
         )
 
     # record this operation
