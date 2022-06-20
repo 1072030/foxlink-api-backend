@@ -35,6 +35,7 @@ from app.core.database import (
     FactoryMap,
     Mission,
     MissionEvent,
+    ShiftType,
     User,
     AuditLogHeader,
     AuditActionEnum,
@@ -147,7 +148,7 @@ async def overtime_workers_routine():
 
             device_level = await UserDeviceLevel.objects.get_or_none(device=m.device, user=u.username)
             if device_level is not None:
-                duty_shift = device_level.shift
+                duty_shift = ShiftType.day if device_level.shift == False else ShiftType.night
 
             if get_shift_type_now() != duty_shift:
                 await m.assignees.remove(u)
@@ -537,7 +538,7 @@ async def dispatch_routine():
         dispatch.get_dispatch_info(w_list)
         worker_1st = dispatch.worker_dispatch()
 
-        logger.info(
+        logger.warning(
             "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
         )
 
@@ -547,7 +548,7 @@ async def dispatch_routine():
                 table_name="missions",
                 record_pk=mission_1st.id,
                 action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=w.user.username,
+                user=worker_1st,
             )
         except Exception as e:
             logger.error(f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
@@ -739,9 +740,6 @@ class FoxlinkBackground:
     def generate_device_id(self, event: FoxlinkEvent) -> str:
         project = event.project.split(" ")[0]
         return f"{project}@{event.line}@{event.device_name}"
-
-
-foxlink_daemon = FoxlinkBackground()
 kill_now = False
 
 
@@ -753,6 +751,9 @@ def graceful_shutdown(signal, frame):
 async def main_routine():
     global kill_now
 
+    
+    foxlink_daemon = FoxlinkBackground()
+
     connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
     await database.connect()
     if not DISABLE_FOXLINK_DISPATCH:
@@ -761,8 +762,8 @@ async def main_routine():
     while not kill_now:
         await auto_close_missions()
         await worker_monitor_routine()
-        await track_worker_status_routine()
         await overtime_workers_routine()
+        await track_worker_status_routine()
         await check_mission_duration_routine()
         await check_alive_worker_routine()
 
