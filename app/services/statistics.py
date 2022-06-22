@@ -202,7 +202,7 @@ async def get_emergency_missions() -> List[MissionDto]:
 async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
     s = (
         await WorkerStatus.objects.filter(worker=username)
-        .select_related(["worker"])
+        .select_related(["worker", 'at_device'])
         .get_or_none()
     )
 
@@ -218,6 +218,7 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
     )
 
     item.at_device = s.at_device.id if s.at_device is not None else None
+    item.at_device_cname = s.at_device.device_cname if s.at_device is not None else None
 
     if s.status == WorkerStatusEnum.working.value:
         try:
@@ -239,7 +240,8 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
                 .first()
             )
 
-            item.mission_duration = mission.duration.total_seconds() # type: ignore
+            item.mission_duration = mission.mission_duration.total_seconds() # type: ignore
+            item.repair_duration = mission.repair_duration.total_seconds() # type: ignore
         except:
             ...
     return item

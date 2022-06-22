@@ -154,9 +154,11 @@ class WorkerStatusDto(BaseModel):
     worker_name: str
     last_event_end_date: datetime
     at_device: Optional[str]
+    at_device_cname: Optional[str]
     status: WorkerStatusEnum
     total_dispatches: int
     mission_duration: Optional[float]
+    repair_duration: Optional[float]
 
 
 class ImportDevicesOut(BaseModel):
