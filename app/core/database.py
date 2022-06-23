@@ -272,8 +272,17 @@ class WorkerStatus(ormar.Model):
         server_default=func.now(), timezone=True
     )
 
+class WhitelistDevice(ormar.Model):
+    class Meta(MainMeta):
+        ...
 
-@pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus])
+    id: int = ormar.Integer(primary_key=True)
+    device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE')
+    workers: List[User] = ormar.ManyToMany(User)
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+
+@pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
 
