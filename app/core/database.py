@@ -277,7 +277,7 @@ class WhitelistDevice(ormar.Model):
         ...
 
     id: int = ormar.Integer(primary_key=True)
-    device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE')
+    device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE', nullable=False)
     workers: List[User] = ormar.ManyToMany(User)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
