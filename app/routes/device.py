@@ -2,7 +2,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from app.models.schema import CategoryPriorityOut, DeviceOut
 from app.services.auth import get_manager_active_user, get_current_active_user
-from app.core.database import CategoryPRI, Device, User, FactoryMap
+from app.core.database import CategoryPRI, Device, User, FactoryMap, WhitelistDevice
+from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices
 
 router = APIRouter(prefix="/device")
 
@@ -46,6 +47,46 @@ async def get_category_priority_by_project(
         .all()
     )
     return [CategoryPriorityOut.from_categorypri(c) for c in category_pri]
+
+@router.get("/whitelist", tags=['whitelist device'])
+async def get_whitelist_devices(workshop_name: str):
+    whitelist_devices = (await WhitelistDevice.objects
+        .select_related(['device', 'device__workshop', 'workers'])
+        .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
+        .filter(device__workshop__name=workshop_name).all()
+    )
+    
+    resp = {}
+
+    for w in whitelist_devices:
+        usernames = []
+        for u in w.workers:
+            usernames.append({'username': u.username, 'full_name': u.full_name})
+
+        resp[w.device.id] = usernames
+
+    return resp
+
+@router.get("/{device_id}/whitelist", tags=['whitelist device'])
+async def get_workers_from_a_whitelist_device(device_id: str):
+    return await get_workers_from_whitelist_devices(device_id)
+
+@router.post("/{device_id}/whitelist", tags=['whitelist device'])
+async def add_worker_to_whitelist_device(device_id: str, username: str):
+    await add_worker_to_device_whitelist(username, device_id)
+
+@router.delete("/{device_id}/whitelist", tags=['whitelist device'])
+async def remove_worker_from_whitelist_device(device_id: str, username: str):
+    user = await User.objects.get_or_none(username=username)
+    if user is None:
+        raise HTTPException(404, 'the user is not found')
+
+    whitelist_device = await WhitelistDevice.objects.filter(device=device_id, workers__username=username).get_or_none()
+
+    if whitelist_device is None:
+        raise HTTPException(404, 'the user is not in whitelist')
+
+    await whitelist_device.workers.remove(user)
 
 
 @router.get("/{device_id}", response_model=DeviceOut, tags=["device"])
