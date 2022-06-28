@@ -6,6 +6,7 @@ from app.core.database import (
     AuditLogHeader,
     AuditActionEnum,
     UserDeviceLevel,
+    WhitelistDevice,
     WorkerStatus,
     WorkerStatusEnum,
     database,
@@ -226,13 +227,16 @@ async def reject_mission_by_id(mission_id: int, user: User):
     worker_reject_amount_today = await AuditLogHeader.objects.filter(
         user=user,
         action=AuditActionEnum.MISSION_REJECTED.value,
-        created_date__gte=datetime.now(CST_TIMEZONE),
+        created_date__gte=datetime.utcnow() - timedelta(days=1),
     ).count()
 
     if worker_reject_amount_today >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
         worker_device_info = await UserDeviceLevel.objects.filter(
             user=user, device=mission.device.id, shift=get_shift_type_now().value,
-        ).get()
+        ).get_or_none()
+
+        if worker_device_info is None:
+            return
 
         if worker_device_info.superior is not None:
             publish(
@@ -417,11 +421,12 @@ async def request_assistance(mission_id: int, validate_user: User):
         raise HTTPException(400, "this mission is already closed")
 
     await mission.update(is_emergency=True)
+    await AuditLogHeader.objects.create(action=AuditActionEnum.MISSION_EMERGENCY.value, table_name='missions', user=validate_user, record_pk=str(mission.id))
 
     for worker in mission.assignees:
         try:
             worker_device_level = await UserDeviceLevel.objects.filter(
-                user=worker, device=mission.device
+                user=worker.username, device=mission.device.id
             ).first()
 
             if worker_device_level.superior is None:
@@ -454,3 +459,18 @@ async def request_assistance(mission_id: int, validate_user: User):
         except:
             continue
 
+async def is_mission_in_whitelist(mission_id: int):
+    m = await get_mission_by_id(mission_id)
+
+    if m is None:
+        raise HTTPException(404, "the mission you request is not found")
+
+    whitelist_device = await WhitelistDevice.objects.select_related(['workers']).filter(device=m.device).get_or_none()
+
+    if whitelist_device is None:
+        return False
+
+    if len(whitelist_device.workers) == 0:
+        return False
+
+    return True

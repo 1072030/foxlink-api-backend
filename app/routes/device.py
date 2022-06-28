@@ -1,9 +1,9 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from app.models.schema import CategoryPriorityOut, DeviceOut
+from app.models.schema import CategoryPriorityOut, DeviceOut, WhitelistRecommendDevice
 from app.services.auth import get_manager_active_user, get_current_active_user
 from app.core.database import CategoryPRI, Device, User, FactoryMap, WhitelistDevice
-from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices
+from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices, show_recommend_whitelist_devices
 
 router = APIRouter(prefix="/device")
 
@@ -57,15 +57,23 @@ async def get_whitelist_devices(workshop_name: str):
     )
     
     resp = {}
-
     for w in whitelist_devices:
         usernames = []
         for u in w.workers:
             usernames.append({'username': u.username, 'full_name': u.full_name})
 
-        resp[w.device.id] = usernames
-
+        if len(usernames) != 0:
+            resp[w.device.id] = usernames
     return resp
+
+@router.get("/whitelist/recommend", tags=['whitelist device'], response_model=WhitelistRecommendDevice)
+async def get_recommend_day_and_night_whitelist_devices(workshop_name: str):
+    day_data, night_data = await show_recommend_whitelist_devices(workshop_name)
+
+    return {
+        'day': day_data,
+        'night': night_data
+    }
 
 @router.get("/{device_id}/whitelist", tags=['whitelist device'])
 async def get_workers_from_a_whitelist_device(device_id: str):

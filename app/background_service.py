@@ -8,12 +8,15 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
+from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
-from app.services.mission import assign_mission
+from app.services.mission import assign_mission, is_mission_in_whitelist
 from app.services.user import (
     get_user_first_login_time_today,
+    get_user_shift_type,
     is_user_working_on_mission,
+    is_worker_in_whitelist,
 )
 from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import CST_TIMEZONE, get_shift_type_now, get_shift_type_by_datetime
@@ -144,13 +147,7 @@ async def overtime_workers_routine():
 
     for m in working_missions:
         for u in m.assignees:
-            first_login_timestamp = await get_user_first_login_time_today(u.username)
-            if first_login_timestamp is not None:
-                duty_shift = get_shift_type_by_datetime(first_login_timestamp)
-
-            device_level = await UserDeviceLevel.objects.get_or_none(device=m.device, user=u.username)
-            if device_level is not None:
-                duty_shift = ShiftType.day if device_level.shift == False else ShiftType.night
+            duty_shift = await get_user_shift_type(u.username)
 
             if get_shift_type_now() != duty_shift:
                 await m.assignees.remove(u)
@@ -282,6 +279,9 @@ async def worker_monitor_routine():
             if worker_status.status == WorkerStatusEnum.leave.value:
                 continue
 
+            if get_shift_type_now() != (await get_user_shift_type(w.username)):
+                continue
+
             if worker_status.at_device.is_rescue == True:
                 continue
 
@@ -374,7 +374,7 @@ async def check_mission_duration_routine():
 
     for m in working_missions:
         for idx, min in enumerate(standardize_thresholds):
-            if m.duration.total_seconds() >= min * 60:
+            if m.mission_duration.total_seconds() >= min * 60:
                 is_sent = await AuditLogHeader.objects.filter(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
@@ -409,7 +409,7 @@ async def check_mission_duration_routine():
                         "mission_name": m.name,
                         "worker_id": m.assignees[0].username,
                         "worker_name": m.assignees[0].full_name,
-                        "duration": m.duration.total_seconds(),
+                        "duration": m.mission_duration.total_seconds(),
                     },
                     qos=1,
                 )
@@ -469,6 +469,7 @@ async def dispatch_routine():
     for idx, mission_id in enumerate(mission_rank_list):
         mission_1st = await Mission.objects.filter(id=mission_id).select_all().get()
 
+
         can_dispatch_workers = (
             await UserDeviceLevel.objects.select_related("user")
             .filter(
@@ -479,6 +480,19 @@ async def dispatch_routine():
             )
             .all()
         )
+
+        is_in_whitelist = await is_mission_in_whitelist(mission_1st.id)
+        whitelist_workers = await get_workers_from_whitelist_devices(mission_1st.device.id)
+
+        remove_indice = []
+        for w in can_dispatch_workers:
+            if not is_in_whitelist and await is_worker_in_whitelist(w.user.username):
+                remove_indice.append(w.user.username)
+
+            if is_in_whitelist and w.user.username not in whitelist_workers:
+                remove_indice.append(w.user.username)
+
+        can_dispatch_workers = [x for x in can_dispatch_workers if x.user.username not in remove_indice]
 
         if len(can_dispatch_workers) == 0:
             logger.warning(
@@ -796,7 +810,7 @@ async def main_routine():
         if not DISABLE_FOXLINK_DISPATCH:
             await dispatch_routine()
 
-        time.sleep(5)
+        time.sleep(10)
 
     logger.warning("Shutting down...")
     if not DISABLE_FOXLINK_DISPATCH:

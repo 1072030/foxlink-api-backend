@@ -19,9 +19,11 @@ from app.core.database import (
     AuditLogHeader,
     LogValue,
     Mission,
+    ShiftType,
     User,
     UserDeviceLevel,
     UserLevel,
+    WhitelistDevice,
     WorkerStatus,
     database,
 )
@@ -422,3 +424,23 @@ async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
                 return content["data"][0]["connected"], content["data"][0]["ip_address"]
             except:
                 return False, None
+
+async def get_user_shift_type(username: str) -> ShiftType:
+    user = await get_user_by_username(username)
+
+    if user is None:
+        raise HTTPException(404, 'the user is not found')
+
+    if not await UserDeviceLevel.objects.filter(user=user).exists():
+        raise HTTPException(404, 'no shift existed for this user')
+
+    if await UserDeviceLevel.objects.filter(user=user, shift=ShiftType.day.value).exists():
+        return ShiftType.day
+    else:
+        return ShiftType.night
+
+async def is_worker_in_whitelist(username: str) -> bool:
+    return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username).exists()
+
+async def is_worker_in_device_whitelist(username: str, device_id: str) -> bool:
+    return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username, device=device_id).exists()

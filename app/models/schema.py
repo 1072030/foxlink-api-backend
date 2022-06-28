@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Optional, List
+from typing import Any, Dict, Optional, List
 from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 from app.core.database import (
@@ -273,3 +273,7 @@ class DeviceStatus(BaseModel):
     x_axis: float
     y_axis: float
     status: DeviceStatusEnum
+
+class WhitelistRecommendDevice(BaseModel):
+    day: Dict[str, int]
+    night: Dict[str, int]
