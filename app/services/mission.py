@@ -425,7 +425,7 @@ async def request_assistance(mission_id: int, validate_user: User):
 
     for worker in mission.assignees:
         try:
-            worker_device_level = await UserDeviceLevel.objects.filter(
+            worker_device_level = await UserDeviceLevel.objects.select_related(['superior']).filter(
                 user=worker.username, device=mission.device.id
             ).first()
 
@@ -456,8 +456,8 @@ async def request_assistance(mission_id: int, validate_user: User):
                 },
                 qos=1,
             )
-        except:
-            continue
+        except Exception as e:
+            logger.error(f"failed to send emergency message to {worker_device_level.superior.username}, Exception: {repr(e)}")
 
 async def is_mission_in_whitelist(mission_id: int):
     m = await get_mission_by_id(mission_id)

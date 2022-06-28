@@ -215,6 +215,8 @@ class AuditActionEnum(Enum):
     DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
     DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
 
+    NOTIFY_MISSION_NO_WORKER = "NOTIFY_MISSION_NO_WORKER"
+
 
 class LogValue(ormar.Model):
     class Meta(MainMeta):

@@ -498,12 +498,14 @@ async def dispatch_routine():
             logger.warning(
                 f"No workers available to dispatch for mission {mission_1st.id}"
             )
-            publish(
-                "foxlink/no-available-worker",
-                MissionDto.from_mission(mission_1st).dict(),
-                qos=1,
-                retain=True,
-            )
+
+            if not await AuditLogHeader.objects.filter(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, record_pk=mission_1st.id).exists():
+                await AuditLogHeader.objects.create(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, table_name="missions", record_pk=mission_1st.id)
+                publish(
+                    "foxlink/no-available-worker",
+                    MissionDto.from_mission(mission_1st).dict(),
+                    qos=1,
+                )
             continue
 
         factory_map = await FactoryMap.objects.filter(
@@ -567,12 +569,14 @@ async def dispatch_routine():
             logger.warning(
                 f"no worker available to dispatch for mission: (mission_id: {mission_id}, device_id: {mission_1st.device.id})"
             )
-            publish(
-                "foxlink/no-available-worker",
-                MissionDto.from_mission(mission_1st).dict(),
-                qos=1,
-                retain=True,
-            )
+
+            if not await AuditLogHeader.objects.filter(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, record_pk=mission_1st.id).exists():
+                await AuditLogHeader.objects.create(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, table_name="missions", record_pk=mission_1st.id)
+                publish(
+                    "foxlink/no-available-worker",
+                    MissionDto.from_mission(mission_1st).dict(),
+                    qos=1,
+                )
             continue
 
         dispatch.get_dispatch_info(w_list)
@@ -712,11 +716,9 @@ class FoxlinkBackground:
                 events = await self.get_recent_events(db, table_name)
 
                 for e in events:
-                    mission_event = await MissionEvent.objects.filter(
+                    if await MissionEvent.objects.filter(
                         event_id=e.id, table_name=table_name
-                    ).get_or_none()
-
-                    if mission_event is not None:
+                    ).exists():
                         continue
 
                     # avaliable category range: 1~199, 300~699
