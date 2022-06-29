@@ -1,8 +1,8 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
-from app.models.schema import CategoryPriorityOut, DeviceOut, WhitelistRecommendDevice
+from fastapi import APIRouter, Depends, Form, HTTPException
+from app.models.schema import CategoryPriorityOut, DeviceDispatchableWorker, DeviceOut, WhitelistRecommendDevice
 from app.services.auth import get_manager_active_user, get_current_active_user
-from app.core.database import CategoryPRI, Device, User, FactoryMap, WhitelistDevice
+from app.core.database import CategoryPRI, Device, ShiftType, User, FactoryMap, UserDeviceLevel, UserLevel, WhitelistDevice
 from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices, show_recommend_whitelist_devices
 
 router = APIRouter(prefix="/device")
@@ -69,7 +69,6 @@ async def get_whitelist_devices(workshop_name: str):
 @router.get("/whitelist/recommend", tags=['whitelist device'], response_model=WhitelistRecommendDevice)
 async def get_recommend_day_and_night_whitelist_devices(workshop_name: str):
     day_data, night_data = await show_recommend_whitelist_devices(workshop_name)
-
     return {
         'day': day_data,
         'night': night_data
@@ -95,6 +94,11 @@ async def remove_worker_from_whitelist_device(device_id: str, username: str):
         raise HTTPException(404, 'the user is not in whitelist')
 
     await whitelist_device.workers.remove(user)
+
+@router.get("/{device_id}/workers", tags=["device"], response_model=List[DeviceDispatchableWorker], description="Get dispatchable workers of devices.\n shift_type=0: day shift\n shift_type=1: night shift")
+async def get_device_dispatchable_workers(device_id: str, shift_type: bool):
+    user_device_levels = await UserDeviceLevel.objects.select_related(['user']).filter(device=device_id, shift=shift_type, level__gt=0, user__level=UserLevel.maintainer.value).all()
+    return [DeviceDispatchableWorker(username=x.user.username, full_name=x.user.full_name) for x in user_device_levels]
 
 
 @router.get("/{device_id}", response_model=DeviceOut, tags=["device"])

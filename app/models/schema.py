@@ -277,3 +277,7 @@ class DeviceStatus(BaseModel):
 class WhitelistRecommendDevice(BaseModel):
     day: Dict[str, int]
     night: Dict[str, int]
+
+class DeviceDispatchableWorker(BaseModel):
+    username: str
+    full_name: str
