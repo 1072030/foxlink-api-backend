@@ -209,7 +209,6 @@ async def reject_mission_by_id(mission_id: int, user: User):
     mission_reject_amount = await AuditLogHeader.objects.filter(
         record_pk=str(mission.id),
         action=AuditActionEnum.MISSION_REJECTED.value,
-        user=user,
     ).count()
 
     if mission_reject_amount >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore

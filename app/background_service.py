@@ -373,8 +373,11 @@ async def check_mission_duration_routine():
     working_missions = [m for m in working_missions if len(m.assignees) != 0]
 
     for m in working_missions:
+        if m.repair_duration is None:
+            continue
+
         for idx, min in enumerate(standardize_thresholds):
-            if m.mission_duration.total_seconds() >= min * 60:
+            if m.repair_duration.total_seconds() >= min * 60:
                 is_sent = await AuditLogHeader.objects.filter(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
