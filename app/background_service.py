@@ -11,7 +11,7 @@ from app.models.schema import MissionDto
 from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
-from app.services.mission import assign_mission, is_mission_in_whitelist
+from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist
 from app.services.user import (
     get_user_first_login_time_today,
     get_user_shift_type,
@@ -470,8 +470,11 @@ async def dispatch_routine():
     mission_rank_list = dispatch.mission_priority()
 
     for idx, mission_id in enumerate(mission_rank_list):
-        mission_1st = await Mission.objects.filter(id=mission_id).select_all().get()
-
+        #mission_1st = await Mission.objects.filter(id=mission_id).select_all().get()
+        mission_1st = await get_mission_by_id(mission_id)
+        
+        if mission_1st is None:
+            continue
 
         can_dispatch_workers = (
             await UserDeviceLevel.objects.select_related("user")

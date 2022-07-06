@@ -68,11 +68,14 @@ async def get_top_abnormal_missions(limit: int = 10) -> List[AbnormalMissionInfo
     """統計當月異常任務，根據處理時間由高排序到低。"""
     abnormal_missions = await database.fetch_all(
         """
-        SELECT mission as mission_id, m.device as device_id, d.device_cname,  message, category, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, m.created_date
-        FROM missionevents
-        INNER JOIN missions m ON m.id = mission
-        INNER JOIN devices d ON d.id = m.device 
-        WHERE event_end_date IS NOT NULL AND MONTH(event_start_date) = MONTH(CURRENT_DATE()) AND d.is_rescue = FALSE
+        SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
+            SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, m.created_date
+            FROM missionevents
+            INNER JOIN missions m ON m.id = mission
+            INNER JOIN devices d ON d.id = m.device 
+            WHERE event_end_date IS NOT NULL AND MONTH(event_start_date) = MONTH(CURRENT_DATE()) AND d.is_rescue = FALSE
+        ) t1
+        GROUP BY (t1.mission_id)
         ORDER BY duration DESC
         LIMIT :limit;
         """,
@@ -90,7 +93,7 @@ async def get_top_abnormal_devices(limit: int = 10):
         FROM missionevents
         INNER JOIN missions m ON m.id = mission
         INNER JOIN devices d ON d.id = m.device 
-        WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL
+        WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL AND MONTH(event_start_date) = MONTH(CURRENT_DATE())
         GROUP BY device
         ORDER BY duration DESC
         LIMIT :limit;
@@ -104,13 +107,17 @@ async def get_top_abnormal_devices(limit: int = 10):
         # fetch top 3 assignees that deal with device out-of-order issue most quickly
         top_assignees_in_mission = await database.fetch_all(
             """
-            SELECT DISTINCT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_start_date, me.event_end_date) as duration
-            FROM missionevents me
-            LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
-            INNER JOIN missions m ON m.id = me.mission
-            INNER JOIN users u ON u.username = mu.user
-            WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
-            ORDER BY duration ASC
+            SELECT t1.username, t1.full_name, min(t1.duration) as duration FROM (
+                SELECT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_start_date, me.event_end_date) as duration
+                FROM missionevents me
+                LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
+                INNER JOIN missions m ON m.id = me.mission
+                INNER JOIN users u ON u.username = mu.user
+                WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
+                ORDER BY duration ASC
+            ) t1
+            GROUP BY t1.username
+            ORDER BY duration
             LIMIT 3;
             """,
             {"device_id": m.device_id, "category": m.category},

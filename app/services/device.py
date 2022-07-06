@@ -52,7 +52,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
         INNER JOIN factorymaps f on f.id = d.workshop
-        WHERE m.created_date >= CURRENT_TIMESTAMP - INTERVAL 1 MONTH AND d.is_rescue = 0 AND f.name = :workshop_name AND TIME(m.created_date) BETWEEN '{DAY_SHIFT_BEGIN}' AND '{DAY_SHIFT_END}'
+        WHERE m.created_date >= CURRENT_TIMESTAMP - INTERVAL 1 DAY AND d.is_rescue = 0 AND f.name = :workshop_name AND TIME(m.created_date + INTERVAL 8 HOUR) BETWEEN '{DAY_SHIFT_BEGIN}' AND '{DAY_SHIFT_END}'
         GROUP BY device
         ORDER BY count DESC;
     """, {'workshop_name': workshop_name})
@@ -66,7 +66,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
         INNER JOIN factorymaps f on f.id = d.workshop
-        WHERE m.created_date >= CURRENT_TIMESTAMP - INTERVAL 1 MONTH AND d.is_rescue = 0 AND f.name = :workshop_name
+        WHERE m.created_date >= CURRENT_TIMESTAMP - INTERVAL 1 DAY AND d.is_rescue = 0 AND f.name = :workshop_name
         GROUP BY device
         ORDER BY count DESC;
     """, {'workshop_name': workshop_name})
