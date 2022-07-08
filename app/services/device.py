@@ -78,7 +78,8 @@ async def show_recommend_whitelist_devices(workshop_name: str):
     for k, v in recommend_devices_in_day.items():
         recommend_devices_in_night[k] -= v
 
-    recommend_devices_in_night = {k: v for k, v in recommend_devices_in_night.items() if v >= 35}
-    recommend_devices_in_day = {k: v for k, v in recommend_devices_in_day.items() if v >= 35}
+    MINIMUM_OCCUR_COUNT = 35
+    recommend_devices_in_night = {k: v for k, v in recommend_devices_in_night.items() if v >= MINIMUM_OCCUR_COUNT}
+    recommend_devices_in_day = {k: v for k, v in recommend_devices_in_day.items() if v >= MINIMUM_OCCUR_COUNT}
 
     return recommend_devices_in_day, recommend_devices_in_night

@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 import aiohttp
 from fastapi.exceptions import HTTPException
 from ormar import or_, and_
-from app.env import EMQX_PASSWORD, EMQX_USERNAME, MQTT_BROKER
+from app.env import EMQX_PASSWORD, EMQX_USERNAME, MQTT_BROKER, TIMEZONE_OFFSET, WEEK_START
 from app.models.schema import (
     DayAndNightUserOverview,
     DeviceExp,
@@ -30,9 +30,6 @@ from app.core.database import (
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
 from app.services.statistics import get_worker_status
-
-TIMEZONE_OFFSET = 8
-WEEK_START = 1  # the week should start on Sunday or Monday or even else.
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

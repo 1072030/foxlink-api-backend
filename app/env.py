@@ -30,6 +30,9 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
 
 logger = logging.getLogger(LOGGER_NAME)
 
+TIMEZONE_OFFSET = 8
+WEEK_START = 1  # the week should start on Sunday or Monday or even else.
+
 
 load_dotenv()
 
@@ -98,4 +101,5 @@ if os.environ.get("USE_ALEMBIC") is None:
         logger.warn("DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")
 
     logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
+    logger.warn(f"OVERTIME_MISSION_NOTIFY_PERIOD: {OVERTIME_MISSION_NOTIFY_PERIOD}")
 

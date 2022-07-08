@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from app.core.database import Mission, UserLevel, WorkerStatus, WorkerStatusEnum, database, User
 from datetime import datetime
 from ormar import and_, or_
+from app.env import TIMEZONE_OFFSET
 
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 
@@ -137,11 +138,11 @@ async def get_top_most_accept_mission_employees(limit: int) -> List[WorkerMissio
     """取得當月最常接受任務的員工"""
 
     query = await database.fetch_all(
-        """
-        SELECT u.username, u.full_name, count(*) AS count
+        f"""
+        SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
         INNER JOIN users u ON u.username = auditlogheaders.`user`
-        WHERE action='MISSION_ACCEPTED' AND MONTH(created_date) = MONTH(CURRENT_DATE())
+        WHERE action='MISSION_ACCEPTED' AND MONTH(created_date + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
         GROUP BY u.username
         ORDER BY count DESC
         LIMIT :limit;
@@ -156,11 +157,11 @@ async def get_top_most_reject_mission_employees(limit: int) -> List[WorkerMissio
     """取得當月最常拒絕任務的員工"""
 
     query = await database.fetch_all(
-        """
-        SELECT u.username, u.full_name, count(*) AS count
+        f"""
+        SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
         INNER JOIN users u ON u.username = auditlogheaders.`user`
-        WHERE action='MISSION_REJECTED' AND MONTH(created_date) = MONTH(CURRENT_DATE())
+        WHERE action='MISSION_REJECTED' AND MONTH(created_date + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
         GROUP BY u.username
         ORDER BY count DESC
         LIMIT :limit;
@@ -216,12 +217,22 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
     if s is None:
         return None
 
+    total_accept_count = await database.fetch_all(
+        f"""
+        SELECT COUNT(DISTINCT record_pk)
+        FROM auditlogheaders
+        WHERE `action` = 'MISSION_ACCEPTED'
+        AND user=:username
+        """,
+        {'username': username}
+    )
+
     item = WorkerStatusDto(
         worker_id=username,
         worker_name=s.worker.full_name,
         status=s.status,
         last_event_end_date=s.last_event_end_date,
-        total_dispatches=s.dispatch_count,
+        total_dispatches=total_accept_count[0][0],
     )
 
     item.at_device = s.at_device.id if s.at_device is not None else None
