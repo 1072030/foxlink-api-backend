@@ -1,8 +1,8 @@
 import datetime, logging
 from typing import List, Any
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.core.database import Mission, WorkerStatus, UserLevel, WorkerStatusEnum
+from app.core.database import FactoryMap, Mission, WorkerStatus, UserLevel, WorkerStatusEnum
 import asyncio
 from app.env import LOGGER_NAME
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -42,14 +42,28 @@ class Stats(BaseModel):
 
 
 @router.get("/", response_model=Stats, tags=["statistics"])
-async def get_overall_statistics():
-    top_crashed_devices = await get_top_most_crashed_devices(10)
-    top_abnormal_devices = await get_top_abnormal_devices(10)
-    top_abnormal_missions = await get_top_abnormal_missions(10)
-    login_users_percentage = await get_login_users_percentage_by_recent_24_hours()
-    top_mission_accept_employees = await get_top_most_accept_mission_employees(10)
-    top_mission_reject_employees = await get_top_most_reject_mission_employees(3)
-    emergency_missions = await get_emergency_missions()
+async def get_overall_statistics(workshop_name: str, start_date: datetime.datetime, end_date: datetime.datetime):
+    """
+    Parameters:
+        start_date - Should be UTC timezone.
+        end_date - Should be UTC timezone.
+    """
+
+    if start_date > end_date:
+        raise HTTPException(400, "start_date should be less than end_date")
+
+    if not await FactoryMap.objects.filter(name=workshop_name).exists():
+        raise HTTPException(404, "workshop_name is not existed")
+
+    workshop_id = (await FactoryMap.objects.filter(name=workshop_name).exclude_fields(['map', 'image', 'related_devices']).get()).id
+        
+    top_crashed_devices = await get_top_most_crashed_devices(workshop_id, start_date, end_date, 10)
+    top_abnormal_devices = await get_top_abnormal_devices(workshop_id, start_date, end_date, 10)
+    top_abnormal_missions = await get_top_abnormal_missions(workshop_id, start_date, end_date, 10)
+    login_users_percentage = await get_login_users_percentage_by_recent_24_hours(workshop_id, start_date, end_date)
+    top_mission_accept_employees = await get_top_most_accept_mission_employees(workshop_id, start_date, end_date,10)
+    top_mission_reject_employees = await get_top_most_reject_mission_employees(workshop_id, start_date, end_date,3)
+    emergency_missions = await get_emergency_missions(workshop_id)
 
     return Stats(
         devices_stats=DeviceStats(
@@ -64,25 +78,12 @@ async def get_overall_statistics():
     )
 
 
-"""
-SELECT u.username, u.full_name, ws.at_device, ws.dispatch_count, ws.last_event_end_date,  mu.mission as mission_id, (UTC_TIMESTAMP() - m2.created_date) as mission_duration FROM worker_status ws
-LEFT JOIN missions_users mu ON mu.id = (
-	SELECT mu2.id FROM missions m
-	INNER JOIN missions_users mu2
-	ON mu2.user = ws.worker
-	WHERE m.repair_end_date IS NULL AND m.is_cancel = False
-	LIMIT 1
-)
-LEFT JOIN missions m2 ON m2.id = mu.mission
-LEFT JOIN users u ON u.username = ws.worker;
-"""
-
-
-@router.get("/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
-async def get_all_worker_status():
+@router.get("/{workshop_name}/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
+async def get_all_worker_status(workshop_name: str):
     states = (
-        await WorkerStatus.objects.select_related(["worker"])
-        .filter(worker__level=UserLevel.maintainer.value)
+        await WorkerStatus.objects.select_related(["worker", "worker__location"])
+        .exclude_fields(['worker__location__related_devices', 'worker__location__image', 'worker__location__map'])
+        .filter(worker__level=UserLevel.maintainer.value, worker__location__name=workshop_name)
         .all()
     )
 
