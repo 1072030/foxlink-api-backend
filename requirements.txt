@@ -10,8 +10,6 @@ aiomysql==0.1.1
     # via -r requirements.in
 aiosignal==1.2.0
     # via aiohttp
-aiosqlite==0.17.0
-    # via ormar
 alembic==1.8.0
     # via -r requirements.in
 anyio==3.6.1
@@ -80,7 +78,7 @@ opencv-python==4.6.0.66
     # via -r requirements.in
 openpyxl==3.0.10
     # via -r requirements.in
-ormar==0.11.0
+ormar==0.11.2
     # via -r requirements.in
 paho-mqtt==1.6.1
     # via -r requirements.in
@@ -138,9 +136,7 @@ starlette==0.19.1
 tqdm==4.64.0
     # via -r requirements.in
 typing-extensions==4.2.0
-    # via
-    #   aiosqlite
-    #   pydantic
+    # via pydantic
 uvicorn==0.18.2
     # via -r requirements.in
 validators==0.20.0
