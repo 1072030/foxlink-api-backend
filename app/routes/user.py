@@ -183,5 +183,5 @@ async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
 
 
 @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
-async def get_all_users_overview(user: User = Depends(get_manager_active_user)):
-    return await get_users_overview()
+async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
+    return await get_users_overview(workshop_name)

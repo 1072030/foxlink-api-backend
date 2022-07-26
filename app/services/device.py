@@ -1,9 +1,12 @@
+import logging
 from app.core.database import Device, User, UserLevel, WhitelistDevice, database
 from typing import Dict, Optional
 from fastapi.exceptions import HTTPException
 from typing import List, Optional
-from app.env import DAY_SHIFT_BEGIN, DAY_SHIFT_END
+from app.my_log_conf import LOGGER_NAME
+from app.utils.utils import get_previous_shift_time_interval
 
+logger = logging.getLogger(LOGGER_NAME)
 
 async def get_devices() -> List[Device]:
     devices = await Device.objects.all()
@@ -48,14 +51,18 @@ async def add_worker_to_device_whitelist(username: str, device_id: str):
         raise HTTPException(400, 'cannot add this user to whitelist due to duplicate entry.')
 
 async def show_recommend_whitelist_devices(workshop_name: str):
+    day_start, day_end, night_start, night_end = get_previous_shift_time_interval()
+
+    logger.info(day_start, day_end, night_start, night_end)
+
     raw_data_in_day = await database.fetch_all(f"""
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
         INNER JOIN factorymaps f on f.id = d.workshop
-        WHERE m.created_date >= CURRENT_TIMESTAMP - INTERVAL 1 DAY AND d.is_rescue = 0 AND f.name = :workshop_name AND TIME(m.created_date + INTERVAL 8 HOUR) BETWEEN '{DAY_SHIFT_BEGIN}' AND '{DAY_SHIFT_END}'
+        WHERE (m.created_date BETWEEN :day_start AND :day_end) AND d.is_rescue = 0 AND f.name = :workshop_name
         GROUP BY device
         ORDER BY count DESC;
-    """, {'workshop_name': workshop_name})
+    """, {'workshop_name': workshop_name, 'day_start': day_start, 'day_end': day_end})
 
 
     recommend_devices_in_day: Dict[str, int] = {}
@@ -66,20 +73,17 @@ async def show_recommend_whitelist_devices(workshop_name: str):
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
         INNER JOIN factorymaps f on f.id = d.workshop
-        WHERE m.created_date >= CURRENT_TIMESTAMP - INTERVAL 1 DAY AND d.is_rescue = 0 AND f.name = :workshop_name
+        WHERE (m.created_date BETWEEN :night_start AND :night_end) AND d.is_rescue = 0 AND f.name = :workshop_name
         GROUP BY device
         ORDER BY count DESC;
-    """, {'workshop_name': workshop_name})
+    """, {'workshop_name': workshop_name, 'night_start': night_start, 'night_end': night_end})
 
     recommend_devices_in_night: Dict[str, int] = {}
     for x in raw_data_in_night:
         recommend_devices_in_night[x[0]] = int(x[1])
 
-    for k, v in recommend_devices_in_day.items():
-        recommend_devices_in_night[k] -= v
-
-    MINIMUM_OCCUR_COUNT = 35
-    recommend_devices_in_night = {k: v for k, v in recommend_devices_in_night.items() if v >= MINIMUM_OCCUR_COUNT}
+    MINIMUM_OCCUR_COUNT = 5
     recommend_devices_in_day = {k: v for k, v in recommend_devices_in_day.items() if v >= MINIMUM_OCCUR_COUNT}
+    recommend_devices_in_night = {k: v for k, v in recommend_devices_in_night.items() if v >= MINIMUM_OCCUR_COUNT}
 
     return recommend_devices_in_day, recommend_devices_in_night

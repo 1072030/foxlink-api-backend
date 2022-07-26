@@ -242,8 +242,8 @@ async def is_user_working_on_mission(username: str) -> bool:
     return False
 
 
-async def get_users_overview() -> DayAndNightUserOverview:
-    users = await User.objects.select_related("location").all()
+async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
+    users = await User.objects.select_related("location").filter(location__name=workshop_name).all()
 
     day_overview: List[UserOverviewOut] = []
     night_overview: List[UserOverviewOut] = []
