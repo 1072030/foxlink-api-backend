@@ -4,7 +4,7 @@ import signal
 import time
 from databases import Database
 import pytz
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
@@ -469,6 +469,8 @@ async def dispatch_routine():
 
     mission_rank_list = dispatch.mission_priority()
 
+    to_assign_pair: List[Tuple[int, str]] = []
+
     for idx, mission_id in enumerate(mission_rank_list):
         #mission_1st = await Mission.objects.filter(id=mission_id).select_all().get()
         mission_1st = await get_mission_by_id(mission_id)
@@ -550,10 +552,7 @@ async def dispatch_routine():
             daily_count = await AuditLogHeader.objects.filter(
                 action=AuditActionEnum.MISSION_ASSIGNED.value,
                 user=w.user,
-                created_date__gte=datetime.now(CST_TIMEZONE)
-                .replace(hour=0, minute=0, second=0)
-                .astimezone(pytz.utc)
-                .date(),
+                created_date__gte=(datetime.utcnow() - timedelta(hours=12)),
             ).count()
 
             worker_device_idx = find_idx_in_factory_map(
@@ -587,22 +586,22 @@ async def dispatch_routine():
 
         dispatch.get_dispatch_info(w_list)
         worker_1st = dispatch.worker_dispatch()
+        to_assign_pair.append((mission_1st.id, worker_1st))
 
-        logger.warning(
+    for mission_id, worker_id in to_assign_pair:
+        logger.info(
             "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
         )
-
         try:
-            await assign_mission(mission_1st.id, worker_1st)
             await AuditLogHeader.objects.create(
-                table_name="missions",
-                record_pk=mission_1st.id,
-                action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=worker_1st,
-            )
+                    table_name="missions",
+                    record_pk=mission_id,
+                    action=AuditActionEnum.MISSION_ASSIGNED.value,
+                    user=worker_id,
+                )
+            await assign_mission(mission_id, worker_id)
         except Exception as e:
             logger.error(f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
-            continue
 
 
 class FoxlinkBackground:

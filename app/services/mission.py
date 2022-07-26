@@ -371,31 +371,32 @@ async def assign_mission(mission_id: int, username: str):
 
     filter = [u for u in mission.assignees if u.username == the_user.username]
 
-    if len(filter) == 0:
-        await mission.assignees.add(the_user)  # type: ignore
-        publish(
-            f"foxlink/users/{the_user.username}/missions",
-            {
-                "type": "new",
-                "mission_id": mission.id,
-                "device": {
-                    "project": mission.device.project,
-                    "process": mission.device.process,
-                    "line": mission.device.line,
-                    "name": mission.device.device_name,
-                },
-                "name": mission.name,
-                "description": mission.description,
-                "events": [
-                    MissionEventOut.from_missionevent(e).dict()
-                    for e in mission.missionevents
-                ],
-            },
-            qos=1,
-            retain=True,
-        )
-    else:
+    if len(filter) != 0:
         raise HTTPException(400, detail="the user is already assigned to this mission")
+
+    await mission.assignees.add(the_user)  # type: ignore
+    publish(
+        f"foxlink/users/{the_user.username}/missions",
+        {
+            "type": "new",
+            "mission_id": mission.id,
+            "device": {
+                "project": mission.device.project,
+                "process": mission.device.process,
+                "line": mission.device.line,
+                "name": mission.device.device_name,
+            },
+            "name": mission.name,
+            "description": mission.description,
+            "events": [
+                MissionEventOut.from_missionevent(e).dict()
+                for e in mission.missionevents
+            ],
+        },
+        qos=1,
+        retain=True,
+    )
+        
 
 
 @database.transaction()
