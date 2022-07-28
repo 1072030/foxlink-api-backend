@@ -20,7 +20,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-database = databases.Database(DATABASE_URI, min_size=5, max_size=20)
+database = databases.Database(DATABASE_URI, max_size=5)
 metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")
@@ -288,8 +288,3 @@ class WhitelistDevice(ormar.Model):
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()
-
-
-# if PY_ENV == "dev":
-#     engine = create_engine(DATABASE_URI)
-#     metadata.create_all(engine)
