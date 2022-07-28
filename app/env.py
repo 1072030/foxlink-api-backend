@@ -75,7 +75,10 @@ MOVE_TO_RESCUE_STATION_TIME = get_env(
     "MOVE_TO_RESCUE_STATION_TIME", int, 5
 )  # unit: minutes")
 
-# TEST USAGE
+# 白名單最低故障數建議閥值
+WHITELIST_MINIMUM_OCCUR_COUNT = get_env("WHITELIST_MINIMUM_OCCUR_COUNT", int, 35)
+
+# 取消自動派工
 DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
 
 

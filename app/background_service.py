@@ -426,7 +426,6 @@ async def check_mission_duration_routine():
                 )
 
 
-@database.transaction()
 async def dispatch_routine():
     avaliable_missions = (
         await Mission.objects.select_related(["device", "assignees", "missionevents"])
@@ -466,13 +465,9 @@ async def dispatch_routine():
             m_list.append(item)
 
     dispatch.get_missions(m_list)
-
     mission_rank_list = dispatch.mission_priority()
 
-    to_assign_pair: List[Tuple[int, str]] = []
-
     for idx, mission_id in enumerate(mission_rank_list):
-        #mission_1st = await Mission.objects.filter(id=mission_id).select_all().get()
         mission_1st = await get_mission_by_id(mission_id)
         
         if mission_1st is None:
@@ -586,22 +581,21 @@ async def dispatch_routine():
 
         dispatch.get_dispatch_info(w_list)
         worker_1st = dispatch.worker_dispatch()
-        to_assign_pair.append((mission_1st.id, worker_1st))
 
-    for mission_id, worker_id in to_assign_pair:
-        logger.info(
-            "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
-        )
-        try:
-            await AuditLogHeader.objects.create(
+        async with database.transaction():
+            try:
+                await assign_mission(mission_id, worker_1st)
+                await AuditLogHeader.objects.create(
                     table_name="missions",
                     record_pk=mission_id,
                     action=AuditActionEnum.MISSION_ASSIGNED.value,
-                    user=worker_id,
+                    user=worker_1st,
                 )
-            await assign_mission(mission_id, worker_id)
-        except Exception as e:
-            logger.error(f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
+                logger.info(
+                    "dispatching mission {} to worker {}".format(mission_1st.id, worker_1st)
+                )
+            except Exception as e:
+                logger.error(f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
 
 
 class FoxlinkBackground:

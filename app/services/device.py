@@ -4,6 +4,7 @@ from typing import Dict, Optional
 from fastapi.exceptions import HTTPException
 from typing import List, Optional
 from app.my_log_conf import LOGGER_NAME
+from app.env import WHITELIST_MINIMUM_OCCUR_COUNT
 from app.utils.utils import get_previous_shift_time_interval
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -82,8 +83,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
     for x in raw_data_in_night:
         recommend_devices_in_night[x[0]] = int(x[1])
 
-    MINIMUM_OCCUR_COUNT = 5
-    recommend_devices_in_day = {k: v for k, v in recommend_devices_in_day.items() if v >= MINIMUM_OCCUR_COUNT}
-    recommend_devices_in_night = {k: v for k, v in recommend_devices_in_night.items() if v >= MINIMUM_OCCUR_COUNT}
+    recommend_devices_in_day = {k: v for k, v in recommend_devices_in_day.items() if v >= WHITELIST_MINIMUM_OCCUR_COUNT}
+    recommend_devices_in_night = {k: v for k, v in recommend_devices_in_night.items() if v >= WHITELIST_MINIMUM_OCCUR_COUNT}
 
     return recommend_devices_in_day, recommend_devices_in_night

@@ -15,7 +15,7 @@ from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt.main import publish
 import logging
-from app.services.user import get_user_by_username, move_user_to_position
+from app.services.user import get_user_by_username, is_user_working_on_mission, move_user_to_position
 from app.my_log_conf import LOGGER_NAME
 from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
 from app.utils.utils import get_shift_type_now, CST_TIMEZONE
@@ -250,7 +250,6 @@ async def reject_mission_by_id(mission_id: int, user: User):
             )
 
 
-@database.transaction()
 async def finish_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -267,9 +266,14 @@ async def finish_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(400, "this mission hasn't started yet")
 
     if mission.device.is_rescue:
-        raise HTTPException(
-            200, "this mission is to-rescue mission, no need to call finish"
-        )
+        if mission.repair_end_date is None:
+            raise HTTPException(
+                400, "this mission is to-rescue mission, call strat mission api first"
+            )
+        else:
+            raise HTTPException(
+                200, "this mission is to-rescue mission, this mission is already finished"
+            )
 
     if mission.is_closed or mission.is_cancel:
         raise HTTPException(200, "this mission is already closed or canceled!")
@@ -280,26 +284,27 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if not is_done:
         raise HTTPException(400, "this mission is not verified as done")
 
-    await mission.update(
-        repair_end_date=datetime.utcnow(), is_cancel=False,
-    )
-
-    # set each assignee's last_event_end_date
-    for w in mission.assignees:
-        await WorkerStatus.objects.filter(worker=w).update(
-            # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
-            status=WorkerStatusEnum.idle.value,
-            last_event_end_date=datetime.utcnow()
+    async with database.transaction():
+        await mission.update(
+            repair_end_date=datetime.utcnow(), is_cancel=False,
         )
 
-    # record this operation
-    for w in mission.assignees:
-        await AuditLogHeader.objects.create(
-            table_name="missions",
-            action=AuditActionEnum.MISSION_FINISHED.value,
-            record_pk=str(mission.id),
-            user=w.username,
-        )
+        # set each assignee's last_event_end_date
+        for w in mission.assignees:
+            await WorkerStatus.objects.filter(worker=w).update(
+                # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
+                status=WorkerStatusEnum.idle.value,
+                last_event_end_date=datetime.utcnow()
+            )
+
+        # record this operation
+        for w in mission.assignees:
+            await AuditLogHeader.objects.create(
+                table_name="missions",
+                action=AuditActionEnum.MISSION_FINISHED.value,
+                record_pk=str(mission.id),
+                user=w.username,
+            )
 
 
 async def delete_mission_by_id(mission_id: int):
@@ -345,6 +350,21 @@ async def assign_mission(mission_id: int, username: str):
     if mission.is_closed:
         raise HTTPException(
             status_code=400, detail="the mission you requested is closed"
+        )
+
+    is_idle = await WorkerStatus.objects.filter(
+        worker=username, status=WorkerStatusEnum.idle.value
+    ).exists()
+
+    if not is_idle:
+        raise HTTPException(
+            status_code=400, detail="the worker you requested is not idle"
+        )
+
+    # if worker has already working on other mission, skip
+    if (await is_user_working_on_mission(username)) == True:
+        raise HTTPException(
+            status_code=400, detail="the worker you requested is working on other mission"
         )
 
     if username in [x.username for x in mission.assignees]:
