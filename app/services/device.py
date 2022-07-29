@@ -54,7 +54,7 @@ async def add_worker_to_device_whitelist(username: str, device_id: str):
 async def show_recommend_whitelist_devices(workshop_name: str):
     day_start, day_end, night_start, night_end = get_previous_shift_time_interval()
 
-    logger.info(day_start, day_end, night_start, night_end)
+    #logger.info(f'{day_start}, {day_end}, {night_start}, {night_end}')
 
     raw_data_in_day = await database.fetch_all(f"""
         SELECT device, COUNT(*) as count FROM missions m
