@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, UserLevel, WorkerStatus, WorkerStatusEnum, database, User
+from app.core.database import Mission, ShiftType, UserLevel, WorkerStatus, WorkerStatusEnum, database, User
 from datetime import datetime, timedelta
 from ormar import and_, or_
 from app.env import TIMEZONE_OFFSET
@@ -15,7 +15,6 @@ logger = logging.getLogger(LOGGER_NAME)
 class UserInfo(BaseModel):
     username: str
     full_name: str
-
 
 class UserInfoWithDuration(UserInfo):
     duration: int
@@ -49,16 +48,26 @@ class AbnormalMissionInfo(BaseModel):
     duration: int
     created_date: datetime
 
+UTC_NIGHT_SHIFT_FILTER = "AND (TIME(m.created_date) BETWEEN '12:00' AND '23:40') # 夜班 in UTC"
+UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') OR (TIME(m.created_date) BETWEEN '00:00' AND '12:00')) # 白班 in UTC"
 
-async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, end_date: datetime, limit = 10):
+LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_start_date) BETWEEN '20:00' AND '23:59') OR (TIME(event_start_date) BETWEEN '00:00' AND '07:40'))"
+LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_start_date) BETWEEN '07:40' AND '20:00')"
+
+
+async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit = 10):
     """
     取得當月最常故障的設備，不依照 Category 分類，排序則由次數由高排到低。
     """
     query = await database.fetch_all(
-        """
+        f"""
         SELECT m.device as device_id, d.device_cname, count(*) AS count FROM missions m
         INNER JOIN devices d ON d.id = m.device
-        WHERE (m.created_date BETWEEN :start_date AND :end_date) AND d.workshop = :workshop_id AND d.is_rescue = FALSE
+        WHERE 
+            (m.created_date BETWEEN :start_date AND :end_date)
+            AND d.workshop = :workshop_id
+            AND d.is_rescue = FALSE
+            {UTC_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (UTC_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
         GROUP BY m.device
         ORDER BY count DESC
         LIMIT :limit;
@@ -69,19 +78,24 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
     return query
 
 
-async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_date: datetime, limit = 10) -> List[AbnormalMissionInfo]:
+async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit = 10) -> List[AbnormalMissionInfo]:
     """統計當月異常任務，根據處理時間由高排序到低。"""
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
 
     abnormal_missions = await database.fetch_all(
-        """
+        f"""
         SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
             SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, m.created_date
             FROM missionevents
             INNER JOIN missions m ON m.id = mission
             INNER JOIN devices d ON d.id = m.device 
-            WHERE event_end_date IS NOT NULL AND d.is_rescue = FALSE AND (event_start_date BETWEEN :start_date AND :end_date) AND d.workshop = :workshop_id
+            WHERE 
+                event_end_date IS NOT NULL
+                AND d.is_rescue = FALSE
+                AND (event_start_date BETWEEN :start_date AND :end_date)
+                AND d.workshop = :workshop_id
+                {LOCAL_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (LOCAL_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
         ) t1
         GROUP BY (t1.mission_id)
         ORDER BY duration DESC
@@ -93,18 +107,23 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
     return abnormal_missions  # type: ignore
 
 
-async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_date: datetime, limit: int = 10):
+async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit = 10):
     """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
 
     abnormal_devices: List[AbnormalDeviceInfo] = await database.fetch_all(
-        """
+        f"""
         SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
         FROM missionevents
         INNER JOIN missions m ON m.id = mission
         INNER JOIN devices d ON d.id = m.device 
-        WHERE event_start_date IS NOT NULL AND event_end_date IS NOT NULL AND (event_start_date BETWEEN :start_date AND :end_date) AND d.workshop = :workshop_id
+        WHERE 
+            event_start_date IS NOT NULL
+            AND event_end_date IS NOT NULL
+            AND (event_start_date BETWEEN :start_date AND :end_date)
+            AND d.workshop = :workshop_id
+            {LOCAL_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (LOCAL_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
         GROUP BY device
         ORDER BY duration DESC
         LIMIT :limit;
@@ -144,15 +163,22 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
     return abnormal_devices
 
 
-async def get_top_most_accept_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, limit: int) -> List[WorkerMissionStats]:
+async def get_top_most_accept_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常接受任務的員工"""
 
+    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace("m.created_date", "created_date")
+    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace("m.created_date", "created_date")
+
     query = await database.fetch_all(
         f"""
         SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
         INNER JOIN users u ON u.username = auditlogheaders.`user`
-        WHERE action='MISSION_ACCEPTED' AND (created_date BETWEEN :start_date AND :end_date) AND u.location = :workshop_id
+        WHERE 
+            action='MISSION_ACCEPTED'
+            AND (created_date BETWEEN :start_date AND :end_date)
+            AND u.location = :workshop_id
+            {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
         GROUP BY u.username
         ORDER BY count DESC
         LIMIT :limit;
@@ -163,15 +189,21 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
     return [WorkerMissionStats(**m) for m in query]
 
 
-async def get_top_most_reject_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, limit: int) -> List[WorkerMissionStats]:
+async def get_top_most_reject_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常拒絕任務的員工"""
+    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace("m.created_date", "created_date")
+    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace("m.created_date", "created_date")
 
     query = await database.fetch_all(
         f"""
         SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
         INNER JOIN users u ON u.username = auditlogheaders.`user`
-        WHERE action='MISSION_REJECTED' AND (created_date BETWEEN :start_date AND :end_date) AND u.location = :workshop_id
+        WHERE 
+            action='MISSION_REJECTED'
+            AND (created_date BETWEEN :start_date AND :end_date)
+            AND u.location = :workshop_id
+            {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
         GROUP BY u.username
         ORDER BY count DESC
         LIMIT :limit;
@@ -182,7 +214,7 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
     return [WorkerMissionStats(**m) for m in query]
 
 
-async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_date: datetime, end_date: datetime) -> float:
+async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> float:
     """取得最近 24 小時登入系統員工的百分比"""
     total_user_count = await User.objects.filter(
         is_active=True, level=UserLevel.maintainer.value
@@ -191,11 +223,19 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
     if total_user_count == 0:
         return 0.0
 
+    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace("m.created_date", "created_date")
+    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace("m.created_date", "created_date")
+
     result = await database.fetch_all(
         f"""
         SELECT count(DISTINCT user) FROM `auditlogheaders` a
         INNER JOIN users u ON a.user = u.username
-        WHERE action='USER_LOGIN' AND u.level = 1 AND (created_date BETWEEN :start_date AND :end_date) AND u.location = :workshop_id;
+        WHERE 
+            action='USER_LOGIN'
+            AND u.level = 1
+            AND (created_date BETWEEN :start_date AND :end_date)
+            {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
+            AND u.location = :workshop_id;
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )

@@ -1,8 +1,8 @@
 import datetime, logging
-from typing import List, Any
+from typing import List, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.core.database import FactoryMap, Mission, WorkerStatus, UserLevel, WorkerStatusEnum
+from app.core.database import FactoryMap, Mission, ShiftType, WorkerStatus, UserLevel, WorkerStatusEnum
 import asyncio
 from app.env import LOGGER_NAME
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -42,7 +42,7 @@ class Stats(BaseModel):
 
 
 @router.get("/", response_model=Stats, tags=["statistics"])
-async def get_overall_statistics(workshop_name: str, start_date: datetime.datetime, end_date: datetime.datetime):
+async def get_overall_statistics(workshop_name: str, start_date: datetime.datetime, end_date: datetime.datetime, is_night_shift: Optional[bool] = None):
     """
     Parameters:
         start_date - Should be UTC timezone.
@@ -55,14 +55,16 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
     if not await FactoryMap.objects.filter(name=workshop_name).exists():
         raise HTTPException(404, "workshop_name is not existed")
 
+    shift = ShiftType.day if is_night_shift == False else (ShiftType.night if is_night_shift == True else None)
+
     workshop_id = (await FactoryMap.objects.filter(name=workshop_name).exclude_fields(['map', 'image', 'related_devices']).get()).id
         
-    top_crashed_devices = await get_top_most_crashed_devices(workshop_id, start_date, end_date, 10)
-    top_abnormal_devices = await get_top_abnormal_devices(workshop_id, start_date, end_date, 10)
-    top_abnormal_missions = await get_top_abnormal_missions(workshop_id, start_date, end_date, 10)
-    login_users_percentage = await get_login_users_percentage_by_recent_24_hours(workshop_id, start_date, end_date)
-    top_mission_accept_employees = await get_top_most_accept_mission_employees(workshop_id, start_date, end_date,10)
-    top_mission_reject_employees = await get_top_most_reject_mission_employees(workshop_id, start_date, end_date,3)
+    top_crashed_devices = await get_top_most_crashed_devices(workshop_id, start_date, end_date, shift, 10)
+    top_abnormal_devices = await get_top_abnormal_devices(workshop_id, start_date, end_date, shift, 10)
+    top_abnormal_missions = await get_top_abnormal_missions(workshop_id, start_date, end_date, shift, 10)
+    login_users_percentage = await get_login_users_percentage_by_recent_24_hours(workshop_id, start_date, end_date, shift)
+    top_mission_accept_employees = await get_top_most_accept_mission_employees(workshop_id, start_date, end_date, shift, 10)
+    top_mission_reject_employees = await get_top_most_reject_mission_employees(workshop_id, start_date, end_date, shift, 3)
     emergency_missions = await get_emergency_missions(workshop_id)
 
     return Stats(
