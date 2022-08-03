@@ -15,6 +15,7 @@ from app.services.mission import assign_mission, get_mission_by_id, is_mission_i
 from app.services.user import (
     get_user_first_login_time_today,
     get_user_shift_type,
+    get_user_working_mission,
     is_user_working_on_mission,
     is_worker_in_whitelist,
 )
@@ -213,19 +214,39 @@ async def track_worker_status_routine():
     worker_status = (
         await WorkerStatus.objects.select_related(["worker"])
         .filter(
-            status__in=[WorkerStatusEnum.working.value, WorkerStatusEnum.idle.value]
+            status__in=[
+                WorkerStatusEnum.idle.value,
+                WorkerStatusEnum.moving.value,
+                WorkerStatusEnum.notice.value,
+                WorkerStatusEnum.working.value,
+            ]
         )
         .all()
     )
 
     for s in worker_status:
-        if s.status == WorkerStatusEnum.working.value:
-            if not (await is_user_working_on_mission(s.worker.username)):
-                await s.update(status=WorkerStatusEnum.idle.value)
-        elif s.status == WorkerStatusEnum.idle.value:
-            if await is_user_working_on_mission(s.worker.username):
-                await s.update(status=WorkerStatusEnum.working.value)
+        working_mission = await get_user_working_mission(s.worker.username)
 
+        if working_mission is None and s.status == WorkerStatusEnum.idle.value:
+            continue
+
+        if working_mission is None and s.status != WorkerStatusEnum.idle.value:
+            await s.update(status=WorkerStatusEnum.idle.value)
+            continue
+
+        if working_mission.repair_start_date is not None and working_mission.repair_end_date is None:
+            await s.update(status=WorkerStatusEnum.working.value)
+            continue
+
+        if await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_ACCEPTED.value,
+            table_name="missions",
+            record_pk=str(working_mission.id),
+            user=s.worker.username
+        ).exists():
+            await s.update(status=WorkerStatusEnum.moving.value)
+        else:
+            await s.update(status=WorkerStatusEnum.notice.value)
 
 async def worker_monitor_routine():
     # when a user import device layout to the system, some devices may have been removed.
@@ -314,9 +335,9 @@ async def worker_monitor_routine():
                     }
                 )
 
-            await WorkerStatus.objects.filter(worker=w.username).update(
-                status=WorkerStatusEnum.working.value
-            )
+            # await WorkerStatus.objects.filter(worker=w.username).update(
+            #     status=WorkerStatusEnum.working.value
+            # )
 
             # create a go-to-rescue-station mission for those workers who are not at rescue station and idle above threshold duration.
             to_rescue_station = dispatch.move_to_rescue(rescue_distances)
@@ -811,7 +832,7 @@ async def main_routine():
         if not DISABLE_FOXLINK_DISPATCH:
             await dispatch_routine()
 
-        time.sleep(10)
+        time.sleep(1)
 
     logger.warning("Shutting down...")
     if not DISABLE_FOXLINK_DISPATCH:

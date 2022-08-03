@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 import aiohttp
 from fastapi.exceptions import HTTPException
-from ormar import or_, and_
+from ormar import NoMatch, or_, and_
 from app.env import EMQX_PASSWORD, EMQX_USERNAME, MQTT_BROKER, TIMEZONE_OFFSET, WEEK_START
 from app.models.schema import (
     DayAndNightUserOverview,
@@ -11,6 +11,7 @@ from app.models.schema import (
     UserCreate,
     UserOverviewOut,
     WorkerAttendance,
+    WorkerStatusDto,
     WorkerSummary,
 )
 from passlib.context import CryptContext
@@ -25,11 +26,12 @@ from app.core.database import (
     UserLevel,
     WhitelistDevice,
     WorkerStatus,
+    WorkerStatusEnum,
     database,
 )
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
-from app.services.statistics import get_worker_status
+from app.utils.utils import get_current_shift_time_interval
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -209,6 +211,32 @@ async def move_user_to_position(username: str, device_id: str):
         raise HTTPException(
             status_code=400, detail="cannot update user's position: " + str(e)
         )
+
+async def get_user_working_mission(username: str) -> Optional[Mission]:
+    the_user = await User.objects.filter(username=username).get_or_none()
+
+    if the_user is None:
+        raise HTTPException(
+            status_code=404, detail="the user with this id is not found"
+        )
+
+    try:
+        mission = await Mission.objects.select_related(['device']).filter(
+                and_(
+                    # left: user still working on a mission, right: user is not accept a mission yet.
+                    or_(
+                        and_(
+                            repair_start_date__isnull=False, repair_end_date__isnull=True,
+                        ),
+                        and_(repair_start_date__isnull=True, repair_end_date__isnull=True),
+                    ),
+                    assignees__username=username,
+                    is_cancel=False,
+                )
+            ).order_by("-id").first()
+        return mission
+    except NoMatch:
+        return None
 
 
 async def is_user_working_on_mission(username: str) -> bool:
@@ -441,3 +469,49 @@ async def is_worker_in_whitelist(username: str) -> bool:
 
 async def is_worker_in_device_whitelist(username: str, device_id: str) -> bool:
     return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username, device=device_id).exists()
+
+async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
+    s = (
+        await WorkerStatus.objects.filter(worker=username)
+        .select_related(["worker", 'at_device'])
+        .get_or_none()
+    )
+
+    if s is None:
+        return None
+
+    shift_start, shift_end = get_current_shift_time_interval()
+
+    total_accept_count = await database.fetch_all(
+        f"""
+        SELECT COUNT(DISTINCT record_pk)
+        FROM auditlogheaders
+        WHERE `action` = 'MISSION_ACCEPTED'
+        AND user=:username AND (created_date BETWEEN :shift_start AND :shift_end);
+        """,
+        {'username': username, 'shift_start': shift_start, 'shift_end': shift_end},
+    )
+
+    item = WorkerStatusDto(
+        worker_id=username,
+        worker_name=s.worker.full_name,
+        status=s.status,
+        last_event_end_date=s.last_event_end_date,
+        total_dispatches=total_accept_count[0][0],
+    )
+
+    item.at_device = s.at_device.id if s.at_device is not None else None
+    item.at_device_cname = s.at_device.device_cname if s.at_device is not None else None
+
+    mission = await get_user_working_mission(username)
+    if s.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
+        item.mission_duration = mission.mission_duration.total_seconds() # type: ignore
+
+        if mission.repair_duration is not None and not mission.device.is_rescue:
+            item.repair_duration = mission.repair_duration.total_seconds()
+
+        if s.status == WorkerStatusEnum.moving.value:
+            item.at_device = mission.device.id
+            item.at_device_cname = mission.device.device_cname
+
+    return item

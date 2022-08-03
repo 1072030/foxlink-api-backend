@@ -17,8 +17,9 @@ from app.services.statistics import (
     get_top_most_reject_mission_employees,
     get_top_abnormal_devices,
     get_emergency_missions,
-    get_worker_status,
 )
+
+from app.services.user import get_worker_status
 
 logger = logging.getLogger(LOGGER_NAME)
 router = APIRouter(prefix="/stats")

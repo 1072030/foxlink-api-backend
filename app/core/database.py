@@ -46,6 +46,8 @@ class ShiftType(Enum):
 
 class WorkerStatusEnum(Enum):
     working = "Working"
+    notice = 'Notice'
+    moving = 'Moving'
     idle = "Idle"
     leave = "Leave"
 

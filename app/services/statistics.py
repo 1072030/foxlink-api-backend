@@ -1,14 +1,11 @@
 import logging
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, ShiftType, UserLevel, WorkerStatus, WorkerStatusEnum, database, User
+from app.core.database import Mission, ShiftType, UserLevel, database, User
 from datetime import datetime, timedelta
-from ormar import and_, or_
 from app.env import TIMEZONE_OFFSET
-
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 from app.my_log_conf import LOGGER_NAME
-from app.utils.utils import get_current_shift_time_interval
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -256,63 +253,3 @@ async def get_emergency_missions(workshop_id: int) -> List[MissionDto]:
     )
 
     return [MissionDto.from_mission(m) for m in missions]
-
-
-async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
-    s = (
-        await WorkerStatus.objects.filter(worker=username)
-        .select_related(["worker", 'at_device'])
-        .get_or_none()
-    )
-
-    if s is None:
-        return None
-
-    shift_start, shift_end = get_current_shift_time_interval()
-
-    total_accept_count = await database.fetch_all(
-        f"""
-        SELECT COUNT(DISTINCT record_pk)
-        FROM auditlogheaders
-        WHERE `action` = 'MISSION_ACCEPTED'
-        AND user=:username AND (created_date BETWEEN :shift_start AND :shift_end);
-        """,
-        {'username': username, 'shift_start': shift_start, 'shift_end': shift_end},
-    )
-
-    item = WorkerStatusDto(
-        worker_id=username,
-        worker_name=s.worker.full_name,
-        status=s.status,
-        last_event_end_date=s.last_event_end_date,
-        total_dispatches=total_accept_count[0][0],
-    )
-
-    item.at_device = s.at_device.id if s.at_device is not None else None
-    item.at_device_cname = s.at_device.device_cname if s.at_device is not None else None
-
-    if s.status == WorkerStatusEnum.working.value:
-        try:
-            mission = (
-                await Mission.objects.select_related(['assignees']).filter(
-                    and_(
-                        # left: user still working on a mission, right: user is not accept a mission yet.
-                        or_(
-                            and_(
-                                repair_start_date__isnull=False, repair_end_date__isnull=True,
-                            ),
-                            and_(repair_start_date__isnull=True, repair_end_date__isnull=True),
-                        ),
-                        assignees__username=username,
-                        is_cancel=False,
-                    )
-                )
-                .order_by("-id")
-                .first()
-            )
-
-            item.mission_duration = mission.mission_duration.total_seconds() # type: ignore
-            item.repair_duration = mission.repair_duration.total_seconds() # type: ignore
-        except:
-            ...
-    return item
