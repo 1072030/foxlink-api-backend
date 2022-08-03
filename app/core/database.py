@@ -20,7 +20,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-database = databases.Database(DATABASE_URI, max_size=5)
+database = databases.Database(DATABASE_URI, max_size=7)
 metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")

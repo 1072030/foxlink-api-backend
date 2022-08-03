@@ -234,16 +234,17 @@ async def track_worker_status_routine():
             await s.update(status=WorkerStatusEnum.idle.value)
             continue
 
+        is_accepted = await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_ACCEPTED.value,table_name="missions",record_pk=str(working_mission.id),user=s.worker.username).exists()
+
+        if working_mission.device.is_rescue:
+            await s.update(status=WorkerStatusEnum.moving.value)
+            continue
+
         if working_mission.repair_start_date is not None and working_mission.repair_end_date is None:
             await s.update(status=WorkerStatusEnum.working.value)
             continue
 
-        if await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_ACCEPTED.value,
-            table_name="missions",
-            record_pk=str(working_mission.id),
-            user=s.worker.username
-        ).exists():
+        if is_accepted:
             await s.update(status=WorkerStatusEnum.moving.value)
         else:
             await s.update(status=WorkerStatusEnum.notice.value)

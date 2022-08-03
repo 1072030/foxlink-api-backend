@@ -147,14 +147,9 @@ async def accept_mission(mission_id: int, worker: User):
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
-    if mission.is_started or mission.is_closed:
-        raise HTTPException(400, "this mission is already started or closed")
-
-    if mission.device.is_rescue:
-        raise HTTPException(
-            400,
-            "to-rescue-station mission cannot be accepted, use start_mission api instead",
-        )
+    if not mission.device.is_rescue:
+        if mission.is_started or mission.is_closed:
+            raise HTTPException(400, "this mission is already started or closed")
 
     # Check worker has accepted the mission or not.
     # accept_count = await AuditLogHeader.objects.filter(
