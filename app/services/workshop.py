@@ -2,7 +2,7 @@ import io
 import qrcode
 from qrcode.constants import ERROR_CORRECT_M
 from fastapi.exceptions import HTTPException
-from app.core.database import Device, FactoryMap, Mission
+from app.core.database import Device, FactoryMap, Mission, WorkerStatus, WorkerStatusEnum
 from zipfile import ZipFile
 from PIL import ImageDraw, ImageFont
 from typing import List
@@ -11,21 +11,32 @@ from app.models.schema import DeviceStatus, DeviceStatusEnum
 font = ImageFont.truetype("./data/NotoSansTC-Regular.otf", 14)
 
 
-
-
-async def get_all_factory_maps():
-    return await FactoryMap.objects.all()
-
-
 async def get_factory_map_by_id(factory_map_id: int):
+    """藉由 ID 取得車間資訊
+
+    Args:
+    - factory_map_id: 車間 ID
+    """
     return await FactoryMap.objects.filter(id=factory_map_id).get_or_none()
 
 
 async def get_factory_map_by_name(factory_map_name: str):
+    """藉由名稱取得車間資訊
+
+    Args:
+    - factory_map_name: 車間名稱
+    """
     return await FactoryMap.objects.filter(name=factory_map_name).get_or_none()
 
 
 async def get_all_devices_status(workshop_name: str, is_rescue=False):
+    """取得車間下所有機台狀態。
+
+    Args:
+    - workshop_name: 車間名稱
+    - is_rescue: 是否過濾救援站
+    """
+
     workshop = await get_factory_map_by_name(workshop_name)
     if workshop is None:
         raise HTTPException(404, "workshop is not found")
@@ -55,7 +66,12 @@ async def get_all_devices_status(workshop_name: str, is_rescue=False):
         else:
             m = related_missions[0]
             if len(m.assignees) > 0:
-                device_status.status = DeviceStatusEnum.repairing
+                worker_status = await WorkerStatus.objects.filter(worker=m.assignees[0].username).get_or_none()
+
+                if worker_status is None or worker_status.status == WorkerStatusEnum.leave.value:
+                    device_status.status = DeviceStatusEnum.halt
+                else:
+                    device_status.status = DeviceStatusEnum.repairing
             else:
                 device_status.status = DeviceStatusEnum.halt
 
@@ -65,6 +81,11 @@ async def get_all_devices_status(workshop_name: str, is_rescue=False):
 
 
 async def create_workshop_device_qrcode(workshop_name: str):
+    """取得車間之所有機台 QRCode 照片。
+
+    Args:
+    - workshop_name: 車間名稱
+    """
     workshop = await get_factory_map_by_name(workshop_name)
 
     if workshop is None:
