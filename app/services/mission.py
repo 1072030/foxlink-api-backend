@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from app.core.database import (
     Mission,
     User,
@@ -18,7 +18,7 @@ import logging
 from app.services.user import get_user_by_username, is_user_working_on_mission, move_user_to_position
 from app.my_log_conf import LOGGER_NAME
 from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
-from app.utils.utils import get_shift_type_now, CST_TIMEZONE
+from app.utils.utils import get_shift_type_now
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -367,8 +367,8 @@ async def assign_mission(mission_id: int, username: str):
             status_code=400, detail="this mission is already assigned to this user"
         )
 
-    # if len(mission.assignees) > 0:
-    #     raise HTTPException(status_code=400, detail="the mission is already assigned")
+    if len(mission.assignees) > 0:
+        raise HTTPException(status_code=400, detail="the mission is already assigned")
 
     the_user = await get_user_by_username(username)
 

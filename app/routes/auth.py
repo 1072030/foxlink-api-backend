@@ -61,7 +61,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
 
     worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
-    await worker_status.update(status=WorkerStatusEnum.idle.value)
+
+    if worker_status is not None:
+        await worker_status.update(status=WorkerStatusEnum.idle.value)
 
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value and is_first_login_today:

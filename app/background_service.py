@@ -3,8 +3,7 @@ import uuid
 import signal
 import time
 from databases import Database
-import pytz
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
@@ -13,14 +12,13 @@ from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist
 from app.services.user import (
-    get_user_first_login_time_today,
     get_user_shift_type,
     get_user_working_mission,
     is_user_working_on_mission,
     is_worker_in_whitelist,
 )
 from app.my_log_conf import LOGGER_NAME
-from app.utils.utils import CST_TIMEZONE, get_shift_type_now, get_shift_type_by_datetime
+from app.utils.utils import get_shift_type_now
 from app.mqtt.main import connect_mqtt, publish, disconnect_mqtt
 from app.env import (
     DISABLE_FOXLINK_DISPATCH,
@@ -39,7 +37,6 @@ from app.core.database import (
     FactoryMap,
     Mission,
     MissionEvent,
-    ShiftType,
     User,
     AuditLogHeader,
     AuditActionEnum,
@@ -234,10 +231,15 @@ async def track_worker_status_routine():
             await s.update(status=WorkerStatusEnum.idle.value)
             continue
 
+        # 任務是否曾被接受過
         is_accepted = await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_ACCEPTED.value,table_name="missions",record_pk=str(working_mission.id),user=s.worker.username).exists()
 
+        # 返回消防站任務提示
         if working_mission.device.is_rescue:
-            await s.update(status=WorkerStatusEnum.moving.value)
+            if not is_accepted:
+                await s.update(status=WorkerStatusEnum.notice.value)
+            else:
+                await s.update(status=WorkerStatusEnum.moving.value)
             continue
 
         if working_mission.repair_start_date is not None and working_mission.repair_end_date is None:

@@ -37,6 +37,7 @@ router = APIRouter(prefix="/missions")
 async def get_missions_by_query(
     user: User = Depends(get_manager_active_user),
     worker: Optional[str] = None,
+    workshop_name: Optional[str] = None,
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
@@ -53,6 +54,7 @@ async def get_missions_by_query(
         "is_cancel": is_cancel,
         "is_emergency": is_emergency,
         "device__is_rescue": is_rescue,
+        "device__workshop__name": workshop_name,
         "repair_start_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
@@ -158,7 +160,15 @@ async def assign_mission_to_user(
     if (await is_user_working_on_mission(user_name)) == True:
         raise HTTPException(400, "the user is working on other mission")
 
-    await assign_mission(mission_id, user_name)
+    async with database.transaction():
+        await assign_mission(mission_id, user_name)
+        await AuditLogHeader.objects.create(
+            table_name="missions",
+            record_pk=mission_id,
+            action=AuditActionEnum.MISSION_ASSIGNED.value,
+            user=user_name,
+            description=f"From Web API (Reqeust by {user.username})",
+        )
 
 
 @router.post("/{mission_id}/cancel", tags=["missions"])
