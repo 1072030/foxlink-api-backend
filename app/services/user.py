@@ -451,6 +451,8 @@ async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
                 return False, None
 
 async def get_user_shift_type(username: str) -> ShiftType:
+    """取得員工的班別"""
+    
     user = await get_user_by_username(username)
 
     if user is None:

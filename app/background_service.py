@@ -88,6 +88,7 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 
 async def check_alive_worker_routine():
+    """檢查員工是否在線，如果沒有在線，則通知上層"""
     alive_worker_status = (
         await WorkerStatus.objects.select_related("worker")
         .filter(
@@ -137,6 +138,7 @@ async def check_alive_worker_routine():
 
 @database.transaction()
 async def overtime_workers_routine():
+    """檢查是否有員工超時，如果超時則發送通知"""
     working_missions = await Mission.objects.select_related(['assignees', 'device', 'missionevents']).filter(
         repair_end_date__isnull=True, is_cancel=False, device__is_rescue=False,
     ).all()
@@ -188,6 +190,7 @@ async def overtime_workers_routine():
             await copied_mission.missionevents.add(new_missionevent)
 
 async def auto_close_missions():
+    """自動結案任務，如果任務的故障已排除但員工未被指派，則自動結案"""
     working_missions = (
         await Mission.objects.select_related(["assignees", "missionevents"])
         .filter(
@@ -208,6 +211,8 @@ async def auto_close_missions():
 
 
 async def track_worker_status_routine():
+    """追蹤員工狀態，視任務狀態而定"""
+
     worker_status = (
         await WorkerStatus.objects.select_related(["worker"])
         .filter(
@@ -252,6 +257,7 @@ async def track_worker_status_routine():
             await s.update(status=WorkerStatusEnum.notice.value)
 
 async def worker_monitor_routine():
+    """監控員工閒置狀態，如果員工閒置在機台超過一定時間，則自動發出返回消防站任務"""
     # when a user import device layout to the system, some devices may have been removed.
     # thus there's a chance that at_device could be null, so we need to address that.
     at_device_null_worker_status = (
@@ -314,7 +320,7 @@ async def worker_monitor_routine():
             ):
                 continue
 
-            if (await is_user_working_on_mission(w.username)) is True:
+            if await is_user_working_on_mission(w.username):
                 continue
 
             factory_map = await FactoryMap.objects.filter(id=w.location).get()
@@ -375,9 +381,8 @@ async def worker_monitor_routine():
                 retain=True,
             )
 
-
-# TODO: 通知維修時間太長的任務給上級
 async def check_mission_duration_routine():
+    """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級"""
     working_missions = (
         await Mission.objects.select_related("assignees")
         .filter(
@@ -451,12 +456,16 @@ async def check_mission_duration_routine():
 
 
 async def dispatch_routine():
+    """處理任務派工給員工的過程"""
+
+    # 取得所有未完成的任務
     avaliable_missions = (
         await Mission.objects.select_related(["device", "assignees", "missionevents"])
         .filter(is_cancel=False, repair_end_date__isnull=True)
         .all()
     )
 
+    # 過濾員工數為零的任務
     avaliable_missions = [x for x in avaliable_missions if len(x.assignees) == 0]
 
     if len(avaliable_missions) == 0:
@@ -488,6 +497,7 @@ async def dispatch_routine():
 
             m_list.append(item)
 
+    # 取得優先處理的任務，並按照優先級排序
     dispatch.get_missions(m_list)
     mission_rank_list = dispatch.mission_priority()
 
@@ -496,7 +506,8 @@ async def dispatch_routine():
         
         if mission_1st is None:
             continue
-
+        
+        # 抓取可維修此機台的員工列表
         can_dispatch_workers = (
             await UserDeviceLevel.objects.select_related("user")
             .filter(
@@ -508,19 +519,23 @@ async def dispatch_routine():
             .all()
         )
 
+        # 檢查機台是否被列入白名單，並抓取可能的白名單員工列表
         is_in_whitelist = await is_mission_in_whitelist(mission_1st.id)
         whitelist_workers = await get_workers_from_whitelist_devices(mission_1st.device.id)
 
         remove_indice = []
         for w in can_dispatch_workers:
+            # 如果該機台不列入白名單，但是員工是白名單員工，則移除
             if not is_in_whitelist and await is_worker_in_whitelist(w.user.username):
                 remove_indice.append(w.user.username)
-
+            # 如果該機台是列入白名單，但是員工不是白名單員工，則移除
             if is_in_whitelist and w.user.username not in whitelist_workers:
                 remove_indice.append(w.user.username)
 
+        # 移除不符合條件的員工
         can_dispatch_workers = [x for x in can_dispatch_workers if x.user.username not in remove_indice]
 
+        # 如果沒有可派工的員工，則通知管理層並跳過
         if len(can_dispatch_workers) == 0:
             logger.warning(
                 f"No workers available to dispatch for mission {mission_1st.id}"
@@ -535,22 +550,24 @@ async def dispatch_routine():
                 )
             continue
 
+        # 取得該裝置隸屬的車間資訊
         factory_map = await FactoryMap.objects.filter(
             id=mission_1st.device.workshop.id
-        ).get()
-
-        distance_matrix: List[List[float]] = factory_map.map
-        mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id)
+        ).exclude_fields(['image']).get()
+        
+        distance_matrix: List[List[float]] = factory_map.map # 距離矩陣
+        mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id) # 該任務的裝置在矩陣中的位置
 
         w_list = []
         for w in can_dispatch_workers:
             if w.user.level != UserLevel.maintainer.value:
                 continue
-
+            
             is_idle = await WorkerStatus.objects.filter(
                 worker=w.user, status=WorkerStatusEnum.idle.value
             ).exists()
 
+            # 如果員工非閒置狀態則略過
             if not is_idle:
                 continue
 
@@ -692,6 +709,15 @@ class FoxlinkBackground:
     async def get_a_event_from_table(
         self, db: Database, table_name: str, id: int
     ) -> Optional[FoxlinkEvent]:
+        """
+        從正崴資料庫中取得一筆事件資料
+
+        Args:
+        - db: 正崴資料庫
+        - table_name: 資料表名稱
+        - id: 事件資料的 id
+        """
+        
         stmt = f"SELECT * FROM `{self.db_name}`.`{table_name}` WHERE ID = :id;"
 
         try:
@@ -713,6 +739,8 @@ class FoxlinkBackground:
             return None
 
     async def check_events_is_complete(self):
+        """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
+
         incomplete_mission_events = await MissionEvent.objects.filter(
             event_end_date__isnull=True
         ).all()
@@ -805,9 +833,9 @@ class FoxlinkBackground:
     def generate_device_id(self, event: FoxlinkEvent) -> str:
         project = event.project.split(" ")[0]
         return f"{project}@{event.line}@{event.device_name}"
+
+
 kill_now = False
-
-
 def graceful_shutdown(signal, frame):
     global kill_now
     kill_now = True
@@ -816,7 +844,6 @@ def graceful_shutdown(signal, frame):
 async def main_routine():
     global kill_now
 
-    
     foxlink_daemon = FoxlinkBackground()
 
     connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
@@ -824,6 +851,7 @@ async def main_routine():
     if not DISABLE_FOXLINK_DISPATCH:
         await foxlink_daemon.connect()
 
+    # if daemon isn't killed, run forever
     while not kill_now:
         await auto_close_missions()
         await worker_monitor_routine()
@@ -834,8 +862,8 @@ async def main_routine():
 
         if not DISABLE_FOXLINK_DISPATCH:
             await dispatch_routine()
-
-        time.sleep(1)
+            
+        time.sleep(1) # idle duration between two loops
 
     logger.warning("Shutting down...")
     if not DISABLE_FOXLINK_DISPATCH:

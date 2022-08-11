@@ -9,6 +9,13 @@ mqtt_client: client.Client
 
 
 def connect_mqtt(broker: str, port: int, client_id: str):
+    """連線到MQTT broker
+
+    Args:
+    - broker: MQTT broker URI
+    - port: MQTT broker port
+    - client_id: MQTT client ID
+    """
     def on_connect(c, user_data, flags, rc):
         if rc == 0:
             logger.info("Connected to MQTT broker")
@@ -23,6 +30,7 @@ def connect_mqtt(broker: str, port: int, client_id: str):
 
 
 def disconnect_mqtt():
+    """關閉MQTT連線"""
     if mqtt_client is not None:
         mqtt_client.disconnect()
 
@@ -32,6 +40,14 @@ def default(o):
 
 
 def publish(topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
+    """發送訊息到MQTT broker
+
+    Args:
+    - topic: 訊息主題
+    - payload: 訊息內容
+    - qos: 訊息優先度
+    - retain: 是否保留訊息
+    """
     if mqtt_client is None:
         raise Exception("MQTT client is not initialized")
 
