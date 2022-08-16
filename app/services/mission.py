@@ -104,7 +104,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
         return
 
     if mission.is_closed or mission.is_cancel:
-        raise HTTPException(200, "this mission is already closed or canceled")
+        raise HTTPException(400, "this mission is already closed or canceled")
 
     if await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_STARTED.value, user=worker.username, record_pk=str(mission_id)).exists():
         raise HTTPException(200, 'you have already started the mission')
@@ -170,8 +170,10 @@ async def accept_mission(mission_id: int, worker: User):
 
 
 async def reject_mission_by_id(mission_id: int, user: User):
-    mission = await Mission.objects.select_related("assignees").get_or_none(
-        id=mission_id
+    mission = (
+        await Mission.objects.select_related(["assignees", 'device', 'device__workshop'])
+        .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
+        .get_or_none(id=mission_id)
     )
 
     if mission is None:
@@ -208,7 +210,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
 
     if mission_reject_amount >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
         publish(
-            "foxlink/mission/rejected",
+            f"foxlink/{mission.device.workshop.name}/mission/rejected",
             {
                 "id": mission.id,
                 "worker": user.full_name,
@@ -279,17 +281,29 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if not is_done:
         raise HTTPException(400, "this mission is not verified as done")
 
+    is_worker_actually_repair = False
+    now_time = datetime.utcnow()
+    for e in mission.missionevents:
+        if e.event_end_date - timedelta(hours=8) > mission.repair_start_date:
+            is_worker_actually_repair = True
+            break
+
     async with database.transaction():
-        await mission.update(
-            repair_end_date=datetime.utcnow(), is_cancel=False,
-        )
+        if is_worker_actually_repair:
+            await mission.update(
+                repair_end_date=now_time, is_cancel=False,
+            )
+        else:
+            await mission.update(
+                repair_end_date=mission.repair_start_date, is_cancel=False,
+            )
 
         # set each assignee's last_event_end_date
         for w in mission.assignees:
             await WorkerStatus.objects.filter(worker=w).update(
                 # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
                 status=WorkerStatusEnum.idle.value,
-                last_event_end_date=datetime.utcnow()
+                last_event_end_date=now_time
             )
 
         # record this operation

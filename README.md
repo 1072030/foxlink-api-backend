@@ -71,7 +71,7 @@
   "rescue_station": "要前往的救援站 ID"
 }
 ```
-- foxlink/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
+- foxlink/{車間名稱}/mission/rejected - 當有任務被拒絕超過兩次，會觸發這一事件
 ```jsonc
 {
     "id": 1, // 被拒絕超過兩次的任務 ID
@@ -79,7 +79,7 @@
     "rejected_count": 2 // 該任務總共被拒絕了幾次
 }
 ```
-- foxlink/no-available-worker - 當有任務無人可以指派時，會推送這個訊息
+- foxlink/{車間名稱}/no-available-worker - 當有任務無人可以指派時，會推送這個訊息
 ```jsonc
 {
   "mission_id" : 1, // 無人可供指派的任務 ID
@@ -116,21 +116,6 @@
     "total_rejected_count": 2 // 下屬當日總拒絕次數
 }
 ```
-- foxlink/overtime-workers - 如果有員工超過上班時間（例如早班員工到了晚班時段還在處理任務），就會推送這則訊息
-```jsonc
-[
-  {
-    "worker_id": '145287', // 員工的 ID
-    "worker_name": 'string', // 員工姓名
-    "working_on_mission": {
-      "mission_id": 0, // Mission ID
-      "mission_name": "string", // 任務名稱
-      "device_id": "string", // 機台的 ID
-      "mission_start_date": "2022-03-17T08:19:07.169" // 任務創建的時間 (UTC Time)
-    }
-  }
-]
-```
 - foxlink/users/{username}/mission-overtime - 當有任務處理時長超過門檻值，系統會通知處理員工之上級
 ```jsonc
 {
@@ -141,19 +126,22 @@
     "duration": 0, // 目前處理時長（秒）
 },
 ```
-- foxlink/users/{username}/worker-unusual-offline - 當員工異常離線時（網路不佳），超過某特定時間，將會通知該員工上級。
+- （當前停用）foxlink/users/{username}/worker-unusual-offline - 當員工異常離線時（網路不佳），超過某特定時間，將會通知該員工上級。
 ```jsonc
 {
   "worker_id": "rescue@第九車間@1", // 異常離線的員工 ID
   "worker_name": "string", // 員工姓名
 }
 ```
-
 - foxlink/users/{username}/connected - 當有其他裝置登入使用者帳號時
 ```jsonc
 {
   "connected": true
 }
+```
+- foxlink/users/{username}/overtime-duty - 通知員工超過換班時間工作，
+```jsonc
+{"message": "因為您超時工作，所以您目前的任務已被移除。"}
 ```
 
 # Server Config

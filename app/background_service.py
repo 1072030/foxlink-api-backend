@@ -150,16 +150,15 @@ async def overtime_workers_routine():
             duty_shift = await get_user_shift_type(u.username)
 
             if get_shift_type_now() != duty_shift:
-                await m.assignees.remove(u)
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
                     table_name="missions",
-                    description="員工換班",
+                    description=f"員工換班，維修時長: {datetime.utcnow() - m.repair_start_date if m.repair_start_date is not None else 0}",
                     user=u.username,
                     record_pk=m.id,
                 )
                 publish(
-                    f"foxlink/users/{u.username}/notify",
+                    f"foxlink/users/{u.username}/overtime-duty",
                     {"message": "因為您超時工作，所以您目前的任務已被移除。"},
                     qos=1,
                 )
@@ -532,6 +531,14 @@ async def dispatch_routine():
             if is_in_whitelist and w.user.username not in whitelist_workers:
                 remove_indice.append(w.user.username)
 
+        # 取得該裝置隸屬的車間資訊
+        factory_map = await FactoryMap.objects.filter(
+            id=mission_1st.device.workshop.id
+        ).exclude_fields(['image']).get()
+        
+        distance_matrix: List[List[float]] = factory_map.map # 距離矩陣
+        mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id) # 該任務的裝置在矩陣中的位置
+
         # 移除不符合條件的員工
         can_dispatch_workers = [x for x in can_dispatch_workers if x.user.username not in remove_indice]
 
@@ -544,19 +551,12 @@ async def dispatch_routine():
             if not await AuditLogHeader.objects.filter(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, record_pk=mission_1st.id).exists():
                 await AuditLogHeader.objects.create(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, table_name="missions", record_pk=mission_1st.id)
                 publish(
-                    "foxlink/no-available-worker",
+                    f"foxlink/{factory_map.name}/no-available-worker",
                     MissionDto.from_mission(mission_1st).dict(),
                     qos=1,
                 )
             continue
 
-        # 取得該裝置隸屬的車間資訊
-        factory_map = await FactoryMap.objects.filter(
-            id=mission_1st.device.workshop.id
-        ).exclude_fields(['image']).get()
-        
-        distance_matrix: List[List[float]] = factory_map.map # 距離矩陣
-        mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id) # 該任務的裝置在矩陣中的位置
 
         w_list = []
         for w in can_dispatch_workers:
@@ -614,7 +614,7 @@ async def dispatch_routine():
             if not await AuditLogHeader.objects.filter(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, record_pk=mission_1st.id).exists():
                 await AuditLogHeader.objects.create(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, table_name="missions", record_pk=mission_1st.id)
                 publish(
-                    "foxlink/no-available-worker",
+                    f"foxlink/{factory_map.name}/no-available-worker",
                     MissionDto.from_mission(mission_1st).dict(),
                     qos=1,
                 )
@@ -858,7 +858,7 @@ async def main_routine():
         await overtime_workers_routine()
         await track_worker_status_routine()
         await check_mission_duration_routine()
-        await check_alive_worker_routine()
+        #await check_alive_worker_routine()
 
         if not DISABLE_FOXLINK_DISPATCH:
             await dispatch_routine()
