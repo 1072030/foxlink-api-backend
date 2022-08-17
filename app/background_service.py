@@ -211,6 +211,38 @@ async def auto_close_missions():
 
 async def track_worker_status_routine():
     """追蹤員工狀態，視任務狀態而定"""
+    async def check_routine(s: WorkerStatus):
+        working_mission = await get_user_working_mission(s.worker.username)
+
+        if working_mission is None and s.status == WorkerStatusEnum.idle.value:
+            return
+
+        if working_mission is None and s.status != WorkerStatusEnum.idle.value:
+            await s.update(status=WorkerStatusEnum.idle.value)
+            return
+
+        # 任務是否曾被接受過
+        is_accepted = await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_ACCEPTED.value,table_name="missions",record_pk=str(working_mission.id),user=s.worker.username).exists()
+
+        # 返回消防站任務提示
+        if working_mission.device.is_rescue:
+            if not is_accepted:
+                await s.update(status=WorkerStatusEnum.notice.value)
+            else:
+                await s.update(status=WorkerStatusEnum.moving.value)
+            return
+
+        if working_mission.repair_start_date is not None and working_mission.repair_end_date is None:
+            await s.update(status=WorkerStatusEnum.working.value)
+            return
+
+        if is_accepted:
+            await s.update(status=WorkerStatusEnum.moving.value)
+        else:
+            await s.update(status=WorkerStatusEnum.notice.value)
+    
+    logger.warning("Start tracking worker status")
+    begin_time = datetime.utcnow()
 
     worker_status = (
         await WorkerStatus.objects.select_related(["worker"])
@@ -225,35 +257,12 @@ async def track_worker_status_routine():
         .all()
     )
 
-    for s in worker_status:
-        working_mission = await get_user_working_mission(s.worker.username)
-
-        if working_mission is None and s.status == WorkerStatusEnum.idle.value:
-            continue
-
-        if working_mission is None and s.status != WorkerStatusEnum.idle.value:
-            await s.update(status=WorkerStatusEnum.idle.value)
-            continue
-
-        # 任務是否曾被接受過
-        is_accepted = await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_ACCEPTED.value,table_name="missions",record_pk=str(working_mission.id),user=s.worker.username).exists()
-
-        # 返回消防站任務提示
-        if working_mission.device.is_rescue:
-            if not is_accepted:
-                await s.update(status=WorkerStatusEnum.notice.value)
-            else:
-                await s.update(status=WorkerStatusEnum.moving.value)
-            continue
-
-        if working_mission.repair_start_date is not None and working_mission.repair_end_date is None:
-            await s.update(status=WorkerStatusEnum.working.value)
-            continue
-
-        if is_accepted:
-            await s.update(status=WorkerStatusEnum.moving.value)
-        else:
-            await s.update(status=WorkerStatusEnum.notice.value)
+    promises = [check_routine(s) for s in worker_status]
+    await asyncio.gather(*promises)
+    
+    run_duration = datetime.utcnow() - begin_time
+    logger.warning(f'Worker status checked. Duration: {run_duration.seconds} seconds')
+        
 
 async def worker_monitor_routine():
     """監控員工閒置狀態，如果員工閒置在機台超過一定時間，則自動發出返回消防站任務"""
@@ -851,28 +860,43 @@ async def main_routine():
     if not DISABLE_FOXLINK_DISPATCH:
         await foxlink_daemon.connect()
 
+    check_ticker = Ticker(track_worker_status_routine, 1)
+    await check_ticker.start()
+
     # if daemon isn't killed, run forever
     while not kill_now:
+        logger.warning('[main_routine] Foxlink daemon is running...')
+        start = time.perf_counter()
+
         await auto_close_missions()
         await worker_monitor_routine()
         await overtime_workers_routine()
-        await track_worker_status_routine()
+        #await track_worker_status_routine()
         await check_mission_duration_routine()
         #await check_alive_worker_routine()
 
         if not DISABLE_FOXLINK_DISPATCH:
-            await dispatch_routine()
+            task = asyncio.create_task(dispatch_routine())
+            await task
+
+        end = time.perf_counter()
+
+        logger.warning("[main_routine] took %.2f seconds", end - start)
             
-        time.sleep(1) # idle duration between two loops
+        await asyncio.sleep(1) # idle duration between two loops
 
     logger.warning("Shutting down...")
+    await check_ticker.stop()
     if not DISABLE_FOXLINK_DISPATCH:
         await foxlink_daemon.close()
     await database.disconnect()
     disconnect_mqtt()
-
+    
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, graceful_shutdown)
     signal.signal(signal.SIGTERM, graceful_shutdown)
-    asyncio.run(main_routine())
+
+    loop = asyncio.get_event_loop()
+    loop.create_task(main_routine())
+    loop.run_forever()

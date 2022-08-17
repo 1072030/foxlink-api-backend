@@ -20,7 +20,7 @@ class Ticker:
         if not self.is_started:
             self.is_started = True
             # Start task to call func periodically:
-            self._task = asyncio.ensure_future(self._run())
+            self._task = asyncio.create_task(self._run())
 
     async def stop(self):
         if self.is_started:

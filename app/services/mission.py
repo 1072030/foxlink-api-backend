@@ -256,10 +256,15 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value, user=worker.username, record_pk=str(mission_id)).exists():
         raise HTTPException(200, "you're no longer this missions assignee")
 
+    
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
+    is_done = await mission.is_done_events  # type: ignore
+
     if not mission.is_started:
+        # if is_done:
+        #     raise HTTPException(200, "the mission is already done, skip")
         raise HTTPException(400, "this mission hasn't started yet")
 
     if mission.device.is_rescue:
@@ -275,9 +280,8 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if mission.is_closed or mission.is_cancel:
         raise HTTPException(200, "this mission is already closed or canceled!")
 
-    # a hack for async property_field
-    is_done = await mission.is_done_events  # type: ignore
 
+    # a hack for async property_field
     if not is_done:
         raise HTTPException(400, "this mission is not verified as done")
 
