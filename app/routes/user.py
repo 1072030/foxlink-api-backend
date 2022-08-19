@@ -141,7 +141,7 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, user: User = Depends(get_current_active_user)
 ):
-    if user.level == UserLevel.maintainer.value:
+    if await WorkerStatus.objects.filter(worker=user).exists():
         await WorkerStatus.objects.filter(worker=user).update(
             status=WorkerStatusEnum.leave.value
         )

@@ -163,9 +163,6 @@ async def overtime_workers_routine():
                     qos=1,
                 )
 
-        if len(m.assignees) != 0:
-            continue
-
         await m.update(is_cancel=True, description='換班任務，自動結案')
 
         copied_mission = await Mission.objects.create(
@@ -200,7 +197,7 @@ async def auto_close_missions():
         .all()
     )
 
-    working_missions = [x for x in working_missions if len(x.assignees) == 0]
+    # working_missions = [x for x in working_missions if len(x.assignees) == 0]
 
     for m in working_missions:
         undone_events = [x for x in m.missionevents if x.done_verified == False]

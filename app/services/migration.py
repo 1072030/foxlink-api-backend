@@ -1,11 +1,14 @@
+from datetime import datetime
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from app.core.database import (
     User,
     Device,
     UserDeviceLevel,
     FactoryMap,
     CategoryPRI,
+    WorkerStatus,
+    WorkerStatusEnum,
     database,
 )
 from fastapi.exceptions import HTTPException
@@ -190,6 +193,7 @@ async def import_factory_worker_infos(
     workshop_id_mapping: Dict[str, int] = {}
     full_name_mapping: Dict[str, str] = {}
     create_user_bulk: List[User] = []
+    create_workerstatus_bulk: List[WorkerStatus] = []
     update_user_bulk: List[User] = []
     for index, row in factory_worker_info.iterrows():
         if workshop_id_mapping.get(row["workshop"]) is None:
@@ -232,6 +236,16 @@ async def import_factory_worker_infos(
                 level=row["job"],
             )
             create_user_bulk.append(worker)
+
+            if not await WorkerStatus.objects.filter(worker=worker.username).exists():
+                rescue_station = await Device.objects.filter(workshop=workshop_id_mapping[row["workshop"]], is_rescue=True).first()
+                w_status = WorkerStatus(
+                    worker=worker.username,
+                    status=WorkerStatusEnum.leave.value,
+                    at_device=rescue_station,
+                    last_event_end_date=datetime.utcnow(),
+                )
+                create_workerstatus_bulk.append(w_status)
         else:
             worker = User(
                 username=str(row["worker_id"]),
@@ -262,6 +276,9 @@ async def import_factory_worker_infos(
 
     if len(create_user_bulk) != 0:
         await User.objects.bulk_create(create_user_bulk)
+
+    if len(create_workerstatus_bulk) != 0:
+        await WorkerStatus.objects.bulk_create(create_workerstatus_bulk)
 
     # remove original device levels
     for username in full_name_mapping.values():

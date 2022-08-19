@@ -263,9 +263,10 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     is_done = await mission.is_done_events  # type: ignore
 
     if not mission.is_started:
-        # if is_done:
-        #     raise HTTPException(200, "the mission is already done, skip")
-        raise HTTPException(400, "this mission hasn't started yet")
+        if is_done:
+            raise HTTPException(200, "the mission is already done, skip")
+        else:
+            raise HTTPException(400, "this mission hasn't started yet")
 
     if mission.device.is_rescue:
         if mission.repair_end_date is None:
@@ -278,8 +279,7 @@ async def finish_mission_by_id(mission_id: int, worker: User):
             )
 
     if mission.is_closed or mission.is_cancel:
-        raise HTTPException(200, "this mission is already closed or canceled!")
-
+        raise HTTPException(400, "this mission is already closed or canceled!")
 
     # a hack for async property_field
     if not is_done:
