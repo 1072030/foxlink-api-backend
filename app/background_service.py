@@ -146,6 +146,7 @@ async def overtime_workers_routine():
     working_missions = [x for x in working_missions if len(x.assignees) > 0]
 
     for m in working_missions:
+        should_cancel = False
         for u in m.assignees:
             duty_shift = await get_user_shift_type(u.username)
 
@@ -162,6 +163,10 @@ async def overtime_workers_routine():
                     {"message": "因為您超時工作，所以您目前的任務已被移除。"},
                     qos=1,
                 )
+                should_cancel = True
+
+        if not should_cancel:
+            continue
 
         await m.update(is_cancel=True, description='換班任務，自動結案')
 

@@ -183,7 +183,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
         raise HTTPException(400, "the mission haven't assigned to you")
 
     if mission.is_started or mission.is_closed:
-        raise HTTPException(400, "this mission is already started or closed")
+        raise HTTPException(200, "this mission is already started or closed")
 
     # accept_count = await AuditLogHeader.objects.filter(
     #     action=AuditActionEnum.MISSION_ACCEPTED.value,
@@ -279,7 +279,7 @@ async def finish_mission_by_id(mission_id: int, worker: User):
             )
 
     if mission.is_closed or mission.is_cancel:
-        raise HTTPException(400, "this mission is already closed or canceled!")
+        raise HTTPException(200, "this mission is already closed or canceled!")
 
     # a hack for async property_field
     if not is_done:

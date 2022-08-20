@@ -139,9 +139,9 @@ async def change_password(
 @database.transaction()
 @router.post("/get-off-work", tags=["users"])
 async def get_off_work(
-    reason: LogoutReasonEnum, user: User = Depends(get_current_active_user)
+    reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_active_user)
 ):
-    if await WorkerStatus.objects.filter(worker=user).exists():
+    if to_change_status and await WorkerStatus.objects.filter(worker=user).exists():
         await WorkerStatus.objects.filter(worker=user).update(
             status=WorkerStatusEnum.leave.value
         )
