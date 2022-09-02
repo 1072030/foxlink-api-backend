@@ -6,10 +6,10 @@
 3. Mypy linter (Recommend, for development use)
 
 ## How to Start?
-1. Login ghcr.io via `docker login ghcr.io` command.
-    - How to get your own github token please see this [topic](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
-2. Edit configuration in **docker-compose.yml** (Optional)
-2. In CLI, enter `docker-compose up -d` to start up services.
+1. Download this repo's files as a zip.
+2. Uncompress the zip to a destination.
+3. Edit **docker-compose.yaml** and enviroment file to update server configs.
+4. Type `docker-compose up -d --build` in project's directory to start up the servers.
 
 # MQTT Topics
 - foxlink/users/{username}/missions
