@@ -27,10 +27,10 @@ async def get_missions() -> List[Mission]:
     return await Mission.objects.select_all().all()
 
 
-async def get_mission_by_id(id: int) -> Optional[Mission]:
+async def get_mission_by_id(id: int, select_fields: List[str]=["assignees", "device", "missionevents", "device__workshop"]) -> Optional[Mission]:
     mission = (
         await Mission.objects.select_related(
-            ["assignees", "device", "missionevents", "device__workshop"]
+            select_fields
         )
         .exclude_fields(
             [
@@ -493,7 +493,7 @@ async def request_assistance(mission_id: int, validate_user: User):
             logger.error(f"failed to send emergency message to {worker_device_level.superior.username}, Exception: {repr(e)}")
 
 async def is_mission_in_whitelist(mission_id: int):
-    m = await get_mission_by_id(mission_id)
+    m = await get_mission_by_id(mission_id, select_fields=["device"])
 
     if m is None:
         raise HTTPException(404, "the mission you request is not found")

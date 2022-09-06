@@ -3,7 +3,7 @@ import uuid
 import signal
 import time
 from databases import Database
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
@@ -78,6 +78,14 @@ class FoxlinkEvent(BaseModel):
     start_file_name: Optional[str]
     end_file_name: Optional[str]
 
+def show_duration(func):
+    async def wrapper():
+        start = time.perf_counter()
+        await func()
+        end = time.perf_counter()
+        logger.warning(f'[{func.__name__}] took {end - start:.2f} seconds.')
+    return wrapper
+
 
 def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
     try:
@@ -86,7 +94,7 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
         msg = f"{device_id} device is not in the map {factory_map.name}"
         raise ValueError(msg)
 
-
+@show_duration
 async def check_alive_worker_routine():
     """檢查員工是否在線，如果沒有在線，則通知上層"""
     alive_worker_status = (
@@ -139,7 +147,7 @@ async def check_alive_worker_routine():
 @database.transaction()
 async def overtime_workers_routine():
     """檢查是否有員工超時，如果超時則發送通知"""
-    working_missions = await Mission.objects.select_related(['assignees', 'device', 'missionevents']).filter(
+    working_missions = await Mission.objects.select_related(['assignees', 'device']).filter(
         repair_end_date__isnull=True, is_cancel=False, device__is_rescue=False,
     ).all()
   
@@ -178,7 +186,9 @@ async def overtime_workers_routine():
             is_emergency=m.is_emergency
         )
 
-        for e in m.missionevents:
+        mission_events = await MissionEvent.objects.filter(mission=m.id).all()
+
+        for e in mission_events:
             new_missionevent = MissionEvent(
                 event_id=e.event_id,
                 table_name=e.table_name,
@@ -190,14 +200,16 @@ async def overtime_workers_routine():
             )
             await copied_mission.missionevents.add(new_missionevent)
 
+@show_duration
 async def auto_close_missions():
     """自動結案任務，如果任務的故障已排除但員工未被指派，則自動結案"""
     working_missions = (
-        await Mission.objects.select_related(["assignees", "missionevents"])
+        await Mission.objects.select_related(["assignees"])
         .filter(
             repair_start_date__isnull=True,
             repair_end_date__isnull=True,
             is_cancel=False,
+            created_date__lt=datetime.utcnow() - timedelta(minutes=1),
         )
         .all()
     )
@@ -205,12 +217,11 @@ async def auto_close_missions():
     # working_missions = [x for x in working_missions if len(x.assignees) == 0]
 
     for m in working_missions:
-        undone_events = [x for x in m.missionevents if x.done_verified == False]
-
-        if len(undone_events) == 0 and len(m.missionevents) != 0:
+        undone_count = await database.fetch_val("SELECT COUNT(*) FROM missionevents m WHERE m.mission = :mission_id AND m.done_verified = 0", {"mission_id": m.id})
+        if undone_count == 0:
             await m.update(is_cancel=True, is_autocanceled=True)
 
-
+@show_duration
 async def track_worker_status_routine():
     """追蹤員工狀態，視任務狀態而定"""
     async def check_routine(s: WorkerStatus):
@@ -242,9 +253,7 @@ async def track_worker_status_routine():
             await s.update(status=WorkerStatusEnum.moving.value)
         else:
             await s.update(status=WorkerStatusEnum.notice.value)
-    
-    logger.warning("Start tracking worker status")
-    begin_time = datetime.utcnow()
+
 
     worker_status = (
         await WorkerStatus.objects.select_related(["worker"])
@@ -261,11 +270,8 @@ async def track_worker_status_routine():
 
     promises = [check_routine(s) for s in worker_status]
     await asyncio.gather(*promises)
-    
-    run_duration = datetime.utcnow() - begin_time
-    logger.warning(f'Worker status checked. Duration: {run_duration.seconds} seconds')
         
-
+@show_duration
 async def worker_monitor_routine():
     """監控員工閒置狀態，如果員工閒置在機台超過一定時間，則自動發出返回消防站任務"""
     # when a user import device layout to the system, some devices may have been removed.
@@ -285,6 +291,17 @@ async def worker_monitor_routine():
         except Exception:
             continue
 
+    workshop_cache: Dict[int, FactoryMap] = {} # ID, info
+    rescue_cache: Dict[int, List[Device]] = {} # ID, List[Device]
+
+    all_workshop_infos = await FactoryMap.objects.fields(['id', 'name', 'related_devices', 'map']).all()
+
+    for info in all_workshop_infos:
+        workshop_cache[info.id] = info
+        all_rescue_devices = await Device.objects.filter(workshop=info.id, is_rescue=True).all()
+        rescue_cache[info.id] = all_rescue_devices
+    
+
     workers = await User.objects.filter(
         level=UserLevel.maintainer.value, is_admin=False
     ).all()
@@ -299,9 +316,7 @@ async def worker_monitor_routine():
         if w.location is None:
             continue
 
-        rescue_stations = await Device.objects.filter(
-            workshop=w.location, is_rescue=True
-        ).all()
+        rescue_stations = rescue_cache[w.location.id]
 
         if len(rescue_stations) == 0:
             logger.error(f"there's no rescue station in workshop {w.location.id}")
@@ -333,7 +348,7 @@ async def worker_monitor_routine():
             if await is_user_working_on_mission(w.username):
                 continue
 
-            factory_map = await FactoryMap.objects.filter(id=w.location).get()
+            factory_map = workshop_cache[w.location.id]
             rescue_distances = []
 
             try:
@@ -391,6 +406,7 @@ async def worker_monitor_routine():
                 retain=True,
             )
 
+@show_duration
 async def check_mission_duration_routine():
     """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級"""
     working_missions = (
@@ -421,8 +437,9 @@ async def check_mission_duration_routine():
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
                     description=str(min),
-                    record_pk=m.id,
+                    record_pk=str(m.id),
                 ).exists()
+
 
                 if is_sent:
                     continue
@@ -460,17 +477,17 @@ async def check_mission_duration_routine():
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
                     description=str(min),
-                    record_pk=m.id,
+                    record_pk=str(m.id),
                     user=m.assignees[0].username,
                 )
 
-
+@show_duration
 async def dispatch_routine():
     """處理任務派工給員工的過程"""
 
     # 取得所有未完成的任務
     avaliable_missions = (
-        await Mission.objects.select_related(["device", "assignees", "missionevents"])
+        await Mission.objects.select_related(["device", "assignees"])
         .filter(is_cancel=False, repair_end_date__isnull=True)
         .all()
     )
@@ -488,45 +505,54 @@ async def dispatch_routine():
             action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
         ).count()
 
-        for event in m.missionevents:
-            event_count = (
-                await MissionEvent.objects.select_related("mission")
-                .filter(mission__device=m.device.id, category=event.category)
-                .count()
-            )
+        item = {
+            "missionID": m.id,
+            "event_count": 0,
+            "refuse_count": reject_count,
+            "device": m.device.device_name,
+            "process": m.device.process,
+            "create_date": m.created_date,
+            "category": 0,
+        }
 
-            item = {
-                "missionID": m.id,
-                "event_count": event_count,
-                "refuse_count": reject_count,
-                "device": m.device.device_name,
-                "process": m.device.process,
-                "create_date": m.created_date,
-                "category": event.category,
-            }
+        m_list.append(item)
 
-            m_list.append(item)
+    workshop_cache: Dict[int, FactoryMap] = {} # ID, info
+    all_workshop_infos = await FactoryMap.objects.fields(['id', 'name', 'related_devices', 'map']).all()
+
+    for info in all_workshop_infos:
+        workshop_cache[info.id] = info
 
     # 取得優先處理的任務，並按照優先級排序
     dispatch.get_missions(m_list)
     mission_rank_list = dispatch.mission_priority()
 
     for idx, mission_id in enumerate(mission_rank_list):
-        mission_1st = await get_mission_by_id(mission_id)
+        mission_1st = (await Mission.objects.select_related(
+                ["assignees", "device", "device__workshop"]
+            )
+            .exclude_fields(
+                [
+                    "device__workshop__map",
+                    "device__workshop__related_devices",
+                    "device__workshop__image",
+                ]
+            )
+            .filter(id=mission_id)
+            .get_or_none()
+        )
         
         if mission_1st is None:
             continue
         
         # 抓取可維修此機台的員工列表
-        can_dispatch_workers = (
-            await UserDeviceLevel.objects.select_related("user")
-            .filter(
-                device__id=mission_1st.device.id,
-                level__gt=0,
-                user__location=mission_1st.device.workshop.id,
-                shift=get_shift_type_now().value,
-            )
-            .all()
+        can_dispatch_workers = await database.fetch_all(
+        """
+            SELECT udl.*, u.full_name  FROM userdevicelevels udl
+            INNER JOIN users u ON u.username = udl.`user`
+            WHERE udl.device = :device_id AND udl.shift=:shift AND udl.level > 0 AND u.location = :location
+        """,
+        {'device_id': mission_1st.device.id, 'shift': get_shift_type_now().value, 'location': mission_1st.device.workshop.id}
         )
 
         # 檢查機台是否被列入白名單，並抓取可能的白名單員工列表
@@ -536,22 +562,18 @@ async def dispatch_routine():
         remove_indice = []
         for w in can_dispatch_workers:
             # 如果該機台不列入白名單，但是員工是白名單員工，則移除
-            if not is_in_whitelist and await is_worker_in_whitelist(w.user.username):
-                remove_indice.append(w.user.username)
+            if not is_in_whitelist and await is_worker_in_whitelist(w['user']):
+                remove_indice.append(w['user'])
             # 如果該機台是列入白名單，但是員工不是白名單員工，則移除
-            if is_in_whitelist and w.user.username not in whitelist_workers:
-                remove_indice.append(w.user.username)
+            if is_in_whitelist and w['user'] not in whitelist_workers:
+                remove_indice.append(w['user'])
 
         # 取得該裝置隸屬的車間資訊
-        factory_map = await FactoryMap.objects.filter(
-            id=mission_1st.device.workshop.id
-        ).exclude_fields(['image']).get()
-        
+        factory_map = workshop_cache[mission_1st.device.workshop.id]
         distance_matrix: List[List[float]] = factory_map.map # 距離矩陣
         mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id) # 該任務的裝置在矩陣中的位置
-
         # 移除不符合條件的員工
-        can_dispatch_workers = [x for x in can_dispatch_workers if x.user.username not in remove_indice]
+        can_dispatch_workers = [x for x in can_dispatch_workers if x['user'] not in remove_indice]
 
         # 如果沒有可派工的員工，則通知管理層並跳過
         if len(can_dispatch_workers) == 0:
@@ -571,11 +593,11 @@ async def dispatch_routine():
 
         w_list = []
         for w in can_dispatch_workers:
-            if w.user.level != UserLevel.maintainer.value:
+            if w['level'] != UserLevel.maintainer.value:
                 continue
-            
+
             is_idle = await WorkerStatus.objects.filter(
-                worker=w.user, status=WorkerStatusEnum.idle.value
+                worker=w['user'], status=WorkerStatusEnum.idle.value
             ).exists()
 
             # 如果員工非閒置狀態則略過
@@ -583,22 +605,22 @@ async def dispatch_routine():
                 continue
 
             # if worker has already working on other mission, skip
-            if (await is_user_working_on_mission(w.user.username)) == True:
+            if (await is_user_working_on_mission(w['user'])) == True:
                 continue
 
             # if worker rejects this mission once.
             if await AuditLogHeader.objects.filter(
                 action=AuditActionEnum.MISSION_REJECTED.value,
-                user=w.user.username,
+                user=w['user'],
                 record_pk=mission_1st.id,
             ).exists():
                 continue
 
-            worker_status = await WorkerStatus.objects.filter(worker=w.user).get()
+            worker_status = await WorkerStatus.objects.filter(worker=w['user']).get()
 
             daily_count = await AuditLogHeader.objects.filter(
                 action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=w.user,
+                user=w['user'],
                 created_date__gte=(datetime.utcnow() - timedelta(hours=12)),
             ).count()
 
@@ -607,13 +629,13 @@ async def dispatch_routine():
             )
 
             item = {
-                "workerID": w.user.username,
+                "workerID": w['user'],
                 "distance": distance_matrix[mission_device_idx][worker_device_idx],
                 "idle_time": (
                     datetime.utcnow() - worker_status.last_event_end_date
                 ).total_seconds(),
                 "daily_count": daily_count,
-                "level": w.level,
+                "level": w['level'],
             }
             w_list.append(item)
 
@@ -862,9 +884,6 @@ async def main_routine():
     if not DISABLE_FOXLINK_DISPATCH:
         await foxlink_daemon.connect()
 
-    check_ticker = Ticker(track_worker_status_routine, 1)
-    await check_ticker.start()
-
     # if daemon isn't killed, run forever
     while not kill_now:
         logger.warning('[main_routine] Foxlink daemon is running...')
@@ -873,13 +892,12 @@ async def main_routine():
         await auto_close_missions()
         await worker_monitor_routine()
         await overtime_workers_routine()
-        #await track_worker_status_routine()
+        await track_worker_status_routine()
         await check_mission_duration_routine()
         #await check_alive_worker_routine()
 
         if not DISABLE_FOXLINK_DISPATCH:
-            task = asyncio.create_task(dispatch_routine())
-            await task
+            await dispatch_routine()
 
         end = time.perf_counter()
 
@@ -888,7 +906,6 @@ async def main_routine():
         await asyncio.sleep(1) # idle duration between two loops
 
     logger.warning("Shutting down...")
-    await check_ticker.stop()
     if not DISABLE_FOXLINK_DISPATCH:
         await foxlink_daemon.close()
     await database.disconnect()
