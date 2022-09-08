@@ -548,7 +548,7 @@ async def dispatch_routine():
         # 抓取可維修此機台的員工列表
         can_dispatch_workers = await database.fetch_all(
         """
-            SELECT udl.*, u.full_name  FROM userdevicelevels udl
+            SELECT udl.*, u.full_name, u.level as userlevel FROM userdevicelevels udl
             INNER JOIN users u ON u.username = udl.`user`
             WHERE udl.device = :device_id AND udl.shift=:shift AND udl.level > 0 AND u.location = :location
         """,
@@ -590,10 +590,12 @@ async def dispatch_routine():
                 )
             continue
 
+        logger.warning(f"Mission {mission_id}, can_dispatch_workers: {can_dispatch_workers}")
+
 
         w_list = []
         for w in can_dispatch_workers:
-            if w['level'] != UserLevel.maintainer.value:
+            if w['userlevel'] != UserLevel.maintainer.value:
                 continue
 
             is_idle = await WorkerStatus.objects.filter(
