@@ -209,7 +209,7 @@ async def move_user_to_position(username: str, device_id: str):
         )
     except Exception as e:
         raise HTTPException(
-            status_code=400, detail="cannot update user's position: " + str(e)
+            status_code=400, detail="cannot update user's position: " + repr(e)
         )
 
 async def get_user_working_mission(username: str) -> Optional[Mission]:
@@ -484,12 +484,12 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
 
     shift_start, shift_end = get_current_shift_time_interval()
 
-    total_accept_count = await database.fetch_all(
+    total_start_count = await database.fetch_val(
         f"""
-        SELECT COUNT(DISTINCT record_pk)
-        FROM auditlogheaders
-        WHERE `action` = 'MISSION_ACCEPTED'
-        AND user=:username AND (created_date BETWEEN :shift_start AND :shift_end);
+        SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 
+        INNER JOIN missions m ON m.id = mu.mission
+        INNER JOIN auditlogheaders a ON a.record_pk = m.id 
+        WHERE mu.user = :username AND a.action = 'MISSION_STARTED' AND (a.created_date BETWEEN :shift_start AND :shift_end);
         """,
         {'username': username, 'shift_start': shift_start, 'shift_end': shift_end},
     )
@@ -499,7 +499,7 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
         worker_name=s.worker.full_name,
         status=s.status,
         last_event_end_date=s.last_event_end_date,
-        total_dispatches=total_accept_count[0][0],
+        total_dispatches=total_start_count,
     )
 
     item.at_device = s.at_device.id if s.at_device is not None else None

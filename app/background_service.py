@@ -307,31 +307,33 @@ async def worker_monitor_routine():
     ).all()
 
     for w in workers:
-        worker_status = (
-            await WorkerStatus.objects.select_related(["worker", "at_device"])
-            .filter(worker=w)
-            .get_or_none()
-        )
-
-        if w.location is None:
-            continue
-
-        rescue_stations = rescue_cache[w.location.id]
-
-        if len(rescue_stations) == 0:
-            logger.error(f"there's no rescue station in workshop {w.location.id}")
-            logger.error(f"you should create a rescue station as soon as possible")
-            return
-
-        if worker_status is None:
-            await WorkerStatus.objects.create(
-                worker=w,
-                status=WorkerStatusEnum.leave.value,
-                at_device=rescue_stations[0],
-                last_event_end_date=datetime.utcnow(),
+        with database.transaction():
+            worker_status = (
+                await WorkerStatus.objects.select_related(["worker", "at_device"])
+                .filter(worker=w)
+                .get_or_none()
             )
-        else:
-            if worker_status.status == WorkerStatusEnum.leave.value:
+
+            if w.location is None:
+                continue
+
+            rescue_stations = rescue_cache[w.location.id]
+
+            if len(rescue_stations) == 0:
+                logger.error(f"there's no rescue station in workshop {w.location.id}")
+                logger.error(f"you should create a rescue station as soon as possible")
+                return
+
+            if worker_status is None:
+                await WorkerStatus.objects.create(
+                    worker=w,
+                    status=WorkerStatusEnum.leave.value,
+                    at_device=rescue_stations[0],
+                    last_event_end_date=datetime.utcnow(),
+                )
+                continue
+
+            if worker_status.status != WorkerStatusEnum.idle.value:
                 continue
 
             if get_shift_type_now() != (await get_user_shift_type(w.username)):
@@ -368,10 +370,6 @@ async def worker_monitor_routine():
                         "distance": factory_map.map[worker_device_idx][rescue_idx],
                     }
                 )
-
-            # await WorkerStatus.objects.filter(worker=w.username).update(
-            #     status=WorkerStatusEnum.working.value
-            # )
 
             # create a go-to-rescue-station mission for those workers who are not at rescue station and idle above threshold duration.
             to_rescue_station = dispatch.move_to_rescue(rescue_distances)

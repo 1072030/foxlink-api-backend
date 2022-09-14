@@ -246,7 +246,7 @@ async def get_emergency_missions(workshop_id: int) -> List[MissionDto]:
         await Mission.objects.filter(
             is_emergency=True, repair_end_date__isnull=True, is_cancel=False, device__workshop__id=workshop_id
         )
-        .select_related(["assignees", "missionevents", "device", "device__workshop"])
+        .select_related(["assignees", "device", "device__workshop"])
         .exclude_fields(["device__workshop__map", "device__workshop__related_devices", "device__workshop__image"])
         .order_by(["created_date"])
         .all()
