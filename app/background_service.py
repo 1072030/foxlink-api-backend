@@ -307,7 +307,7 @@ async def worker_monitor_routine():
     ).all()
 
     for w in workers:
-        with database.transaction():
+        async with database.transaction():
             worker_status = (
                 await WorkerStatus.objects.select_related(["worker", "at_device"])
                 .filter(worker=w)
@@ -587,9 +587,6 @@ async def dispatch_routine():
                     qos=1,
                 )
             continue
-
-        logger.warning(f"Mission {mission_id}, can_dispatch_workers: {can_dispatch_workers}")
-
 
         w_list = []
         for w in can_dispatch_workers:
