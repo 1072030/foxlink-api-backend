@@ -135,7 +135,7 @@ async def check_alive_worker_routine():
                                         "worker_id": w.worker.username,
                                         "worker_name": w.worker.full_name,
                                     },
-                                    qos=1,
+                                    qos=2,
                                     retain=True,
                                 )
                     else:
@@ -169,7 +169,7 @@ async def overtime_workers_routine():
                 publish(
                     f"foxlink/users/{u.username}/overtime-duty",
                     {"message": "因為您超時工作，所以您目前的任務已被移除。"},
-                    qos=1,
+                    qos=2,
                 )
                 should_cancel = True
 
@@ -400,7 +400,7 @@ async def worker_monitor_routine():
                     "description": mission.description,
                     "rescue_station": to_rescue_station,
                 },
-                qos=1,
+                qos=2,
                 retain=True,
             )
 
@@ -468,7 +468,7 @@ async def check_mission_duration_routine():
                         "worker_name": m.assignees[0].full_name,
                         "duration": m.mission_duration.total_seconds(),
                     },
-                    qos=1,
+                    qos=2,
                 )
 
                 await AuditLogHeader.objects.create(
@@ -584,7 +584,7 @@ async def dispatch_routine():
                 publish(
                     f"foxlink/{factory_map.name}/no-available-worker",
                     MissionDto.from_mission(mission_1st).dict(),
-                    qos=1,
+                    qos=2,
                 )
             continue
 
@@ -646,7 +646,7 @@ async def dispatch_routine():
                 publish(
                     f"foxlink/{factory_map.name}/no-available-worker",
                     MissionDto.from_mission(mission_1st).dict(),
-                    qos=1,
+                    qos=2,
                 )
             continue
 

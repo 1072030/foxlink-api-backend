@@ -216,7 +216,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
                 "worker": user.full_name,
                 "rejected_count": mission_reject_amount,
             },
-            qos=1,
+            qos=2,
             retain=True,
         )
 
@@ -242,7 +242,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
                     "subordinate_name": user.full_name,
                     "total_rejected_count": worker_reject_amount_today,
                 },
-                qos=1,
+                qos=2,
                 retain=True,
             )
 
@@ -426,7 +426,7 @@ async def assign_mission(mission_id: int, username: str):
                 for e in mission.missionevents
             ],
         },
-        qos=1,
+        qos=2,
         retain=True,
     )
         
@@ -487,7 +487,7 @@ async def request_assistance(mission_id: int, validate_user: User):
                         for e in mission.missionevents
                     ],
                 },
-                qos=1,
+                qos=2,
             )
         except Exception as e:
             logger.error(f"failed to send emergency message to {worker_device_level.superior.username}, Exception: {repr(e)}")
