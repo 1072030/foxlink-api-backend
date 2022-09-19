@@ -47,7 +47,7 @@ from app.core.database import (
     Device,
     database,
 )
-
+import traceback
 
 logger = logging.getLogger(LOGGER_NAME)
 dispatch = Foxlink_dispatch()
@@ -883,24 +883,28 @@ async def main_routine():
 
     # if daemon isn't killed, run forever
     while not kill_now:
-        logger.warning('[main_routine] Foxlink daemon is running...')
-        start = time.perf_counter()
+        try:
+            logger.warning('[main_routine] Foxlink daemon is running...')
+            start = time.perf_counter()
 
-        await auto_close_missions()
-        await worker_monitor_routine()
-        await overtime_workers_routine()
-        await track_worker_status_routine()
-        await check_mission_duration_routine()
-        #await check_alive_worker_routine()
+            await auto_close_missions()
+            await worker_monitor_routine()
+            await overtime_workers_routine()
+            await track_worker_status_routine()
+            await check_mission_duration_routine()
+            #await check_alive_worker_routine()
 
-        if not DISABLE_FOXLINK_DISPATCH:
-            await dispatch_routine()
+            if not DISABLE_FOXLINK_DISPATCH:
+                await dispatch_routine()
 
-        end = time.perf_counter()
+            end = time.perf_counter()
 
-        logger.warning("[main_routine] took %.2f seconds", end - start)
-            
-        await asyncio.sleep(1) # idle duration between two loops
+            logger.warning("[main_routine] took %.2f seconds", end - start)
+                
+            await asyncio.sleep(1) # idle duration between two loops
+        except Exception as e:
+            logger.error(f'excpetion in main_routine: {repr(e)}')
+            traceback.print_exc()
 
     logger.warning("Shutting down...")
     if not DISABLE_FOXLINK_DISPATCH:
