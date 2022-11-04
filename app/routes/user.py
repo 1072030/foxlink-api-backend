@@ -29,7 +29,6 @@ from app.services.user import (
 from app.services.auth import (
     set_device_UUID,
     get_current_user,
-    get_user,
     get_manager_active_user,
     verify_password,
     get_admin_active_user,
@@ -151,7 +150,7 @@ async def get_off_work(
 
     await update_user(
         user.username,
-        login_now="0",
+        current_UUID=""
     )
 
     await AuditLogHeader.objects.create(
@@ -193,8 +192,3 @@ async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
 @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
 async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
     return await get_users_overview(workshop_name)
-
-
-@router.get("/set-UUID", tags=["users"])
-async def set_UUID(UUID: str, user: User = Depends(get_user)):
-    return await set_device_UUID(user, UUID)

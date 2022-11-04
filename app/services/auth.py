@@ -51,37 +51,6 @@ async def authenticate_user(username: str, password: str):
     return user
 
 
-# Check token validation
-async def get_user(token: str = Depends(oauth2_scheme)):
-
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Signature has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except:
-        raise credentials_exception
-
-    user = await get_user_by_username(username)
-
-    if user is None:
-        raise credentials_exception
-
-    return user
-
-
 async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     credentials_exception = HTTPException(
@@ -93,6 +62,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         username: str = payload.get("sub")
+        current_UUID: str = payload.get("UUID")
         if username is None:
             raise credentials_exception
     except ExpiredSignatureError:
@@ -101,7 +71,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         username: str = payload["sub"]
         await update_user(
             user.username,
-            login_now="0",
+            current_UUID=None
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -116,15 +86,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
 
-    if user.should_logout is not "0":
-        logout_UUID = user.should_logout
-        await update_user(
-            user.username,
-            should_logout="0",
-        )
+    if user.current_UUID != current_UUID:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=logout_UUID+"Signature has expired",
+            detail="log on other device, should log out.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -153,12 +118,7 @@ async def get_manager_active_user(
 async def set_device_UUID(
     user: User, UUID: str
 ):
-    if user.login_now is not "0":
-        await update_user(
-            user.username,
-            should_logout=user.login_now,
-        )
     await update_user(
         user.username,
-        login_now=UUID
+        current_UUID=UUID
     )

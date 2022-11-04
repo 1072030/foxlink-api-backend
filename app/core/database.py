@@ -93,8 +93,7 @@ class User(ormar.Model):
     is_admin: bool = ormar.Boolean(server_default="0")
     is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
-    should_logout: str = ormar.String(max_length=50, server_default="0")
-    login_now: str = ormar.String(max_length=50, server_default="0")
+    current_UUID: str = ormar.String(max_length=50, server_default="0")
 
 
 class Device(ormar.Model):

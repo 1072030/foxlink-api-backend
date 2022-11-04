@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
 from app.mqtt.main import publish
-from app.services.auth import authenticate_user, create_access_token, get_current_user
+from app.services.auth import authenticate_user, create_access_token, get_current_user, set_device_UUID
 from datetime import datetime, timedelta
 from app.core.database import (
     User,
@@ -45,8 +45,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    await set_device_UUID(user, form_data.client_id)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username, "UUID": user.current_UUID}, expires_delta=access_token_expires
     )
 
     today_login_timestamp = await get_user_first_login_time_today(user.username)
@@ -93,5 +94,3 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     publish(f"foxlink/users/{user.username}/connected",
             payload={"connected": True}, qos=2)
     return {"access_token": access_token, "token_type": "bearer"}
-
-
