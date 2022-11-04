@@ -27,8 +27,8 @@ RUN pip install -r requirements.txt
 # copy project
 COPY . /app/
 
-HEALTHCHECK --interval=5s --timeout=3s \
-    CMD curl -fs http://localhost/health || exit 1
+#HEALTHCHECK --interval=5s --timeout=3s \
+#    CMD curl -fs http://localhost/health || exit 1
 
 # expose port
 EXPOSE 80

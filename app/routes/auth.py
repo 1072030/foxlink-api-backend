@@ -14,10 +14,7 @@ from app.core.database import (
     WorkerStatus,
     WorkerStatusEnum,
 )
-from app.services.user import (
-    get_user_first_login_time_today,
-    is_user_working_on_mission,
-)
+from app.services.user import get_user_first_login_time_today
 
 
 class Token(BaseModel):
@@ -25,7 +22,8 @@ class Token(BaseModel):
     token_type: str
 
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
+ACCESS_TOKEN_EXPIRE_MINUTES = 60*12
+
 router = APIRouter(prefix="/auth")
 
 
@@ -89,6 +87,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
             worker_status.at_device = first_rescue_station
             await worker_status.update()
-
-    publish(f"foxlink/users/{user.username}/connected", payload={"connected": True}, qos=2)
+            
+    # remove it (check login twice)
+    publish(f"foxlink/users/{user.username}/connected",
+            payload={"connected": True}, qos=2)
     return {"access_token": access_token, "token_type": "bearer"}

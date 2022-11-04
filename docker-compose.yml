@@ -20,15 +20,15 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      PY_ENV: production
+      # PY_ENV: production
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
       DATABASE_NAME: foxlink
-      FOXLINK_DB_HOSTS: "['172.17.0.1:3308', '172.17.0.1:3307']"
-      FOXLINK_DB_USER: ntust
-      FOXLINK_DB_PWD: ntustpwd
+      FOXLINK_DB_HOSTS: "['140.118.157.12:27001']"
+      FOXLINK_DB_USER: root
+      FOXLINK_DB_PWD: 123456
       JWT_SECRET: secret
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
@@ -48,15 +48,15 @@ services:
       context: .
       dockerfile: daemon.Dockerfile
     environment:
-      PY_ENV: production
+      # PY_ENV: production
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
       DATABASE_NAME: foxlink
-      FOXLINK_DB_HOSTS: "['172.17.0.1:3308', '172.17.0.1:3307']"
-      FOXLINK_DB_USER: ntust
-      FOXLINK_DB_PWD: ntustpwd
+      FOXLINK_DB_HOSTS: "['140.118.157.12']"
+      FOXLINK_DB_USER: root
+      FOXLINK_DB_PWD: 123456
       JWT_SECRET: secret
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
@@ -82,12 +82,12 @@ services:
     networks:
       - backend
     
-  watchtower:
-    image: containrrr/watchtower
-    command: --interval 30
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./watchtower-config.json:/config.json
+  # watchtower:
+  #   image: containrrr/watchtower
+  #   command: --interval 30
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - ./watchtower-config.json:/config.json
 
 networks:
   backend:

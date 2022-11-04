@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Form, HTTPException
 from app.models.schema import CategoryPriorityOut, DeviceDispatchableWorker, DeviceOut, WhitelistRecommendDevice
-from app.services.auth import get_manager_active_user, get_current_active_user
+from app.services.auth import get_manager_active_user, get_current_user
 from app.core.database import CategoryPRI, Device, ShiftType, User, FactoryMap, UserDeviceLevel, UserLevel, WhitelistDevice
 from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices, show_recommend_whitelist_devices
 
@@ -103,7 +103,7 @@ async def get_device_dispatchable_workers(device_id: str, shift_type: bool):
 
 @router.get("/{device_id}", response_model=DeviceOut, tags=["device"])
 async def get_device_by_id(
-    device_id: str, user: User = Depends(get_current_active_user)
+    device_id: str, user: User = Depends(get_current_user)
 ):
     device = (
         await Device.objects.select_related("workshop")

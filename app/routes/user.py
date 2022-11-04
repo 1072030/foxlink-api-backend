@@ -27,7 +27,8 @@ from app.services.user import (
     get_worker_attendances,
 )
 from app.services.auth import (
-    get_current_active_user,
+    update_user_is_active,
+    get_current_user,
     get_manager_active_user,
     verify_password,
     get_admin_active_user,
@@ -69,6 +70,11 @@ async def read_all_users(
         for user in users
     ]
 
+# RRR
+@router.get("/request-assign-mission", tags=["users"])
+async def request_assign_mission(user: User = Depends(get_admin_active_user)):
+    return True
+
 
 @router.post("/", tags=["users"], status_code=201)
 async def create_a_new_user(
@@ -78,8 +84,9 @@ async def create_a_new_user(
 
 
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
-async def get_user_himself_info(user: User = Depends(get_current_active_user)):
+async def get_user_himself_info(user: User = Depends(get_current_user)):
     first_login_timestamp = await get_user_first_login_time_today(user.username)
+
 
     if user.location is None:
         workshop_name = "無"
@@ -118,13 +125,12 @@ async def get_user_himself_info(user: User = Depends(get_current_active_user)):
 
 
 @router.get("/worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
-async def get_user_attendances(user: User = Depends(get_current_active_user)):
+async def get_user_attendances(user: User = Depends(get_current_user)):
     return await get_worker_attendances(user.username)
-
 
 @router.post("/change-password", tags=["users"])
 async def change_password(
-    dto: UserChangePassword, user: User = Depends(get_current_active_user)
+    dto: UserChangePassword, user: User = Depends(get_current_user)
 ):
     if not verify_password(dto.old_password, user.password_hash):
         raise HTTPException(status_code=401, detail="The old password is not matched")
@@ -139,12 +145,14 @@ async def change_password(
 @database.transaction()
 @router.post("/get-off-work", tags=["users"])
 async def get_off_work(
-    reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_active_user)
+    reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
     if to_change_status and await WorkerStatus.objects.filter(worker=user.username).exists():
         await WorkerStatus.objects.filter(worker=user.username).update(
             status=WorkerStatusEnum.leave.value
         )
+        
+    await update_user_is_active(user.username, is_active=False)
 
     await AuditLogHeader.objects.create(
         user=user,
@@ -156,7 +164,7 @@ async def get_off_work(
 
 @router.patch("/{username}", tags=["users"])
 async def update_user_information(
-    username: str, dto: UserPatch, user: User = Depends(get_current_active_user)
+    username: str, dto: UserPatch, user: User = Depends(get_current_user)
 ):
     if user.level < UserLevel.manager.value:
         raise HTTPException(401, "You do not have permission to do this")
@@ -173,7 +181,7 @@ async def delete_a_user_by_username(
 
 
 @router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
-async def get_user_mission_history(user: User = Depends(get_current_active_user)):
+async def get_user_mission_history(user: User = Depends(get_current_user)):
     return await get_worker_mission_history(user.username)
 
 

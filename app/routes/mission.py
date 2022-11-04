@@ -22,7 +22,7 @@ from app.services.mission import (
     assign_mission,
 )
 from app.services.auth import (
-    get_current_active_user,
+    get_current_user,
     get_manager_active_user,
 )
 from app.models.schema import MissionUpdate, MissionDto
@@ -79,9 +79,11 @@ async def get_missions_by_query(
 
     if is_assigned is not None:
         if is_assigned:
-            missions = [mission for mission in missions if len(mission.assignees) > 0]
+            missions = [mission for mission in missions if len(
+                mission.assignees) > 0]
         else:
-            missions = [mission for mission in missions if len(mission.assignees) == 0]
+            missions = [mission for mission in missions if len(
+                mission.assignees) == 0]
 
     mission_list = [MissionDto.from_mission(x) for x in missions]
 
@@ -90,7 +92,7 @@ async def get_missions_by_query(
 
 @router.get("/self", response_model=List[MissionDto], tags=["missions"])
 async def get_self_mission(
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(get_current_user),
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
@@ -129,16 +131,28 @@ async def get_self_mission(
 
     if is_assigned is not None:
         if is_assigned:
-            missions = [mission for mission in missions if len(mission.assignees) > 0]
+            missions = [mission for mission in missions if len(
+                mission.assignees) > 0]
         else:
-            missions = [mission for mission in missions if len(mission.assignees) == 0]
+            missions = [mission for mission in missions if len(
+                mission.assignees) == 0]
 
     return [MissionDto.from_mission(x) for x in missions]
 
 
+# RRR
+@router.get("/{mission_id}/stop-notify", tag=["missions"])
+async def stop_notify_by_id(
+    mission_id: int, user: User = Depends(get_current_user)
+):
+    return True
+
+
+
+
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
 async def get_a_mission_by_id(
-    mission_id: int, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_user)
 ):
     m = await get_mission_by_id(mission_id)
 
@@ -185,34 +199,36 @@ async def cancel_a_mission_by_id(
 
 
 @router.post("/{mission_id}/start", tags=["missions"])
-async def start_mission(mission_id: int, user: User = Depends(get_current_active_user)):
+async def start_mission(mission_id: int, user: User = Depends(get_current_user)):
     await start_mission_by_id(mission_id, user)
 
 
 @router.post("/{mission_id}/accept", tags=["missions"])
 async def accept_mission_by_worker(
-    mission_id: int, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_user)
 ):
     await accept_mission(mission_id, user)
 
 
 @router.get("/{mission_id}/reject", tags=["missions"])
 async def reject_a_mission(
-    mission_id: int, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_user)
 ):
     await reject_mission_by_id(mission_id, user)
+
+# RRR check if mission finished from frontend
 
 
 @router.post("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
-    mission_id: int, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_user)
 ):
     await finish_mission_by_id(mission_id, user)
 
 
 @router.get("/{mission_id}/emergency", tags=["missions"], status_code=201)
 async def mark_mission_emergency(
-    mission_id: int, user: User = Depends(get_current_active_user)
+    mission_id: int, user: User = Depends(get_current_user)
 ):
     await request_assistance(mission_id, user)
 

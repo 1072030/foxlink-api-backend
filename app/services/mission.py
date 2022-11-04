@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 from typing import List, Optional
 from app.core.database import (
     Mission,
@@ -27,7 +28,7 @@ async def get_missions() -> List[Mission]:
     return await Mission.objects.select_all().all()
 
 
-async def get_mission_by_id(id: int, select_fields: List[str]=["assignees", "device", "missionevents", "device__workshop"]) -> Optional[Mission]:
+async def get_mission_by_id(id: int, select_fields: List[str] = ["assignees", "device", "missionevents", "device__workshop"]) -> Optional[Mission]:
     mission = (
         await Mission.objects.select_related(
             select_fields
@@ -93,7 +94,8 @@ async def start_mission_by_id(mission_id: int, worker: User):
     )
 
     if mission is None:
-        raise HTTPException(404, "the mission you request to start is not found")
+        raise HTTPException(
+            404, "the mission you request to start is not found")
 
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
@@ -118,7 +120,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(
             400, "one of the assignees hasn't accepted the mission yet!"
         )
-        
+
     # if mission is already started,
     # for example there is previous worker who has started the mission, then we shouldn't update repair start date.
     if mission.repair_start_date is None:
@@ -149,17 +151,8 @@ async def accept_mission(mission_id: int, worker: User):
 
     if not mission.device.is_rescue:
         if mission.is_started or mission.is_closed:
-            raise HTTPException(400, "this mission is already started or closed")
-
-    # Check worker has accepted the mission or not.
-    # accept_count = await AuditLogHeader.objects.filter(
-    #     action=AuditActionEnum.MISSION_ACCEPTED.value,
-    #     user=worker.username,
-    #     record_pk=mission_id,
-    # ).count()
-
-    # if accept_count > 0:
-    #     raise HTTPException(400, "you have already accepted the mission")
+            raise HTTPException(
+                400, "this mission is already started or closed")
 
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_ACCEPTED.value,
@@ -177,7 +170,8 @@ async def reject_mission_by_id(mission_id: int, user: User):
     )
 
     if mission is None:
-        raise HTTPException(404, "the mission you request to start is not found")
+        raise HTTPException(
+            404, "the mission you request to start is not found")
 
     if len([u for u in mission.assignees if u.username == user.username]) == 0:
         raise HTTPException(400, "the mission haven't assigned to you")
@@ -251,12 +245,12 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
-        raise HTTPException(404, "the mission you request to start is not found")
+        raise HTTPException(
+            404, "the mission you request to start is not found")
 
     if await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value, user=worker.username, record_pk=str(mission_id)).exists():
         raise HTTPException(200, "you're no longer this missions assignee")
 
-    
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
@@ -324,7 +318,8 @@ async def delete_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
-        raise HTTPException(404, "the mission you request to delete is not found")
+        raise HTTPException(
+            404, "the mission you request to delete is not found")
 
     await mission.delete()
 
@@ -334,7 +329,8 @@ async def cancel_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
-        raise HTTPException(404, "the mission you request to delete is not found")
+        raise HTTPException(
+            404, "the mission you request to delete is not found")
 
     if mission.is_cancel:
         raise HTTPException(400, "this mission is already canceled")
@@ -348,7 +344,6 @@ async def cancel_mission_by_id(mission_id: int):
         await WorkerStatus.objects.filter(worker=m).update(
             last_event_end_date=datetime.utcnow()
         )
-
 
 async def assign_mission(mission_id: int, username: str):
     mission = await Mission.objects.select_related(
@@ -386,7 +381,8 @@ async def assign_mission(mission_id: int, username: str):
         )
 
     if len(mission.assignees) > 0:
-        raise HTTPException(status_code=400, detail="the mission is already assigned")
+        raise HTTPException(
+            status_code=400, detail="the mission is already assigned")
 
     the_user = await get_user_by_username(username)
 
@@ -405,7 +401,8 @@ async def assign_mission(mission_id: int, username: str):
     filter = [u for u in mission.assignees if u.username == the_user.username]
 
     if len(filter) != 0:
-        raise HTTPException(400, detail="the user is already assigned to this mission")
+        raise HTTPException(
+            400, detail="the user is already assigned to this mission")
 
     await mission.assignees.add(the_user)  # type: ignore
     publish(
@@ -429,7 +426,6 @@ async def assign_mission(mission_id: int, username: str):
         qos=2,
         retain=True,
     )
-        
 
 
 @database.transaction()
@@ -490,7 +486,9 @@ async def request_assistance(mission_id: int, validate_user: User):
                 qos=2,
             )
         except Exception as e:
-            logger.error(f"failed to send emergency message to {worker_device_level.superior.username}, Exception: {repr(e)}")
+            logger.error(
+                f"failed to send emergency message to {worker_device_level.superior.username}, Exception: {repr(e)}")
+
 
 async def is_mission_in_whitelist(mission_id: int):
     m = await get_mission_by_id(mission_id, select_fields=["device"])
