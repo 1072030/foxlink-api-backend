@@ -231,8 +231,6 @@ async def import_factory_worker_infos(
                 full_name=row["worker_name"],
                 password_hash=get_password_hash("foxlink"),
                 location=workshop_id_mapping[row["workshop"]],
-                is_active=True,
-                expertises=[],
                 level=row["job"],
             )
             create_user_bulk.append(worker)

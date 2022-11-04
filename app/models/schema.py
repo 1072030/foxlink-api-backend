@@ -47,7 +47,6 @@ class UserPatch(BaseModel):
 
 class UserOut(UserBase):
     workshop: str
-    is_active: bool
     is_admin: bool
     is_changepwd: bool
 

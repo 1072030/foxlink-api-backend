@@ -27,8 +27,9 @@ from app.services.user import (
     get_worker_attendances,
 )
 from app.services.auth import (
-    update_user_is_active,
+    set_device_UUID,
     get_current_user,
+    get_user,
     get_manager_active_user,
     verify_password,
     get_admin_active_user,
@@ -71,7 +72,6 @@ async def read_all_users(
     ]
 
 
-
 @router.post("/", tags=["users"], status_code=201)
 async def create_a_new_user(
     dto: UserCreate, user: User = Depends(get_admin_active_user)
@@ -82,7 +82,6 @@ async def create_a_new_user(
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_user)):
     first_login_timestamp = await get_user_first_login_time_today(user.username)
-
 
     if user.location is None:
         workshop_name = "無"
@@ -124,12 +123,14 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
 async def get_user_attendances(user: User = Depends(get_current_user)):
     return await get_worker_attendances(user.username)
 
+
 @router.post("/change-password", tags=["users"])
 async def change_password(
     dto: UserChangePassword, user: User = Depends(get_current_user)
 ):
     if not verify_password(dto.old_password, user.password_hash):
-        raise HTTPException(status_code=401, detail="The old password is not matched")
+        raise HTTPException(
+            status_code=401, detail="The old password is not matched")
 
     await update_user(
         user.username,
@@ -147,8 +148,11 @@ async def get_off_work(
         await WorkerStatus.objects.filter(worker=user.username).update(
             status=WorkerStatusEnum.leave.value
         )
-        
-    await update_user_is_active(user.username, is_active=False)
+
+    await update_user(
+        user.username,
+        login_now="0",
+    )
 
     await AuditLogHeader.objects.create(
         user=user,
@@ -189,3 +193,8 @@ async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
 @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
 async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
     return await get_users_overview(workshop_name)
+
+
+@router.get("/set-UUID", tags=["users"])
+async def set_UUID(UUID: str, user: User = Depends(get_user)):
+    return await set_device_UUID(user, UUID)

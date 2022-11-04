@@ -9,9 +9,11 @@ from app.my_log_conf import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 
+
 class UserInfo(BaseModel):
     username: str
     full_name: str
+
 
 class UserInfoWithDuration(UserInfo):
     duration: int
@@ -45,6 +47,7 @@ class AbnormalMissionInfo(BaseModel):
     duration: int
     created_date: datetime
 
+
 UTC_NIGHT_SHIFT_FILTER = "AND (TIME(m.created_date) BETWEEN '12:00' AND '23:40') # 夜班 in UTC"
 UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') OR (TIME(m.created_date) BETWEEN '00:00' AND '12:00')) # 白班 in UTC"
 
@@ -52,7 +55,7 @@ LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_start_date) BETWEEN '20:00' AND '23
 LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_start_date) BETWEEN '07:40' AND '20:00')"
 
 
-async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit = 10):
+async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10):
     """
     取得當月最常故障的設備，不依照 Category 分類，排序則由次數由高排到低。
     """
@@ -69,13 +72,14 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
         ORDER BY count DESC
         LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date, "limit": limit},
+        {"workshop_id": workshop_id, "start_date": start_date,
+            "end_date": end_date, "limit": limit},
     )
 
     return query
 
 
-async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit = 10) -> List[AbnormalMissionInfo]:
+async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10) -> List[AbnormalMissionInfo]:
     """統計當月異常任務，根據處理時間由高排序到低。"""
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
@@ -98,13 +102,14 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
         ORDER BY duration DESC
         LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": china_tz_start_date, "end_date": china_tz_end_date, "limit": limit},
+        {"workshop_id": workshop_id, "start_date": china_tz_start_date,
+            "end_date": china_tz_end_date, "limit": limit},
     )
 
     return abnormal_missions  # type: ignore
 
 
-async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit = 10):
+async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10):
     """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
@@ -125,10 +130,12 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
         ORDER BY duration DESC
         LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": china_tz_start_date, "end_date": china_tz_end_date, "limit": limit},
+        {"workshop_id": workshop_id, "start_date": china_tz_start_date,
+            "end_date": china_tz_end_date, "limit": limit},
     )  # type: ignore
 
-    abnormal_devices = [AbnormalDeviceInfo(**m) for m in abnormal_devices]  # type: ignore
+    abnormal_devices = [AbnormalDeviceInfo(
+        **m) for m in abnormal_devices]  # type: ignore
 
     for m in abnormal_devices:
         # fetch top 3 assignees that deal with device out-of-order issue most quickly
@@ -163,8 +170,10 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
 async def get_top_most_accept_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常接受任務的員工"""
 
-    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace("m.created_date", "created_date")
-    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace("m.created_date", "created_date")
+    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
+        "m.created_date", "created_date")
+    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
+        "m.created_date", "created_date")
 
     query = await database.fetch_all(
         f"""
@@ -180,7 +189,8 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
         ORDER BY count DESC
         LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date, "limit": limit},
+        {"workshop_id": workshop_id, "start_date": start_date,
+            "end_date": end_date, "limit": limit},
     )
 
     return [WorkerMissionStats(**m) for m in query]
@@ -188,8 +198,10 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
 
 async def get_top_most_reject_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常拒絕任務的員工"""
-    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace("m.created_date", "created_date")
-    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace("m.created_date", "created_date")
+    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
+        "m.created_date", "created_date")
+    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
+        "m.created_date", "created_date")
 
     query = await database.fetch_all(
         f"""
@@ -205,7 +217,8 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
         ORDER BY count DESC
         LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date, "limit": limit},
+        {"workshop_id": workshop_id, "start_date": start_date,
+            "end_date": end_date, "limit": limit},
     )
 
     return [WorkerMissionStats(**m) for m in query]
@@ -214,14 +227,16 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
 async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> float:
     """取得最近 24 小時登入系統員工的百分比"""
     total_user_count = await User.objects.filter(
-        is_active=True, level=UserLevel.maintainer.value
+        level=UserLevel.maintainer.value
     ).count()
 
     if total_user_count == 0:
         return 0.0
 
-    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace("m.created_date", "created_date")
-    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace("m.created_date", "created_date")
+    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
+        "m.created_date", "created_date")
+    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
+        "m.created_date", "created_date")
 
     result = await database.fetch_all(
         f"""

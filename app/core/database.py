@@ -90,10 +90,11 @@ class User(ormar.Model):
     location: Optional[FactoryMap] = ormar.ForeignKey(
         FactoryMap, ondelete="SET NULL")
     # check if user login more than one time
-    is_active: bool = ormar.Boolean(server_default="0")
     is_admin: bool = ormar.Boolean(server_default="0")
     is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
+    should_logout: str = ormar.String(max_length=50, server_default="0")
+    login_now: str = ormar.String(max_length=50, server_default="0")
 
 
 class Device(ormar.Model):
@@ -171,13 +172,6 @@ class Mission(ormar.Model):
         server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(
         server_default=func.now(), timezone=True)
-
-    @property_field
-    def accept_duration(self) -> Optional[timedelta]:
-        if self.created_date is not None:
-            return datetime.utcnow() - self.created_date
-        else:
-            return None
 
     @property_field
     def mission_duration(self) -> timedelta:
@@ -268,6 +262,13 @@ class AuditLogHeader(ormar.Model):
     created_date: datetime = ormar.DateTime(
         server_default=func.now(), timezone=True)
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
+
+    @property_field
+    def accept_duration(self) -> Optional[timedelta]:
+        if self.created_date is not None:
+            return datetime.utcnow() - self.created_date
+        else:
+            return None
 
 
 LogValue.update_forward_refs()

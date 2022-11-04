@@ -1,5 +1,6 @@
 from jose.constants import ALGORITHMS
 from jose.exceptions import JWTError, ExpiredSignatureError
+from pymysql import NULL
 from sqlalchemy import false, true
 from app.core.database import User
 from datetime import datetime, timedelta
@@ -47,36 +48,38 @@ async def authenticate_user(username: str, password: str):
             status_code=404, detail="the user with this id is not found"
         )
 
-    # Check if user login twice
-    if user.is_active is True:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="the user has logged in with another device."
-        )
-
-    await update_user_is_active(user.username, is_active=True)
-
     return user
 
 
-# user login/logout update is_active : true/false
-async def update_user_is_active(username: str, **kwargs):
+# Check token validation
+async def get_user(token: str = Depends(oauth2_scheme)):
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Signature has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except:
+        raise credentials_exception
+
     user = await get_user_by_username(username)
 
     if user is None:
-        raise HTTPException(
-            status_code=404, detail="the user with this id is not found"
-        )
-    try:
-        filtered = {k: v for k, v in kwargs.items() if v is not None}
-        await user.update(None, **filtered)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail="cannot update user:" + repr(e))
+        raise credentials_exception
 
     return user
-
-# Check token validation
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -96,7 +99,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         payload = jwt.decode(token, JWT_SECRET,  algorithms=['HS256'], options={
                              "verify_exp": False, "verify_signature": False})
         username: str = payload["sub"]
-        await update_user_is_active(username, is_active=False)
+        await update_user(
+            user.username,
+            login_now="0",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Signature has expired",
@@ -109,7 +115,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     if user is None:
         raise credentials_exception
-    await update_user_is_active(username, is_active=True)
+
+    if user.should_logout is not "0":
+        logout_UUID = user.should_logout
+        await update_user(
+            user.username,
+            should_logout="0",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=logout_UUID+"Signature has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return user
 
@@ -131,3 +148,17 @@ async def get_manager_active_user(
             detail="You're not manager or admin!",
         )
     return manager_user
+
+
+async def set_device_UUID(
+    user: User, UUID: str
+):
+    if user.login_now is not "0":
+        await update_user(
+            user.username,
+            should_logout=user.login_now,
+        )
+    await update_user(
+        user.username,
+        login_now=UUID
+    )

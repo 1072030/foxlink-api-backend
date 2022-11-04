@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
+from app.routes import user
 from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
@@ -473,23 +474,14 @@ async def worker_monitor_routine():
             )
 
 # RRR
-
-
 @show_duration
 async def check_mission_accept_duration_routine():
     """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級"""
-    working_missions = (
-        await Mission.objects.select_related("assignees")
-        .filter(
-            repair_start_date__isnull=False,
-            repair_end_date__isnull=True,
-            is_cancel=False,
-        )
-        .all()
-    )
-    working_missions = [m for m in working_missions if len(m.assignees) != 0]
+    assign_mission_check = (
+        await AuditLogHeader.objects.filter(
+            action=AuditActionEnum.MISSION_ASSIGNED.value.all()))
 
-    for m in working_missions:
+    for m in assign_mission_check:
         if m.accept_duration is None:
             continue
         if m.accept_duration.total_seconds() >= 30 * 60:
@@ -500,7 +492,11 @@ async def check_mission_accept_duration_routine():
                 record_pk=str(m.id),
                 user=m.assignees[0].username,
             )
-            await reject_mission_by_id(m.id, m.assignees[0].username)
+            
+            assign_mission = await Mission.objects.filter(
+                assignee=m.user
+            )
+            await reject_mission_by_id(assign_mission.id,  assign_mission.assignee)
 
 
 @show_duration

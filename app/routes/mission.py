@@ -140,15 +140,6 @@ async def get_self_mission(
     return [MissionDto.from_mission(x) for x in missions]
 
 
-# RRR
-@router.get("/{mission_id}/stop-notify", tag=["missions"])
-async def stop_notify_by_id(
-    mission_id: int, user: User = Depends(get_current_user)
-):
-    return True
-
-
-
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
 async def get_a_mission_by_id(
