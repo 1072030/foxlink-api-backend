@@ -12,7 +12,7 @@ from app.models.schema import MissionDto
 from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
-from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist
+from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist, reject_mission_by_id
 from app.services.user import (
     get_user_shift_type,
     get_user_working_mission,
@@ -98,6 +98,8 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
         raise ValueError(msg)
 
 # RRR
+
+
 async def check_if_mission_finish():
     working_missions = await Mission.objects.select_related(['assignees']).filter(
         device__is_rescue=False, repair_end_date__isnull=True, is_cancel=False
@@ -470,6 +472,36 @@ async def worker_monitor_routine():
                 retain=True,
             )
 
+# RRR
+
+
+@show_duration
+async def check_mission_accept_duration_routine():
+    """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級"""
+    working_missions = (
+        await Mission.objects.select_related("assignees")
+        .filter(
+            repair_start_date__isnull=False,
+            repair_end_date__isnull=True,
+            is_cancel=False,
+        )
+        .all()
+    )
+    working_missions = [m for m in working_missions if len(m.assignees) != 0]
+
+    for m in working_missions:
+        if m.accept_duration is None:
+            continue
+        if m.accept_duration.total_seconds() >= 30 * 60:
+            await AuditLogHeader.objects.create(
+                action=AuditActionEnum.MISSION_ACCEPTED_OVERTIME.value,
+                table_name="missions",
+                description=str(min),
+                record_pk=str(m.id),
+                user=m.assignees[0].username,
+            )
+            await reject_mission_by_id(m.id, m.assignees[0].username)
+
 
 @show_duration
 async def check_mission_duration_routine():
@@ -841,8 +873,6 @@ class FoxlinkBackground:
         except:
             return None
 
-
-
     async def check_events_is_complete(self):
         """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
 
@@ -969,6 +999,7 @@ async def main_routine():
             await overtime_workers_routine()
             await track_worker_status_routine()
             await check_mission_duration_routine()
+            await check_mission_accept_duration_routine()
             # await check_alive_worker_routine()
 
             if not DISABLE_FOXLINK_DISPATCH:

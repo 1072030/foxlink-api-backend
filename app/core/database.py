@@ -3,7 +3,7 @@ from typing import Optional, List, ForwardRef
 from enum import Enum
 from ormar import property_field, pre_update
 from pydantic import Json
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, null
 from sqlalchemy.sql import func
 import databases
 import ormar
@@ -73,8 +73,10 @@ class FactoryMap(ormar.Model):
     map: Json = ormar.JSON()
     related_devices: Json = ormar.JSON()
     image: bytes = ormar.LargeBinary(max_length=5242880, nullable=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
 
 
 class User(ormar.Model):
@@ -85,8 +87,10 @@ class User(ormar.Model):
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
     expertises: sqlalchemy.JSON = ormar.JSON()
-    location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
-    is_active: bool = ormar.Boolean(server_default="0") # check if user login more than one time
+    location: Optional[FactoryMap] = ormar.ForeignKey(
+        FactoryMap, ondelete="SET NULL")
+    # check if user login more than one time
+    is_active: bool = ormar.Boolean(server_default="0")
     is_admin: bool = ormar.Boolean(server_default="0")
     is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
@@ -107,8 +111,10 @@ class Device(ormar.Model):
     is_rescue: bool = ormar.Boolean(default=False)
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
     sop_link: Optional[str] = ormar.String(max_length=128, nullable=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
 
 
 class UserDeviceLevel(ormar.Model):
@@ -123,16 +129,20 @@ class UserDeviceLevel(ormar.Model):
     )
     shift: bool = ormar.Boolean(nullable=False, choices=list(ShiftType))
     level: int = ormar.SmallInteger(minimum=0)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
 
 
 class MissionEvent(ormar.Model):
     class Meta(MainMeta):
-        constraints = [ormar.UniqueColumns("event_id", "table_name", "mission")]
+        constraints = [ormar.UniqueColumns(
+            "event_id", "table_name", "mission")]
 
     id: int = ormar.Integer(primary_key=True)
-    mission: MissionRef = ormar.ForeignKey(MissionRef, index=True, ondelete="CASCADE")  # type: ignore
+    mission: MissionRef = ormar.ForeignKey(
+        MissionRef, index=True, ondelete="CASCADE")  # type: ignore
     event_id: int = ormar.Integer()
     table_name: str = ormar.String(max_length=50)
     category: int = ormar.Integer(nullable=False)
@@ -157,8 +167,17 @@ class Mission(ormar.Model):
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
     is_autocanceled: bool = ormar.Boolean(default=False, nullable=False)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+
+    @property_field
+    def accept_duration(self) -> Optional[timedelta]:
+        if self.created_date is not None:
+            return datetime.utcnow() - self.created_date
+        else:
+            return None
 
     @property_field
     def mission_duration(self) -> timedelta:
@@ -207,6 +226,7 @@ class AuditActionEnum(Enum):
     MISSION_FINISHED = "MISSION_FINISHED"
     MISSION_DELETED = "MISSION_DELETED"
     MISSION_UPDATED = "MISSION_UPDATED"
+    MISSION_ACCEPTED_OVERTIME = "MISSION_ACCEPTED_OVERTIME"
     MISSION_OVERTIME = "MISSION_OVERTIME"
     MISSION_CANCELED = "MISSION_CANCELED"
     MISSION_USER_DUTY_SHIFT = "MISSION_USER_DUTY_SHIFT"
@@ -225,7 +245,8 @@ class LogValue(ormar.Model):
         pass
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    log_header: AuditLogHeaderRef = ormar.ForeignKey(AuditLogHeaderRef, ondelete="CASCADE")  # type: ignore
+    log_header: AuditLogHeaderRef = ormar.ForeignKey(
+        AuditLogHeaderRef, ondelete="CASCADE")  # type: ignore
     field_name: str = ormar.String(max_length=100)
     previous_value: str = ormar.String(max_length=512)
     new_value: str = ormar.String(max_length=512)
@@ -240,15 +261,20 @@ class AuditLogHeader(ormar.Model):
         max_length=50, nullable=False, index=True, choices=list(AuditActionEnum)
     )
     table_name: Optional[str] = ormar.String(max_length=50, index=True)
-    record_pk: Optional[str] = ormar.String(max_length=100, index=True, nullable=True)
-    user: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    record_pk: Optional[str] = ormar.String(
+        max_length=100, index=True, nullable=True)
+    user: Optional[User] = ormar.ForeignKey(
+        User, nullable=True, ondelete="SET NULL")
+    created_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
 
 
 LogValue.update_forward_refs()
 
 # Device's Category Priority
+
+
 class CategoryPRI(ormar.Model):
     class Meta(MainMeta):
         pass
@@ -272,20 +298,26 @@ class WorkerStatus(ormar.Model):
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime(timezone=True)
     dispatch_count: int = ormar.Integer(default=0)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
     check_alive_time: datetime = ormar.DateTime(
         server_default=func.now(), timezone=True
     )
+
 
 class WhitelistDevice(ormar.Model):
     class Meta(MainMeta):
         ...
 
     id: int = ormar.Integer(primary_key=True)
-    device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE', nullable=False)
+    device: Device = ormar.ForeignKey(
+        Device, unique=True, ondelete='CASCADE', nullable=False)
     workers: List[User] = ormar.ManyToMany(User)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(
+        server_default=func.now(), timezone=True)
+
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):

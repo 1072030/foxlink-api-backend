@@ -70,10 +70,6 @@ async def read_all_users(
         for user in users
     ]
 
-# RRR
-@router.get("/request-assign-mission", tags=["users"])
-async def request_assign_mission(user: User = Depends(get_admin_active_user)):
-    return True
 
 
 @router.post("/", tags=["users"], status_code=201)
