@@ -150,7 +150,7 @@ async def get_off_work(
 
     await update_user(
         user.username,
-        current_UUID=""
+        current_UUID="0"
     )
 
     await AuditLogHeader.objects.create(

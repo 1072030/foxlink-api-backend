@@ -71,7 +71,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         username: str = payload["sub"]
         await update_user(
             user.username,
-            current_UUID=None
+            current_UUID="0"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
