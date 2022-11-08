@@ -474,12 +474,14 @@ async def worker_monitor_routine():
             )
 
 # RRR
+
+
 @show_duration
 async def check_mission_accept_duration_routine():
     """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級"""
     assign_mission_check = (
         await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_ASSIGNED.value.all()))
+            action=AuditActionEnum.MISSION_ASSIGNED.value).all())
 
     for m in assign_mission_check:
         if m.accept_duration is None:
@@ -492,7 +494,7 @@ async def check_mission_accept_duration_routine():
                 record_pk=str(m.id),
                 user=m.assignees[0].username,
             )
-            
+
             assign_mission = await Mission.objects.filter(
                 assignee=m.user
             )
