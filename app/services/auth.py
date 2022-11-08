@@ -69,10 +69,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         payload = jwt.decode(token, JWT_SECRET,  algorithms=['HS256'], options={
                              "verify_exp": False, "verify_signature": False})
         username: str = payload["sub"]
-        await update_user(
-            user.username,
-            current_UUID="0"
-        )
+        current_UUID: str = payload.get("UUID")
+        user = await get_user_by_username(username)
+        if current_UUID == user.current_UUID:
+            await update_user(
+                user.username,
+                current_UUID="0"
+            )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Signature has expired",

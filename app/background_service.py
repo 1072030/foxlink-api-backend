@@ -484,7 +484,7 @@ async def check_mission_accept_duration_routine():
     for m in assign_mission_check:
         if m.accept_duration is None:
             continue
-        if m.accept_duration.total_seconds() >= 30 * 60:
+        if m.accept_duration.total_seconds() >= 20 * 60:
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_ACCEPTED_OVERTIME.value,
                 table_name="missions",
