@@ -1,3 +1,4 @@
+import logging
 from jose.constants import ALGORITHMS
 from jose.exceptions import JWTError, ExpiredSignatureError
 from pymysql import NULL

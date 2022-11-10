@@ -25,6 +25,7 @@ from app.services.user import (
     get_worker_mission_history,
     update_user,
     get_worker_attendances,
+    check_user_workstatus
 )
 from app.services.auth import (
     set_device_UUID,
@@ -143,6 +144,7 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
+    await check_user_workstatus(user.username)
     if to_change_status and await WorkerStatus.objects.filter(worker=user.username).exists():
         await WorkerStatus.objects.filter(worker=user.username).update(
             status=WorkerStatusEnum.leave.value

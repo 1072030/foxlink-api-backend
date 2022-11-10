@@ -55,7 +55,16 @@ async def create_user(dto: UserCreate) -> User:
     try:
         return await user.save()
     except Exception as e:
-        raise HTTPException(status_code=400, detail="cannot add user:" + str(e))
+        raise HTTPException(
+            status_code=400, detail="cannot add user:" + str(e))
+
+
+async def check_user_workstatus(username: str):
+    workerStatus = await WorkerStatus.objects.filter(worker=username).get_or_none()
+    if workerStatus.status != WorkerStatusEnum.idle.value:
+        raise HTTPException(
+            status_code=404, detail="You are not allow to logout."
+        )
 
 
 async def get_user_by_username(username: str) -> Optional[User]:
@@ -80,7 +89,8 @@ async def update_user(username: str, **kwargs):
 
         await user.update(None, **filtered)
     except Exception as e:
-        raise HTTPException(status_code=400, detail="cannot update user:" + repr(e))
+        raise HTTPException(
+            status_code=400, detail="cannot update user:" + repr(e))
 
     return user
 
@@ -89,7 +99,8 @@ async def delete_user_by_username(username: str):
     affected_row = await User.objects.delete(username=username)
 
     if affected_row != 1:
-        raise HTTPException(status_code=404, detail="user by this id is not found")
+        raise HTTPException(
+            status_code=404, detail="user by this id is not found")
 
 
 async def get_user_first_login_time_today(username: str) -> Optional[datetime]:
@@ -132,6 +143,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
 
     return [MissionDto.from_mission(x) for x in missions]
 
+
 async def get_subordinates_list_by_username(username: str):
     the_user = await User.objects.filter(username=username).get_or_none()
 
@@ -160,7 +172,8 @@ async def get_subordinates_list_by_username(username: str):
             break
         all_subsordinates.extend(temp)
     return all_subsordinates
-        
+
+
 async def get_user_all_level_subordinates_by_username(username: str):
     subsordinates = await get_subordinates_list_by_username(username)
     promises = [get_worker_status(name) for name in subsordinates]
@@ -212,6 +225,7 @@ async def move_user_to_position(username: str, device_id: str):
             status_code=400, detail="cannot update user's position: " + repr(e)
         )
 
+
 async def get_user_working_mission(username: str) -> Optional[Mission]:
     the_user = await User.objects.filter(username=username).get_or_none()
 
@@ -222,18 +236,19 @@ async def get_user_working_mission(username: str) -> Optional[Mission]:
 
     try:
         mission = await Mission.objects.select_related(['device']).filter(
-                and_(
-                    # left: user still working on a mission, right: user is not accept a mission yet.
-                    or_(
-                        and_(
-                            repair_start_date__isnull=False, repair_end_date__isnull=True,
-                        ),
-                        and_(repair_start_date__isnull=True, repair_end_date__isnull=True),
+            and_(
+                # left: user still working on a mission, right: user is not accept a mission yet.
+                or_(
+                    and_(
+                        repair_start_date__isnull=False, repair_end_date__isnull=True,
                     ),
-                    assignees__username=username,
-                    is_cancel=False,
-                )
-            ).order_by("-id").first()
+                    and_(repair_start_date__isnull=True,
+                         repair_end_date__isnull=True),
+                ),
+                assignees__username=username,
+                is_cancel=False,
+            )
+        ).order_by("-id").first()
         return mission
     except NoMatch:
         return None
@@ -257,7 +272,8 @@ async def is_user_working_on_mission(username: str) -> bool:
                     and_(
                         repair_start_date__isnull=False, repair_end_date__isnull=True,
                     ),
-                    and_(repair_start_date__isnull=True, repair_end_date__isnull=True),
+                    and_(repair_start_date__isnull=True,
+                         repair_end_date__isnull=True),
                 ),
                 assignees__username=username,
                 is_cancel=False,
@@ -413,7 +429,8 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
     )
 
     for login_record in user_login_days_this_month:
-        a = WorkerAttendance(date=login_record[0], login_datetime=login_record[1])
+        a = WorkerAttendance(
+            date=login_record[0], login_datetime=login_record[1])
         for logout_record in user_logout_days_this_month:
             if login_record[0] == logout_record[0]:
                 a.logout_datetime = logout_record[1]
@@ -435,7 +452,8 @@ async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
     async with aiohttp.ClientSession() as session:
         async with session.get(
             f"http://{MQTT_BROKER}:18083/api/v4/clients/{username}",
-            auth=aiohttp.BasicAuth(login=EMQX_USERNAME, password=EMQX_PASSWORD),
+            auth=aiohttp.BasicAuth(login=EMQX_USERNAME,
+                                   password=EMQX_PASSWORD),
         ) as resp:
             if resp.status != 200:
                 return False, None
@@ -450,9 +468,10 @@ async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
             except:
                 return False, None
 
+
 async def get_user_shift_type(username: str) -> ShiftType:
     """取得員工的班別"""
-    
+
     user = await get_user_by_username(username)
 
     if user is None:
@@ -466,11 +485,14 @@ async def get_user_shift_type(username: str) -> ShiftType:
     else:
         return ShiftType.night
 
+
 async def is_worker_in_whitelist(username: str) -> bool:
     return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username).exists()
 
+
 async def is_worker_in_device_whitelist(username: str, device_id: str) -> bool:
     return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username, device=device_id).exists()
+
 
 async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
     s = (
@@ -507,7 +529,7 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
 
     mission = await get_user_working_mission(username)
     if s.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
-        item.mission_duration = mission.mission_duration.total_seconds() # type: ignore
+        item.mission_duration = mission.mission_duration.total_seconds()  # type: ignore
 
         if mission.repair_duration is not None and not mission.device.is_rescue:
             item.repair_duration = mission.repair_duration.total_seconds()

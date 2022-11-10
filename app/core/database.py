@@ -89,7 +89,6 @@ class User(ormar.Model):
     expertises: sqlalchemy.JSON = ormar.JSON()
     location: Optional[FactoryMap] = ormar.ForeignKey(
         FactoryMap, ondelete="SET NULL")
-    # check if user login more than one time
     is_admin: bool = ormar.Boolean(server_default="0")
     is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))

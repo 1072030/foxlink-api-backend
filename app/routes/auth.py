@@ -16,6 +16,7 @@ from app.core.database import (
     WorkerStatusEnum,
 )
 from app.services.user import get_user_first_login_time_today
+import logging
 
 
 class Token(BaseModel):

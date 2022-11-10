@@ -14,6 +14,7 @@ services:
       - backend
 
   foxlink-backend:
+
     # image: ghcr.io/jjyao88/foxlink-api-backend/backend:latest
     build:
       context: .
@@ -21,6 +22,8 @@ services:
     restart: unless-stopped
     environment:
       # PY_ENV: production
+      DAY_SHIFT_BEGIN: "07:40"
+      DAY_SHIFT_END: "23:59"
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       DATABASE_USER: root
@@ -49,12 +52,14 @@ services:
       dockerfile: daemon.Dockerfile
     environment:
       # PY_ENV: production
+      DAY_SHIFT_BEGIN: "07:40"
+      DAY_SHIFT_END: "23:59"
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
       DATABASE_NAME: foxlink
-      FOXLINK_DB_HOSTS: "['140.118.157.12']"
+      FOXLINK_DB_HOSTS: "['140.118.157.12:27001']"
       FOXLINK_DB_USER: root
       FOXLINK_DB_PWD: 123456
       JWT_SECRET: secret

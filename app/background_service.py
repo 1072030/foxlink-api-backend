@@ -24,6 +24,7 @@ from app.my_log_conf import LOGGER_NAME
 from app.utils.utils import get_shift_type_now
 from app.mqtt.main import connect_mqtt, publish, disconnect_mqtt
 from app.env import (
+    CHECK_MISSION_ASSIGN_DURATION,
     DISABLE_FOXLINK_DISPATCH,
     FOXLINK_DB_HOSTS,
     FOXLINK_DB_PWD,
@@ -98,12 +99,34 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
         msg = f"{device_id} device is not in the map {factory_map.name}"
         raise ValueError(msg)
 
-# RRR
+
+@show_duration
+async def check_if_mission_cancel_or_close():
+    working_missions = await Mission.objects.select_related(['assignees']).filter(
+        device__is_rescue=False, repair_start_date__isnull=True, repair_end_date__isnull=True
+    ).all()
+
+    working_missions = [
+        x for x in working_missions if len(x.assignees) > 0]
+    logging.warning(working_missions)
+    for m in working_missions:
+        if m.is_cancel is True or m.is_closed is True or m.is_autocanceled is True:
+            for a in m.assignees:
+                logging.warning("publishhhhhh")
+                publish(
+                    f"foxlink/users/{a.username}/missions/stop-notify",
+                    {
+                        "mission_id": m.id,
+                        "mission_state": "finish"
+                    },
+                    qos=2,
+                )
 
 
+@show_duration
 async def check_if_mission_finish():
     working_missions = await Mission.objects.select_related(['assignees']).filter(
-        device__is_rescue=False, repair_end_date__isnull=True, is_cancel=False
+        device__is_rescue=False, repair_start_date__isnull=False, repair_end_date__isnull=True, is_cancel=False
     ).all()
 
     working_missions = [
@@ -233,8 +256,11 @@ async def overtime_workers_routine():
                     record_pk=m.id,
                 )
                 publish(
-                    f"foxlink/users/{u.username}/overtime-duty",
-                    {"message": "因為您超時工作，所以您目前的任務已被移除。"},
+                    f"foxlink/users/{u.username}/missions/finish",
+                    {
+                        "mission_id": m.id,
+                        "mission_state": "ovetime-duty"
+                    },
                     qos=2,
                 )
                 should_cancel = True
@@ -473,32 +499,32 @@ async def worker_monitor_routine():
                 retain=True,
             )
 
-# RRR
-
 
 @show_duration
 async def check_mission_accept_duration_routine():
     """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級"""
-    assign_mission_check = (
-        await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_ASSIGNED.value).all())
+    assign_mission_check = await AuditLogHeader.objects.filter(
+        action=AuditActionEnum.MISSION_ASSIGNED.value).all()
 
     for m in assign_mission_check:
+        assign_mission = await Mission.objects.filter(
+            id=m.record_pk,
+            repair_start_date__isnull=True,
+            is_cancel=False,
+        ).get_or_none()
+        if assign_mission is None:
+            continue
         if m.accept_duration is None:
             continue
-        if m.accept_duration.total_seconds() >= 20 * 60:
+        logging.warning(f"accept_duration : {m.accept_duration}")
+        if m.accept_duration.total_seconds() >= CHECK_MISSION_ASSIGN_DURATION:
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_ACCEPTED_OVERTIME.value,
                 table_name="missions",
-                description=str(min),
-                record_pk=str(m.id),
-                user=m.assignees[0].username,
+                record_pk=str(m.record_pk),
+                user=m.user,
             )
-
-            assign_mission = await Mission.objects.filter(
-                assignee=m.user
-            )
-            await reject_mission_by_id(assign_mission.id,  assign_mission.assignee)
+            await reject_mission_by_id(m.record_pk,  m.user)
 
 
 @show_duration
@@ -774,8 +800,8 @@ async def dispatch_routine():
 class FoxlinkBackground:
     _dbs: List[Database] = []
     _ticker: Ticker
-    table_suffix = "_event_new"
-    db_name = "aoi"
+    table_suffix = "foxlinkevents"
+    db_name = "foxlink"
 
     def __init__(self):
         for host in FOXLINK_DB_HOSTS:
@@ -805,10 +831,11 @@ class FoxlinkBackground:
         async def get_db_tables(db: Database) -> List[str]:
             r = await db.fetch_all(
                 "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :table_name",
-                {"table_name": self.db_name},
+                {"table_name": "foxlinkevents"},
             )
 
-            table_names = [x[0] for x in r if x[0].endswith(self.table_suffix)]
+            # table_names = [x[0] for x in r if x[0].endswith(self.table_suffix)]
+            table_names = ["foxlinkevents"]
             return table_names
             # return [x for x in table_names if x not in self.table_name_blacklist]
 
@@ -821,19 +848,18 @@ class FoxlinkBackground:
     ) -> List[FoxlinkEvent]:
         stmt = f"SELECT * FROM `{self.db_name}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL AND Start_Time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY ORDER BY Start_Time DESC;"
         rows = await db.fetch_all(query=stmt)
-
         return [
             FoxlinkEvent(
                 id=x[0],
-                project=table_name,
-                line=x[1],
-                device_name=x[2],
-                category=x[3],
-                start_time=x[4],
-                end_time=x[5],
-                message=x[6],
-                start_file_name=x[7],
-                end_file_name=x[8],
+                project=x[3],
+                line=x[4],
+                device_name=x[5],
+                category=x[1],
+                start_time=x[6],
+                end_time=x[7],
+                message=x[2],
+                start_file_name=x[8],
+                end_file_name=x[9],
             )
             for x in rows
         ]
@@ -858,15 +884,15 @@ class FoxlinkBackground:
 
             return FoxlinkEvent(
                 id=row[0],
-                project=table_name,
-                line=row[1],
-                device_name=row[2],
-                category=row[3],
-                start_time=row[4],
-                end_time=row[5],
-                message=row[6],
-                start_file_name=row[7],
-                end_file_name=row[8],
+                project=row[3],
+                line=row[4],
+                device_name=row[5],
+                category=row[1],
+                start_time=row[6],
+                end_time=row[7],
+                message=row[2],
+                start_file_name=row[8],
+                end_file_name=row[9],
             )
         except:
             return None
@@ -997,12 +1023,12 @@ async def main_routine():
             await overtime_workers_routine()
             await track_worker_status_routine()
             await check_mission_duration_routine()
+            await check_if_mission_cancel_or_close()
             await check_mission_accept_duration_routine()
             # await check_alive_worker_routine()
-
+            await check_if_mission_finish()
             if not DISABLE_FOXLINK_DISPATCH:
                 await dispatch_routine()
-            await check_if_mission_finish()
             end = time.perf_counter()
 
             logger.warning("[main_routine] took %.2f seconds", end - start)

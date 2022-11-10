@@ -81,6 +81,8 @@ WHITELIST_MINIMUM_OCCUR_COUNT = get_env("WHITELIST_MINIMUM_OCCUR_COUNT", int, 35
 # 取消自動派工
 DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
 
+# 員工被指派沒有反應時間
+CHECK_MISSION_ASSIGN_DURATION = get_env("CHECK_MISSION_ASSIGN_DURATION" , int , 10*60)
 
 if os.environ.get("USE_ALEMBIC") is None:
     if PY_ENV not in ["production", "dev"]:
