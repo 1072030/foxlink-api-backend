@@ -507,16 +507,21 @@ async def check_mission_accept_duration_routine():
         action=AuditActionEnum.MISSION_ASSIGNED.value).all()
 
     for m in assign_mission_check:
-        assign_mission = await Mission.objects.filter(
-            id=m.record_pk,
-            repair_start_date__isnull=True,
-            is_cancel=False,
-        ).get_or_none()
+        assign_mission = (
+            await Mission.objects.select_related("assignees")
+            .filter(
+                id=m.record_pk,
+                repair_start_date__isnull=True,
+                is_cancel=False,
+            ).get_or_none())
         if assign_mission is None:
+            continue
+        if len(assign_mission.assignees) == 0:
+            continue
+        if assign_mission.assignees[0].username != m.user.username:
             continue
         if m.accept_duration is None:
             continue
-        logging.warning(f"accept_duration : {m.accept_duration}")
         if m.accept_duration.total_seconds() >= CHECK_MISSION_ASSIGN_DURATION:
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_ACCEPTED_OVERTIME.value,
