@@ -18,7 +18,7 @@ services:
     # image: ghcr.io/jjyao88/foxlink-api-backend/backend:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: backend.Dockerfile
     restart: unless-stopped
     environment:
       # PY_ENV: production
@@ -86,7 +86,6 @@ services:
       - mysql-data:/var/lib/mysql
     networks:
       - backend
-    
   # watchtower:
   #   image: containrrr/watchtower
   #   command: --interval 30

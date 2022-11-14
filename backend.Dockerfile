@@ -9,10 +9,6 @@ ENV PYTHONBUFFERED 1
 # set working directory
 WORKDIR /app
 
-# copy dependencies
-COPY requirements.txt /app/
-COPY prestart.sh /app/
-
 RUN apt-get update
 
 # install curl
@@ -21,8 +17,14 @@ RUN apt-get install curl -y
 # install cv2 dependencies
 RUN apt-get install ffmpeg libsm6 libxext6 -y
 
+# copy dependencies
+COPY requirements.txt /app/
+
 # install dependencies
 RUN pip install -r requirements.txt
+
+
+COPY prestart.sh /app/
 
 # copy project
 COPY . /app/
