@@ -1,17 +1,14 @@
 import logging
 from jose.constants import ALGORITHMS
-from jose.exceptions import JWTError, ExpiredSignatureError
-from pymysql import NULL
-from sqlalchemy import false, true
+from jose.exceptions import  ExpiredSignatureError
 from app.core.database import User
 from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from jose import jwt
 from .user import get_user_by_username, pwd_context
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import os
 from app.env import JWT_SECRET
 from app.services.user import update_user
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")

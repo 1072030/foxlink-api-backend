@@ -33,8 +33,10 @@ logger = logging.getLogger(LOGGER_NAME)
 TIMEZONE_OFFSET = 8
 WEEK_START = 1  # the week should start on Sunday or Monday or even else.
 
-
-load_dotenv()
+PROJECT_ENV = get_env("PROJECT_ENV", str)
+logger.info(f"Initilize Environments from: {PROJECT_ENV}")
+if PROJECT_ENV != "":
+    load_dotenv(PROJECT_ENV)
 
 DATABASE_HOST = get_env("DATABASE_HOST", str)
 DATABASE_PORT = get_env("DATABASE_PORT", int)
@@ -108,3 +110,5 @@ if os.environ.get("USE_ALEMBIC") is None:
     logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
     logger.warn(f"OVERTIME_MISSION_NOTIFY_PERIOD: {OVERTIME_MISSION_NOTIFY_PERIOD}")
 
+#
+RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)

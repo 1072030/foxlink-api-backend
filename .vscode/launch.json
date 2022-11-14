@@ -9,7 +9,7 @@
       "type": "python",
       "request": "launch",
       "module": "app.background_service",
-      "justMyCode": true
+      "justMyCode": false
     },
     {
       "name": "Python: FastAPI",
