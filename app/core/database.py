@@ -142,6 +142,7 @@ class MissionEvent(ormar.Model):
     mission: MissionRef = ormar.ForeignKey(
         MissionRef, index=True, ondelete="CASCADE")  # type: ignore
     event_id: int = ormar.Integer()
+    host: str = ormar.String(max_length=50)
     table_name: str = ormar.String(max_length=50)
     category: int = ormar.Integer(nullable=False)
     message: Optional[str] = ormar.String(max_length=100, nullable=True)

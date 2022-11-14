@@ -5,7 +5,7 @@ import uuid
 import signal
 import time
 from databases import Database
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.models.schema import MissionDto
@@ -804,23 +804,24 @@ async def dispatch_routine():
 
 
 class FoxlinkBackground:
-    _dbs: List[Database] = []
+    _dbs: Dict[str,Database] = {}
     _ticker: Ticker
 
     def __init__(self):
-        for host in FOXLINK_DB_HOSTS:
-            self._dbs += [
-                Database(
+        self._dbs = {
+            host: Database(
                     f"mysql+aiomysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}/{FOXLINK_DB_NAME}",
                     min_size=5,
                     max_size=20,
-                )
-            ]
-        self._ticker = Ticker(self.fetch_events_from_foxlink_handler, 10)
-        self._2ndticker = Ticker(self.check_events_is_complete, 10)
+            )
+            for host in FOXLINK_DB_HOSTS
+        }
+
+        self._ticker = Ticker(self.fetch_events_from_foxlink_handler, 1)
+        self._2ndticker = Ticker(self.update_complete_events_handler, 1)
 
     async def connect(self):
-        db_connect_routines = [db.connect() for db in self._dbs]
+        db_connect_routines = [db.connect() for db in self._dbs.values()]
         await asyncio.gather(*db_connect_routines)
         await self._ticker.start()
         await self._2ndticker.start()
@@ -828,25 +829,36 @@ class FoxlinkBackground:
     async def close(self):
         await self._2ndticker.stop()
         await self._ticker.stop()
-        db_disconnect_routines = [db.disconnect() for db in self._dbs]
+        db_disconnect_routines = [db.disconnect() for db in self._dbs.values()]
         await asyncio.gather(*db_disconnect_routines)
 
-    async def get_db_tables(self,db: Database) -> List[str]:
-        r = await db.fetch_all(
+    async def get_db_tables(self,host:str) -> Tuple[List[str],str]:
+        r = await self._dbs[host].fetch_all(
             "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :schema_name",
             {"schema_name": FOXLINK_DB_NAME},
         )
-        return [x[0] for x in r]
+        return (
+            host,
+            [x[0] for x in r]
+        )
 
-    async def get_db_table_list(self) -> List[List[str]]:
-        get_table_names_routines = [self.get_db_tables(db) for db in self._dbs]
+    async def get_all_db_tables(self) -> List[List[str]]:
+        get_table_names_routines = [self.get_db_tables(host) for host in self._dbs.keys()]
         return await asyncio.gather(*get_table_names_routines)
 
-    async def get_recent_events(
-        self, db: Database, table_name: str
-    ) -> List[FoxlinkEvent]:
-        stmt = f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL AND Start_Time >= CURRENT_TIMESTAMP() - INTERVAL {RECENT_EVENT_PAST_DAYS} DAY ORDER BY Start_Time DESC;"
-        rows = await db.fetch_all(query=stmt)
+    async def get_recent_events(self, host: str, table_name: str, since: str = "") -> List[FoxlinkEvent]:
+        if(since == ""):
+            since = f"CURRENT_TIMESTAMP() - INTERVAL {RECENT_EVENT_PAST_DAYS} DAY"
+        else:
+            since = f"'{since}'"
+
+        stmt = (f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE "
+                 "((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND "
+                 "End_Time is NULL AND "
+                f"Start_Time >= {since} "
+                 "ORDER BY Start_Time DESC;")
+        
+        rows = await self._dbs[host].fetch_all(query=stmt)
         return [
             FoxlinkEvent(
                 id=x[0],
@@ -863,8 +875,8 @@ class FoxlinkBackground:
             for x in rows
         ]
 
-    async def get_a_event_from_table(
-        self, db: Database, table_name: str, id: int
+    async def get_incomplete_event_from_table(
+        self, host: str, table_name: str, id: int
     ) -> Optional[FoxlinkEvent]:
         """
         從正崴資料庫中取得一筆事件資料
@@ -879,7 +891,7 @@ class FoxlinkBackground:
 
         try:
             # type: ignore
-            row: list = await db.fetch_one(query=stmt, values={"id": id})
+            row: list = await self._dbs[host].fetch_one(query=stmt, values={"id": id})
 
             return FoxlinkEvent(
                 id=row[0],
@@ -896,33 +908,37 @@ class FoxlinkBackground:
         except:
             return None
 
-    async def check_events_is_complete(self):
-        """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
+    async def update_complete_events(self, event: MissionEvent):
+        e = await self.get_incomplete_event_from_table(
+            event.host,
+            event.table_name,
+            event.event_id
+        )
+        if e is None:
+            return False
+        if e.end_time is not None:
+            await event.update(event_end_date=e.end_time, done_verified=True)
+            return True
+        return False
 
+    async def update_complete_events_handler(self):
+        """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
         incomplete_mission_events = await MissionEvent.objects.filter(
             event_end_date__isnull=True
         ).all()
+          
+        await asyncio.gather(*[
+            self.update_complete_events(event) 
+            for event in incomplete_mission_events
+        ])
 
-        async def validate_event(db: Database, event: MissionEvent):
-            e = await self.get_a_event_from_table(db, event.table_name, event.event_id)
-            if e is None:
-                return False
-            if e.end_time is not None:
-                await event.update(event_end_date=e.end_time, done_verified=True)
-                return True
-            return False
-
-        for event in incomplete_mission_events:
-            validate_routines = [validate_event(db, event) for db in self._dbs]
-            await asyncio.gather(*validate_routines)
-
-    async def fetch_events_from_foxlink(self,db,table_name):
-        events = await self.get_recent_events(db, table_name)
+    async def fetch_events_from_foxlink(self, host: str, table_name: str, since:str = ""):
+        events = await self.get_recent_events(host, table_name, since)
 
         for e in events:
-            logging.warning(e)
+            logger.warning(e)
             if await MissionEvent.objects.filter(
-                event_id=e.id, table_name=table_name
+                event_id=e.id, host=host, table_name=table_name
             ).exists():
                 continue
 
@@ -943,11 +959,14 @@ class FoxlinkBackground:
 
             # if priority is None:
             #     continue
-            logging.warning(device_id)
+            # logger.warning(device_id)
+
             device = await Device.objects.filter(
                 id__iexact=device_id
             ).get_or_none()
-            logging.warning(device)
+
+            # logger.warning(device)
+
             if device is None:
                 continue
 
@@ -956,45 +975,36 @@ class FoxlinkBackground:
                 device=device.id, repair_end_date__isnull=True, is_cancel=False
             ).get_or_none()
 
-            if mission is not None:
-                await MissionEvent.objects.create(
-                    mission=mission.id,
-                    event_id=e.id,
-                    table_name=table_name,
-                    category=e.category,
-                    message=e.message,
-                    event_start_date=e.start_time,
-                )
-            else:
-                new_mission = Mission(
+            if mission is None:
+                mission = Mission(
                     device=device,
                     name=f"{device.id} 故障",
                     required_expertises=[],
                     description="",
                 )
-                await new_mission.save()
-                await new_mission.missionevents.add(
-                    MissionEvent(
-                        mission=new_mission.id,
-                        event_id=e.id,
-                        table_name=table_name,
-                        category=e.category,
-                        message=e.message,
-                        event_start_date=e.start_time,
-                    )
-                )
+                await mission.save()
 
+            await mission.missionevents.add(
+                MissionEvent(
+                    mission=mission.id,
+                    event_id=e.id,
+                    host=host,
+                    table_name=table_name,
+                    category=e.category,
+                    message=e.message,
+                    event_start_date=e.start_time,
+                )
+            )
 
     async def fetch_events_from_foxlink_handler(self):
-        table_names_per_db = await self.get_db_table_list()
+        db_table_pairs = await self.get_all_db_tables()
+        proximity_mission =  await MissionEvent.objects.order_by(MissionEvent.event_start_date.desc()).get_or_none()
+        since = proximity_mission.event_start_date if type(proximity_mission) != type(None) else ""
+        
         await asyncio.gather(*[
-            self.fetch_events_from_foxlink(self._dbs[i],table_name) 
-            for i in range(len(self._dbs)) 
-            for table_name in table_names_per_db[i] 
-        ]
-        )
-           
-
+            self.fetch_events_from_foxlink(host,table,since) 
+            for host,tables in db_table_pairs for table in tables
+        ])
                 
     def generate_device_id(self, event: FoxlinkEvent) -> str:
         project = event.project.split(" ")[0]
@@ -1025,17 +1035,17 @@ async def main_routine():
             logger.warning('[main_routine] Foxlink daemon is running...')
             start = time.perf_counter()
 
-            await auto_close_missions()
-            await worker_monitor_routine()
-            await overtime_workers_routine()
-            await track_worker_status_routine()
-            await check_mission_duration_routine()
-            # await check_if_mission_cancel_or_close()
-            await check_mission_accept_duration_routine()
+            # await auto_close_missions()
+            # await worker_monitor_routine()
+            # await overtime_workers_routine()
+            # await track_worker_status_routine()
+            # await check_mission_duration_routine()
+            # # await check_if_mission_cancel_or_close()
+            # await check_mission_accept_duration_routine()
             # await check_alive_worker_routine()
             # await check_if_mission_finish()
-            if not DISABLE_FOXLINK_DISPATCH:
-                await dispatch_routine()
+            # if not DISABLE_FOXLINK_DISPATCH:
+            #     await dispatch_routine()
             end = time.perf_counter()
 
             logger.warning("[main_routine] took %.2f seconds", end - start)
