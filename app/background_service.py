@@ -29,6 +29,7 @@ from app.env import (
     FOXLINK_DB_HOSTS,
     FOXLINK_DB_PWD,
     FOXLINK_DB_USER,
+    FOXLINK_DB_NAME,
     MQTT_BROKER,
     MAX_NOT_ALIVE_TIME,
     EMQX_USERNAME,
@@ -36,6 +37,7 @@ from app.env import (
     MOVE_TO_RESCUE_STATION_TIME,
     MQTT_PORT,
     OVERTIME_MISSION_NOTIFY_PERIOD,
+    RECENT_EVENT_PAST_DAYS,
 )
 from app.core.database import (
     FactoryMap,
@@ -804,20 +806,18 @@ async def dispatch_routine():
 class FoxlinkBackground:
     _dbs: List[Database] = []
     _ticker: Ticker
-    table_suffix = "foxlinkevents"
-    db_name = "foxlink"
 
     def __init__(self):
         for host in FOXLINK_DB_HOSTS:
             self._dbs += [
                 Database(
-                    f"mysql+aiomysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}",
+                    f"mysql+aiomysql://{FOXLINK_DB_USER}:{FOXLINK_DB_PWD}@{host}/{FOXLINK_DB_NAME}",
                     min_size=5,
                     max_size=20,
                 )
             ]
-        self._ticker = Ticker(self.fetch_events_from_foxlink, 10)
-        self._2ndticker = Ticker(self.check_events_is_complete, 5)
+        self._ticker = Ticker(self.fetch_events_from_foxlink_handler, 10)
+        self._2ndticker = Ticker(self.check_events_is_complete, 10)
 
     async def connect(self):
         db_connect_routines = [db.connect() for db in self._dbs]
@@ -831,26 +831,21 @@ class FoxlinkBackground:
         db_disconnect_routines = [db.disconnect() for db in self._dbs]
         await asyncio.gather(*db_disconnect_routines)
 
+    async def get_db_tables(self,db: Database) -> List[str]:
+        r = await db.fetch_all(
+            "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :schema_name",
+            {"schema_name": FOXLINK_DB_NAME},
+        )
+        return [x[0] for x in r]
+
     async def get_db_table_list(self) -> List[List[str]]:
-        async def get_db_tables(db: Database) -> List[str]:
-            r = await db.fetch_all(
-                "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :table_name",
-                {"table_name": "foxlinkevents"},
-            )
-
-            # table_names = [x[0] for x in r if x[0].endswith(self.table_suffix)]
-            table_names = ["foxlinkevents"]
-            return table_names
-            # return [x for x in table_names if x not in self.table_name_blacklist]
-
-        get_table_names_routines = [get_db_tables(db) for db in self._dbs]
-        table_names = await asyncio.gather(*get_table_names_routines)
-        return [n for n in table_names]
+        get_table_names_routines = [self.get_db_tables(db) for db in self._dbs]
+        return await asyncio.gather(*get_table_names_routines)
 
     async def get_recent_events(
         self, db: Database, table_name: str
     ) -> List[FoxlinkEvent]:
-        stmt = f"SELECT * FROM `{self.db_name}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL AND Start_Time >= CURRENT_TIMESTAMP() - INTERVAL 1 DAY ORDER BY Start_Time DESC;"
+        stmt = f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE ((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND End_Time is NULL AND Start_Time >= CURRENT_TIMESTAMP() - INTERVAL {RECENT_EVENT_PAST_DAYS} DAY ORDER BY Start_Time DESC;"
         rows = await db.fetch_all(query=stmt)
         return [
             FoxlinkEvent(
@@ -880,7 +875,7 @@ class FoxlinkBackground:
         - id: 事件資料的 id
         """
 
-        stmt = f"SELECT * FROM `{self.db_name}`.`{table_name}` WHERE ID = :id;"
+        stmt = f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE ID = :id;"
 
         try:
             # type: ignore
@@ -921,78 +916,86 @@ class FoxlinkBackground:
             validate_routines = [validate_event(db, event) for db in self._dbs]
             await asyncio.gather(*validate_routines)
 
-    async def fetch_events_from_foxlink(self):
-        tables = await self.get_db_table_list()
-        for db_idx in range(len(tables)):
-            db = self._dbs[db_idx]
-            for table_name in tables[db_idx]:
-                events = await self.get_recent_events(db, table_name)
+    async def fetch_events_from_foxlink(self,db,table_name):
+        events = await self.get_recent_events(db, table_name)
 
-                for e in events:
-                    logging.warning(e)
-                    if await MissionEvent.objects.filter(
-                        event_id=e.id, table_name=table_name
-                    ).exists():
-                        continue
+        for e in events:
+            logging.warning(e)
+            if await MissionEvent.objects.filter(
+                event_id=e.id, table_name=table_name
+            ).exists():
+                continue
 
-                    # avaliable category range: 1~199, 300~699
-                    if not (
-                        (e.category >= 1 and e.category <= 199)
-                        or (e.category >= 300 and e.category <= 699)
-                    ):
-                        continue
+            # avaliable category range: 1~199, 300~699
+            if not (
+                (e.category >= 1 and e.category <= 199)
+                or (e.category >= 300 and e.category <= 699)
+            ):
+                continue
 
-                    device_id = self.generate_device_id(e)
+            device_id = self.generate_device_id(e)
 
-                    # if this device's priority is not existed in `CategoryPRI` table, which means it's not an out-of-order event.
-                    # Thus, we should skip it.
-                    # priority = await CategoryPRI.objects.filter(
-                    #     devices__id__iexact=device_id, category=e.category
-                    # ).get_or_none()
+            # if this device's priority is not existed in `CategoryPRI` table, which means it's not an out-of-order event.
+            # Thus, we should skip it.
+            # priority = await CategoryPRI.objects.filter(
+            #     devices__id__iexact=device_id, category=e.category
+            # ).get_or_none()
 
-                    # if priority is None:
-                    #     continue
-                    logging.warning(device_id)
-                    device = await Device.objects.filter(
-                        id__iexact=device_id
-                    ).get_or_none()
-                    logging.warning(device)
-                    if device is None:
-                        continue
+            # if priority is None:
+            #     continue
+            logging.warning(device_id)
+            device = await Device.objects.filter(
+                id__iexact=device_id
+            ).get_or_none()
+            logging.warning(device)
+            if device is None:
+                continue
 
-                    # find if this device is already in a mission
-                    mission = await Mission.objects.filter(
-                        device=device.id, repair_end_date__isnull=True, is_cancel=False
-                    ).get_or_none()
+            # find if this device is already in a mission
+            mission = await Mission.objects.filter(
+                device=device.id, repair_end_date__isnull=True, is_cancel=False
+            ).get_or_none()
 
-                    if mission is not None:
-                        await MissionEvent.objects.create(
-                            mission=mission.id,
-                            event_id=e.id,
-                            table_name=table_name,
-                            category=e.category,
-                            message=e.message,
-                            event_start_date=e.start_time,
-                        )
-                    else:
-                        new_mission = Mission(
-                            device=device,
-                            name=f"{device.id} 故障",
-                            required_expertises=[],
-                            description="",
-                        )
-                        await new_mission.save()
-                        await new_mission.missionevents.add(
-                            MissionEvent(
-                                mission=new_mission.id,
-                                event_id=e.id,
-                                table_name=table_name,
-                                category=e.category,
-                                message=e.message,
-                                event_start_date=e.start_time,
-                            )
-                        )
+            if mission is not None:
+                await MissionEvent.objects.create(
+                    mission=mission.id,
+                    event_id=e.id,
+                    table_name=table_name,
+                    category=e.category,
+                    message=e.message,
+                    event_start_date=e.start_time,
+                )
+            else:
+                new_mission = Mission(
+                    device=device,
+                    name=f"{device.id} 故障",
+                    required_expertises=[],
+                    description="",
+                )
+                await new_mission.save()
+                await new_mission.missionevents.add(
+                    MissionEvent(
+                        mission=new_mission.id,
+                        event_id=e.id,
+                        table_name=table_name,
+                        category=e.category,
+                        message=e.message,
+                        event_start_date=e.start_time,
+                    )
+                )
 
+
+    async def fetch_events_from_foxlink_handler(self):
+        table_names_per_db = await self.get_db_table_list()
+        await asyncio.gather(*[
+            self.fetch_events_from_foxlink(self._dbs[i],table_name) 
+            for i in range(len(self._dbs)) 
+            for table_name in table_names_per_db[i] 
+        ]
+        )
+           
+
+                
     def generate_device_id(self, event: FoxlinkEvent) -> str:
         project = event.project.split(" ")[0]
         return f"{project}@{event.line}@{event.device_name}"
