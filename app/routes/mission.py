@@ -207,9 +207,6 @@ async def reject_a_mission(
 ):
     await reject_mission_by_id(mission_id, user)
 
-# RRR check if mission finished from frontend
-
-
 @router.post("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
     mission_id: int, user: User = Depends(get_current_user)

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, Response, UploadFile, Form
 from app.core.database import AuditActionEnum, User, AuditLogHeader
 from fastapi.exceptions import HTTPException
 from typing import List
+from foxlink_dispatch.dispatch import data_convert
 
 
 router = APIRouter(prefix="/migration")
@@ -41,14 +42,14 @@ async def import_devices_from_excel(
 
 
 @router.post("/workshop-eventbook", tags=["migration"], status_code=201,
-    responses={
-        201: {
-            "content": {"image/csv": {}},
-            "description": "Return parameters in csv format",
-        },
-        400: {"description": "There's is an error in your document."},
-        415: {"description": "The file you uploaded is not in correct format.",},
-    }
+             responses={
+    201: {
+        "content": {"image/csv": {}},
+        "description": "Return parameters in csv format",
+    },
+    400: {"description": "There's is an error in your document."},
+    415: {"description": "The file you uploaded is not in correct format.", },
+}
 )
 async def import_workshop_eventbooks_from_excel(
     file: UploadFile = File(...),
@@ -76,14 +77,14 @@ async def import_workshop_eventbooks_from_excel(
 
 
 @router.post("/factory-worker-infos", tags=["migration"], status_code=201,
-    responses={
-        201: {
-            "content": {"image/csv": {}},
-            "description": "Return parameters in csv format",
-        },
-        400: {"description": "There's is an error in your document."},
-        415: {"description": "The file you uploaded is not in correct format.",},
-    }
+             responses={
+    201: {
+        "content": {"image/csv": {}},
+        "description": "Return parameters in csv format",
+    },
+    400: {"description": "There's is an error in your document."},
+    415: {"description": "The file you uploaded is not in correct format.", },
+}
 )
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
@@ -113,3 +114,53 @@ async def import_factory_worker_infos_from_excel(
             user=user,
         )
         raise e
+
+
+@router.post("/set-worker-start-position", tags=["migration"], status_code=201, responses={
+    201: {
+        "description": "Success",
+    },
+    400: {"description": "There's is an error in your document."},
+    415: {"description": "The file you uploaded is not in correct format.", },
+})
+async def set_worker_start_position(
+    workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
+    factory_worker_file: UploadFile = File(...),
+    device_xy_file: UploadFile = File(...),
+    user: User = Depends(get_manager_active_user),
+):
+    if factory_worker_file.filename.split(".")[1] != "xlsx" or device_xy_file.filename.split(".")[1] != "xlsx":
+        raise HTTPException(415)
+
+    try:
+        await import_devices(device_xy_file)
+        await AuditLogHeader.objects.create(
+            table_name="devices",
+            action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
+            user=user,
+        )
+    except Exception as e:
+        await AuditLogHeader.objects.create(
+            table_name="devices",
+            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
+            user=user,
+            description="Import devices layout failed",
+        )
+        raise HTTPException(status_code=400, detail=repr(e))
+
+    try:
+        await import_factory_worker_infos(workshop_name, factory_worker_file)
+        await AuditLogHeader.objects.create(
+            table_name="users",
+            action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
+            user=user,
+        )
+    except Exception as e:
+        await AuditLogHeader.objects.create(
+            table_name="users",
+            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
+            user=user,
+        )
+        raise e
+
+    worker_start_position = data_convert.fn_worker_start_position()

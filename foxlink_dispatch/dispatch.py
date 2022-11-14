@@ -610,7 +610,7 @@ class data_convert:
         return self.df_parm
 
     """
-    建立員工開班位置；只要資料表有邊更 "員工專職表" 或是 "Layout座標表" 都需要重新計算一次
+    建立員工開班位置；只要資料表有變更 "員工專職表" 或是 "Layout座標表" 都需要重新計算一次
     """
 
     def fn_worker_start_position(self):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣

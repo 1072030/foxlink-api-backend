@@ -103,6 +103,14 @@ async def start_mission_by_id(mission_id: int, worker: User):
     if mission.device.is_rescue:
         await mission.update(repair_end_date=datetime.utcnow())
         await move_user_to_position(worker.username, mission.device.id)
+        publish(
+            f"foxlink/users/{worker.username}/missions/finish",
+            {
+                "mission_id": mission.id,
+                "mission_state": "finish"
+            },
+            qos=2,
+        )
         return
 
     if mission.is_closed or mission.is_cancel:
@@ -153,7 +161,9 @@ async def accept_mission(mission_id: int, worker: User):
         if mission.is_started or mission.is_closed:
             raise HTTPException(
                 400, "this mission is already started or closed")
-
+    await WorkerStatus.objects.filter(worker=worker.username).update(
+        status=WorkerStatusEnum.moving.value,
+    )
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_ACCEPTED.value,
         user=worker.username,
@@ -254,52 +264,16 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
         raise HTTPException(400, "you are not this mission's assignee")
 
-    is_done = await mission.is_done_events  # type: ignore
-
-    if not mission.is_started:
-        if is_done:
-            raise HTTPException(200, "the mission is already done, skip")
-        else:
-            raise HTTPException(400, "this mission hasn't started yet")
-
-    if mission.device.is_rescue:
-        if mission.repair_end_date is None:
-            raise HTTPException(
-                400, "this mission is to-rescue mission, call strat mission api first"
-            )
-        else:
-            raise HTTPException(
-                200, "this mission is to-rescue mission, this mission is already finished"
-            )
-
-    if mission.is_closed or mission.is_cancel:
-        raise HTTPException(200, "this mission is already closed or canceled!")
-
-    # a hack for async property_field
-    if not is_done:
-        raise HTTPException(400, "this mission is not verified as done")
-
-    is_worker_actually_repair = False
     now_time = datetime.utcnow()
-    for e in mission.missionevents:
-        if e.event_end_date - timedelta(hours=8) > mission.repair_start_date:
-            is_worker_actually_repair = True
-            break
 
     async with database.transaction():
-        if is_worker_actually_repair:
-            await mission.update(
-                repair_end_date=now_time, is_cancel=False,
-            )
-        else:
-            await mission.update(
-                repair_end_date=mission.repair_start_date, is_cancel=False,
-            )
+        await mission.update(
+            repair_end_date=now_time, is_cancel=False,
+        )
 
         # set each assignee's last_event_end_date
         for w in mission.assignees:
             await WorkerStatus.objects.filter(worker=w).update(
-                # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
                 status=WorkerStatusEnum.idle.value,
                 last_event_end_date=now_time
             )
@@ -312,6 +286,77 @@ async def finish_mission_by_id(mission_id: int, worker: User):
                 record_pk=str(mission.id),
                 user=w.username,
             )
+# async def finish_mission_by_id(mission_id: int, worker: User):
+#     mission = await get_mission_by_id(mission_id)
+
+#     if mission is None:
+#         raise HTTPException(
+#             404, "the mission you request to start is not found")
+
+#     if await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value, user=worker.username, record_pk=str(mission_id)).exists():
+#         raise HTTPException(200, "you're no longer this missions assignee")
+
+#     if len([x for x in mission.assignees if x.username == worker.username]) == 0:
+#         raise HTTPException(400, "you are not this mission's assignee")
+
+#     is_done = await mission.is_done_events  # type: ignore
+
+#     if not mission.is_started:
+#         if is_done:
+#             raise HTTPException(200, "the mission is already done, skip")
+#         else:
+#             raise HTTPException(400, "this mission hasn't started yet")
+
+#     if mission.device.is_rescue:
+#         if mission.repair_end_date is None:
+#             raise HTTPException(
+#                 400, "this mission is to-rescue mission, call strat mission api first"
+#             )
+#         else:
+#             raise HTTPException(
+#                 200, "this mission is to-rescue mission, this mission is already finished"
+#             )
+
+#     if mission.is_closed or mission.is_cancel:
+#         raise HTTPException(200, "this mission is already closed or canceled!")
+
+#     # a hack for async property_field
+#     if not is_done:
+#         raise HTTPException(400, "this mission is not verified as done")
+
+#     is_worker_actually_repair = False
+#     now_time = datetime.utcnow()
+#     for e in mission.missionevents:
+#         if e.event_end_date - timedelta(hours=8) > mission.repair_start_date:
+#             is_worker_actually_repair = True
+#             break
+
+#     async with database.transaction():
+#         if is_worker_actually_repair:
+#             await mission.update(
+#                 repair_end_date=now_time, is_cancel=False,
+#             )
+#         else:
+#             await mission.update(
+#                 repair_end_date=mission.repair_start_date, is_cancel=False,
+#             )
+
+#         # set each assignee's last_event_end_date
+#         for w in mission.assignees:
+#             await WorkerStatus.objects.filter(worker=w).update(
+#                 # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
+#                 status=WorkerStatusEnum.idle.value,
+#                 last_event_end_date=now_time
+#             )
+
+#         # record this operation
+#         for w in mission.assignees:
+#             await AuditLogHeader.objects.create(
+#                 table_name="missions",
+#                 action=AuditActionEnum.MISSION_FINISHED.value,
+#                 record_pk=str(mission.id),
+#                 user=w.username,
+#             )
 
 
 async def delete_mission_by_id(mission_id: int):
@@ -344,6 +389,7 @@ async def cancel_mission_by_id(mission_id: int):
         await WorkerStatus.objects.filter(worker=m).update(
             last_event_end_date=datetime.utcnow()
         )
+
 
 async def assign_mission(mission_id: int, username: str):
     mission = await Mission.objects.select_related(
@@ -405,23 +451,38 @@ async def assign_mission(mission_id: int, username: str):
             400, detail="the user is already assigned to this mission")
 
     await mission.assignees.add(the_user)  # type: ignore
+    await WorkerStatus.objects.filter(worker=the_user).update(
+        status=WorkerStatusEnum.notice.value,
+    )
     publish(
         f"foxlink/users/{the_user.username}/missions",
         {
             "type": "new",
             "mission_id": mission.id,
             "device": {
+                "device_id": mission.device.id,
+                "device_name": mission.device.device_name,
+                "device_cname": mission.device.device_cname,
+                "workshop": mission.device.workshop,
                 "project": mission.device.project,
                 "process": mission.device.process,
                 "line": mission.device.line,
-                "name": mission.device.device_name,
             },
             "name": mission.name,
             "description": mission.description,
+            "assingees": [{
+                "username": mission.assignees[0].username,
+                "full_name":mission.assignees[0].full_name
+            }],
             "events": [
                 MissionEventOut.from_missionevent(e).dict()
                 for e in mission.missionevents
             ],
+            "is_started": mission.is_started,
+            "is_closed": mission.is_closed,
+            "is_cancel": mission.is_cancel,
+            "created_date": mission.created_date,
+            "updated_date": mission.updated_date,
         },
         qos=2,
         retain=True,

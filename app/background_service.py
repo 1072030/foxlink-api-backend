@@ -100,27 +100,26 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
         raise ValueError(msg)
 
 
-@show_duration
-async def check_if_mission_cancel_or_close():
-    working_missions = await Mission.objects.select_related(['assignees']).filter(
-        device__is_rescue=False, repair_start_date__isnull=True, repair_end_date__isnull=True
-    ).all()
+# @show_duration
+# async def check_if_mission_cancel_or_close():
+#     working_missions = await Mission.objects.select_related(['assignees']).filter(
+#         device__is_rescue=False, repair_start_date__isnull=True, repair_end_date__isnull=True
+#     ).all()
 
-    working_missions = [
-        x for x in working_missions if len(x.assignees) > 0]
-    logging.warning(working_missions)
-    for m in working_missions:
-        if m.is_cancel is True or m.is_closed is True or m.is_autocanceled is True:
-            for a in m.assignees:
-                logging.warning("publishhhhhh")
-                publish(
-                    f"foxlink/users/{a.username}/missions/stop-notify",
-                    {
-                        "mission_id": m.id,
-                        "mission_state": "finish"
-                    },
-                    qos=2,
-                )
+#     working_missions = [
+#         x for x in working_missions if len(x.assignees) > 0]
+
+#     for m in working_missions:
+#         if m.is_cancel is True or m.is_closed is True or m.is_autocanceled is True:
+#             for a in m.assignees:
+#                 publish(
+#                     f"foxlink/users/{a.username}/missions/stop-notify",
+#                     {
+#                         "mission_id": m.id,
+#                         "mission_state": "finish"
+#                     },
+#                     qos=2,
+#                 )
 
 
 @show_duration
@@ -295,7 +294,7 @@ async def overtime_workers_routine():
 
 @show_duration
 async def auto_close_missions():
-    """自動結案任務，如果任務的故障已排除但員工未被指派，則自動結案"""
+    """自動結案任務，如果任務的故障已排除則自動結案"""
     working_missions = (
         await Mission.objects.select_related(["assignees"])
         .filter(
@@ -313,6 +312,15 @@ async def auto_close_missions():
         undone_count = await database.fetch_val("SELECT COUNT(*) FROM missionevents m WHERE m.mission = :mission_id AND m.done_verified = 0", {"mission_id": m.id})
         if undone_count == 0:
             await m.update(is_cancel=True, is_autocanceled=True)
+        if len(m.assignees) > 0:
+            publish(
+                f"foxlink/users/{m.assignees[0].username}/missions/stop-notify",
+                {
+                    "mission_id": m.id,
+                    "mission_state": "finish"
+                },
+                qos=2,
+            )
 
 
 @show_duration
@@ -338,15 +346,6 @@ async def track_worker_status_routine():
             else:
                 await s.update(status=WorkerStatusEnum.moving.value)
             return
-
-        if working_mission.repair_start_date is not None and working_mission.repair_end_date is None:
-            await s.update(status=WorkerStatusEnum.working.value)
-            return
-
-        if is_accepted:
-            await s.update(status=WorkerStatusEnum.moving.value)
-        else:
-            await s.update(status=WorkerStatusEnum.notice.value)
 
     worker_status = (
         await WorkerStatus.objects.select_related(["worker"])
@@ -856,15 +855,15 @@ class FoxlinkBackground:
         return [
             FoxlinkEvent(
                 id=x[0],
-                project=x[3],
-                line=x[4],
-                device_name=x[5],
-                category=x[1],
-                start_time=x[6],
-                end_time=x[7],
-                message=x[2],
-                start_file_name=x[8],
-                end_file_name=x[9],
+                project=x[9],
+                line=x[1],
+                device_name=x[2],
+                category=x[3],
+                start_time=x[4],
+                end_time=x[5],
+                message=x[6],
+                start_file_name=x[7],
+                end_file_name=x[8],
             )
             for x in rows
         ]
@@ -889,15 +888,15 @@ class FoxlinkBackground:
 
             return FoxlinkEvent(
                 id=row[0],
-                project=row[3],
-                line=row[4],
-                device_name=row[5],
-                category=row[1],
-                start_time=row[6],
-                end_time=row[7],
-                message=row[2],
-                start_file_name=row[8],
-                end_file_name=row[9],
+                project=row[9],
+                line=row[1],
+                device_name=row[2],
+                category=row[3],
+                start_time=row[4],
+                end_time=row[5],
+                message=row[6],
+                start_file_name=row[7],
+                end_file_name=row[8],
             )
         except:
             return None
@@ -924,13 +923,13 @@ class FoxlinkBackground:
 
     async def fetch_events_from_foxlink(self):
         tables = await self.get_db_table_list()
-
         for db_idx in range(len(tables)):
             db = self._dbs[db_idx]
             for table_name in tables[db_idx]:
                 events = await self.get_recent_events(db, table_name)
 
                 for e in events:
+                    logging.warning(e)
                     if await MissionEvent.objects.filter(
                         event_id=e.id, table_name=table_name
                     ).exists():
@@ -953,11 +952,11 @@ class FoxlinkBackground:
 
                     # if priority is None:
                     #     continue
-
+                    logging.warning(device_id)
                     device = await Device.objects.filter(
                         id__iexact=device_id
                     ).get_or_none()
-
+                    logging.warning(device)
                     if device is None:
                         continue
 
@@ -1028,10 +1027,10 @@ async def main_routine():
             await overtime_workers_routine()
             await track_worker_status_routine()
             await check_mission_duration_routine()
-            await check_if_mission_cancel_or_close()
+            # await check_if_mission_cancel_or_close()
             await check_mission_accept_duration_routine()
             # await check_alive_worker_routine()
-            await check_if_mission_finish()
+            # await check_if_mission_finish()
             if not DISABLE_FOXLINK_DISPATCH:
                 await dispatch_routine()
             end = time.perf_counter()
