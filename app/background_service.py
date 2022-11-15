@@ -1040,7 +1040,7 @@ async def main_routine():
             # await overtime_workers_routine()
             # await track_worker_status_routine()
             # await check_mission_duration_routine()
-            # # await check_if_mission_cancel_or_close()
+            # await check_if_mission_cancel_or_close()
             # await check_mission_accept_duration_routine()
             # await check_alive_worker_routine()
             # await check_if_mission_finish()
