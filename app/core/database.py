@@ -19,7 +19,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-database = databases.Database(DATABASE_URI, max_size=7)
+api_db = databases.Database(DATABASE_URI, max_size=7)
 metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")
@@ -60,7 +60,7 @@ class LogoutReasonEnum(Enum):
 
 class MainMeta(ormar.ModelMeta):
     metadata = metadata
-    database = database
+    api_db = api_db
 
 
 class FactoryMap(ormar.Model):
@@ -140,7 +140,10 @@ class MissionEvent(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True)
     mission: MissionRef = ormar.ForeignKey(
-        MissionRef, index=True, ondelete="CASCADE")  # type: ignore
+        MissionRef,
+        index=True,
+        ondelete="CASCADE"
+    )  # type: ignore
     event_id: int = ormar.Integer()
     host: str = ormar.String(max_length=50)
     table_name: str = ormar.String(max_length=50)

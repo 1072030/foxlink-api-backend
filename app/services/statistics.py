@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, ShiftType, UserLevel, database, User
+from app.core.database import Mission, ShiftType, UserLevel, api_db, User
 from datetime import datetime, timedelta
 from app.env import TIMEZONE_OFFSET
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -59,7 +59,7 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
     """
     取得當月最常故障的設備，不依照 Category 分類，排序則由次數由高排到低。
     """
-    query = await database.fetch_all(
+    query = await api_db.fetch_all(
         f"""
         SELECT m.device as device_id, d.device_cname, count(*) AS count FROM missions m
         INNER JOIN devices d ON d.id = m.device
@@ -84,7 +84,7 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
 
-    abnormal_missions = await database.fetch_all(
+    abnormal_missions = await api_db.fetch_all(
         f"""
         SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
             SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, m.created_date
@@ -114,7 +114,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
 
-    abnormal_devices: List[AbnormalDeviceInfo] = await database.fetch_all(
+    abnormal_devices: List[AbnormalDeviceInfo] = await api_db.fetch_all(
         f"""
         SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
         FROM missionevents
@@ -139,7 +139,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
 
     for m in abnormal_devices:
         # fetch top 3 assignees that deal with device out-of-order issue most quickly
-        top_assignees_in_mission = await database.fetch_all(
+        top_assignees_in_mission = await api_db.fetch_all(
             """
             SELECT t1.username, t1.full_name, min(t1.duration) as duration FROM (
                 SELECT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_start_date, me.event_end_date) as duration
@@ -175,7 +175,7 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
         "m.created_date", "created_date")
 
-    query = await database.fetch_all(
+    query = await api_db.fetch_all(
         f"""
         SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
@@ -203,7 +203,7 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
         "m.created_date", "created_date")
 
-    query = await database.fetch_all(
+    query = await api_db.fetch_all(
         f"""
         SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
@@ -238,7 +238,7 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
         "m.created_date", "created_date")
 
-    result = await database.fetch_all(
+    result = await api_db.fetch_all(
         f"""
         SELECT count(DISTINCT user) FROM `auditlogheaders` a
         INNER JOIN users u ON a.user = u.username

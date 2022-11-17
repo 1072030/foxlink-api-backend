@@ -8,7 +8,7 @@ from app.core.database import (
     FactoryMap,
     Mission,
     MissionEvent,
-    database,
+    api_db,
 )
 import random
 

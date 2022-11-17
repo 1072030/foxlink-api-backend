@@ -5,6 +5,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python: Server",
+      "type": "python",
+      "request": "launch",
+      "module": "app.main",
+      "justMyCode": false
+    },
+    {
       "name": "Python: Background Daemon",
       "type": "python",
       "request": "launch",

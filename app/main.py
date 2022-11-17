@@ -1,4 +1,7 @@
+import uuid
 import logging
+import asyncio
+import multiprocessing as mp
 from fastapi import FastAPI
 from app.env import MQTT_BROKER, MQTT_PORT, PY_ENV
 from logging.config import dictConfig
@@ -14,18 +17,20 @@ from app.routes import (
     device,
     workshop,
 )
-from app.core.database import database
-from app.mqtt.main import connect_mqtt, disconnect_mqtt
+from app.core.database import api_db
+from app.mqtt import mqtt_client
 from app.my_log_conf import LOGGER_NAME, LogConfig
 from fastapi.middleware.cors import CORSMiddleware
-from app.foxlink_db import foxlink_db
-import uuid
+from app.foxlink import foxlink_dbs
+from app.daemon import _daemons
 
 
 dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
+
+daemons =  [mp.Process(target=func) for func in _daemons]
 
 # Adding CORS middleware
 origins = [
@@ -62,14 +67,35 @@ if PY_ENV == 'dev':
 
 @app.on_event("startup")
 async def startup():
-    connect_mqtt(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4()))
-    await database.connect()
-    await foxlink_db.connect()
+    # connect to databases
+    asyncio.gather(*[
+        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4())),
+        api_db.connect(),
+        foxlink_dbs.connect()
+    ])
     logger.info("Foxlink API Server startup complete.")
+
+    # start background daemons
+    for d in daemons:
+        d.start()
+    logger.info("Foxlink API Server startup complete.")
+    
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    await foxlink_db.close()
-    await database.disconnect()
-    disconnect_mqtt()
+    # disconnect databases
+    asyncio.gather(*[
+        mqtt_client.disconnect(),
+        api_db.disconnect(),
+        foxlink_dbs.disconnect()
+    ])
+    logger.info("Foxlink API Server shutdown complete.")
+
+    # stop background daemons
+    for d in daemons:
+        d.kill()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)

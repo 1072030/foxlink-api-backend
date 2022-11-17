@@ -151,7 +151,7 @@ DATABASE_HOST               | Database host                                     
 DATABASE_PORT               | Database port                                                                                                               | None          | 3306
 DATABASE_USER               | Database user                                                                                                               | None          | root
 DATABASE_PASSWORD           | Database password                                                                                                           | None          | None
-FOXLINK_DB_HOSTS            | Foxlink DB's hosts, **first element in array** must be the main database that **contains device_cnames**                    | None          | ['127.0.0.1:3306']
+FOXLINK_DB_HOSTS            | Foxlink DB's hosts, **first element in array** must be the main api_db that **contains device_cnames**                    | None          | ['127.0.0.1:3306']
 FOXLINK_DB_USER             | Foxlink DB's user                                                                                                           | None          | foxlink
 FOXLINK_DB_PASSWORD         | Foxlink DB's password                                                                                                       | None          | foxlink
 JWT_SECRET                  | JWT secret. You should change to secret value before deploying to production enviroment.                                    | secret        | secret

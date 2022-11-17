@@ -110,5 +110,5 @@ if os.environ.get("USE_ALEMBIC") is None:
     logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
     logger.warn(f"OVERTIME_MISSION_NOTIFY_PERIOD: {OVERTIME_MISSION_NOTIFY_PERIOD}")
 
-#
+# 例行程序參數設定
 RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)

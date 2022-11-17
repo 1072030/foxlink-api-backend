@@ -9,14 +9,14 @@ from app.core.database import (
     CategoryPRI,
     WorkerStatus,
     WorkerStatusEnum,
-    database,
+    api_db,
 )
 from fastapi.exceptions import HTTPException
 from app.services.user import get_password_hash
 from fastapi import UploadFile
 import pandas as pd
 from foxlink_dispatch.dispatch import data_convert
-from app.foxlink_db import foxlink_db
+from app.foxlink import foxlink_dbs
 
 data_converter = data_convert()
 
@@ -35,7 +35,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
     update_device_bulk: List[Device] = []
     device_name_dict: Dict[str, bool] = {}
 
-    device_infos = await foxlink_db.get_device_cname(workshop_name)
+    device_infos = await foxlink_dbs.get_device_cname(workshop_name)
 
     # if device_infos is not None:
     #     for d in create_device_bulk:

@@ -2,7 +2,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordRequestForm
-from app.mqtt.main import publish
+from app.mqtt import mqtt_client
 from app.services.auth import authenticate_user, create_access_token, get_current_user, set_device_UUID
 from datetime import datetime, timedelta
 from app.core.database import (

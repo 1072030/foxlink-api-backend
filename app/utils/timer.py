@@ -26,14 +26,13 @@ class Ticker:
         if self.is_started:
             self.is_started = False
             # Stop task and await it stopped:
-            self._task.cancel()
             with suppress(asyncio.CancelledError):
+                self._task.cancel()
                 await self._task
 
     async def _run(self):
         while True:
             await asyncio.sleep(self.time)
-
             try:
                 await self.func()
             except Exception as e:

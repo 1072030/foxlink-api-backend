@@ -1,5 +1,5 @@
 import logging
-from app.core.database import Device, User, UserLevel, WhitelistDevice, database
+from app.core.database import Device, User, UserLevel, WhitelistDevice, api_db
 from typing import Dict, Optional
 from fastapi.exceptions import HTTPException
 from typing import List, Optional
@@ -56,7 +56,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
 
     #logger.info(f'{day_start}, {day_end}, {night_start}, {night_end}')
 
-    raw_data_in_day = await database.fetch_all(f"""
+    raw_data_in_day = await api_db.fetch_all(f"""
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
         INNER JOIN factorymaps f on f.id = d.workshop
@@ -70,7 +70,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
     for x in raw_data_in_day:
         recommend_devices_in_day[x[0]] = int(x[1])
 
-    raw_data_in_night = await database.fetch_all(f"""
+    raw_data_in_night = await api_db.fetch_all(f"""
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
         INNER JOIN factorymaps f on f.id = d.workshop

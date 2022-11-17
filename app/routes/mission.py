@@ -7,7 +7,7 @@ from app.core.database import (
     User,
     Mission,
     UserLevel,
-    database,
+    api_db,
 )
 from app.services.mission import (
     accept_mission,
@@ -165,7 +165,7 @@ async def assign_mission_to_user(
     if (await is_user_working_on_mission(user_name)) == True:
         raise HTTPException(400, "the user is working on other mission")
 
-    async with database.transaction():
+    async with api_db.transaction():
         await assign_mission(mission_id, user_name)
         await AuditLogHeader.objects.create(
             table_name="missions",

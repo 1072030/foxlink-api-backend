@@ -11,7 +11,7 @@ from app.core.database import (
     WorkerStatus,
     WorkerStatusEnum,
     AuditLogHeader,
-    database,
+    api_db,
 )
 from app.services.user import (
     get_user_all_level_subordinates_by_username,

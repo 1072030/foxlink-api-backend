@@ -10,11 +10,11 @@ from app.core.database import (
     WhitelistDevice,
     WorkerStatus,
     WorkerStatusEnum,
-    database,
+    api_db,
 )
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
-from app.mqtt.main import publish
+from app.mqtt import mqtt_client
 import logging
 from app.services.user import get_user_by_username, is_user_working_on_mission, move_user_to_position
 from app.my_log_conf import LOGGER_NAME
@@ -103,7 +103,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
     if mission.device.is_rescue:
         await mission.update(repair_end_date=datetime.utcnow())
         await move_user_to_position(worker.username, mission.device.id)
-        publish(
+        mqtt_client.publish(
             f"foxlink/users/{worker.username}/missions/finish",
             {
                 "mission_id": mission.id,
@@ -213,7 +213,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
     ).count()
 
     if mission_reject_amount >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
-        publish(
+        mqtt_client.publish(
             f"foxlink/{mission.device.workshop.name}/mission/rejected",
             {
                 "id": mission.id,
@@ -239,7 +239,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
             return
 
         if worker_device_info.superior is not None:
-            publish(
+            mqtt_client.publish(
                 f"foxlink/users/{worker_device_info.superior.username}/subordinate-rejected",
                 {
                     "subordinate_id": user.username,
@@ -266,7 +266,7 @@ async def finish_mission_by_id(mission_id: int, worker: User):
 
     now_time = datetime.utcnow()
 
-    async with database.transaction():
+    async with api_db.transaction():
         await mission.update(
             repair_end_date=now_time, is_cancel=False,
         )
@@ -331,7 +331,7 @@ async def finish_mission_by_id(mission_id: int, worker: User):
 #             is_worker_actually_repair = True
 #             break
 
-#     async with database.transaction():
+#     async with api_db.transaction():
 #         if is_worker_actually_repair:
 #             await mission.update(
 #                 repair_end_date=now_time, is_cancel=False,
@@ -454,7 +454,7 @@ async def assign_mission(mission_id: int, username: str):
     await WorkerStatus.objects.filter(worker=the_user).update(
         status=WorkerStatusEnum.notice.value,
     )
-    publish(
+    mqtt_client.publish(
         f"foxlink/users/{the_user.username}/missions",
         {
             "type": "new",
@@ -522,7 +522,7 @@ async def request_assistance(mission_id: int, validate_user: User):
             if worker_device_level.superior is None:
                 continue
 
-            publish(
+            mqtt_client.publish(
                 f"foxlink/users/{worker_device_level.superior.username}/missions",
                 {
                     "type": "emergency",

@@ -27,7 +27,7 @@ from app.core.database import (
     WhitelistDevice,
     WorkerStatus,
     WorkerStatusEnum,
-    database,
+    api_db,
 )
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
@@ -151,7 +151,7 @@ async def get_subordinates_list_by_username(username: str):
         raise HTTPException(404, "the user with this id is not found")
 
     async def get_subsordinates_list(username: str) -> List[str]:
-        result = await database.fetch_all("""
+        result = await api_db.fetch_all("""
         SELECT DISTINCT user FROM userdevicelevels u 
         WHERE u.superior = :superior
         """, {'superior': username})
@@ -348,7 +348,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
     if worker.level != UserLevel.maintainer.value:
         return None
 
-    total_accepted_count_this_month = await database.fetch_all(
+    total_accepted_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)
         FROM auditlogheaders
@@ -358,7 +358,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         """,
     )
 
-    total_accepted_count_this_week = await database.fetch_all(
+    total_accepted_count_this_week = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
         WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
@@ -367,7 +367,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         """,
     )
 
-    total_rejected_count_this_month = await database.fetch_all(
+    total_rejected_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)
         FROM auditlogheaders
@@ -377,7 +377,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         """,
     )
 
-    total_rejected_count_this_week = await database.fetch_all(
+    total_rejected_count_this_week = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
         WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
@@ -400,7 +400,7 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
 
     worker_attendances: List[WorkerAttendance] = []
 
-    user_login_days_this_month = await database.fetch_all(
+    user_login_days_this_month = await api_db.fetch_all(
         f"""
         SELECT DATE(ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
         FROM auditlogheaders loginrecord,
@@ -414,7 +414,7 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
         """,
     )
 
-    user_logout_days_this_month = await database.fetch_all(
+    user_logout_days_this_month = await api_db.fetch_all(
         f"""
         SELECT DATE(ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
         FROM auditlogheaders logoutrecord,
@@ -506,7 +506,7 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
 
     shift_start, shift_end = get_current_shift_time_interval()
 
-    total_start_count = await database.fetch_val(
+    total_start_count = await api_db.fetch_val(
         f"""
         SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 
         INNER JOIN missions m ON m.id = mu.mission

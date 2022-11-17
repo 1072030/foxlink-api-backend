@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Mapping, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, File, UploadFile
 from ormar import NoMatch
-from app.core.database import FactoryMap, User, database
+from app.core.database import FactoryMap, User, api_db
 from app.models.schema import DeviceStatus, DeviceStatusEnum
 from app.services.auth import get_current_user, get_manager_active_user
 from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
@@ -211,7 +211,7 @@ async def get_project_names_by_project(
     if w is None:
         raise HTTPException(404, "the workshop is not found")
 
-    project_names: List[Mapping[str, str]] = await database.fetch_all(
+    project_names: List[Mapping[str, str]] = await api_db.fetch_all(
         "SELECT DISTINCT d.project FROM devices d INNER JOIN factorymaps f ON d.workshop = :workshop_id WHERE d.project != 'rescue';",
         {"workshop_id": w.id},
     )
