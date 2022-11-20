@@ -221,7 +221,7 @@ async def mark_mission_emergency(
     await request_assistance(mission_id, user)
 
 
-@database.transaction()
+@api_db.transaction()
 @router.patch("/{mission_id}", tags=["missions"])
 async def update_mission(
     mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)
@@ -236,7 +236,7 @@ async def update_mission(
     )
 
 
-@database.transaction()
+@api_db.transaction()
 @router.delete("/{mission_id}", tags=["missions"])
 async def delete_mission(
     mission_id: int, user: User = Depends(get_manager_active_user)

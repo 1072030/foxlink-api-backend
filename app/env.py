@@ -2,7 +2,7 @@ import logging
 import os
 from typing import List, TypeVar, Optional, Type
 from dotenv import load_dotenv
-from app.my_log_conf import LOGGER_NAME
+from app.log import LOGGER_NAME
 from ast import literal_eval
 
 T = TypeVar("T")

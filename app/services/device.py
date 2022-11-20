@@ -3,7 +3,7 @@ from app.core.database import Device, User, UserLevel, WhitelistDevice, api_db
 from typing import Dict, Optional
 from fastapi.exceptions import HTTPException
 from typing import List, Optional
-from app.my_log_conf import LOGGER_NAME
+from app.log import LOGGER_NAME
 from app.env import WHITELIST_MINIMUM_OCCUR_COUNT
 from app.utils.utils import get_previous_shift_time_interval
 

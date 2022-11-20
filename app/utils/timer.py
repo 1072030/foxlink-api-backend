@@ -4,7 +4,7 @@ import traceback
 from typing import Callable
 from contextlib import suppress
 
-from app.my_log_conf import LOGGER_NAME
+from app.log import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 

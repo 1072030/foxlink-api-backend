@@ -1,3 +1,4 @@
+import sys
 import uuid
 import logging
 import asyncio
@@ -19,18 +20,18 @@ from app.routes import (
 )
 from app.core.database import api_db
 from app.mqtt import mqtt_client
-from app.my_log_conf import LOGGER_NAME, LogConfig
+from app.log import LOGGER_NAME
 from fastapi.middleware.cors import CORSMiddleware
 from app.foxlink import foxlink_dbs
-from app.daemon import _daemons
+from app.daemon.daemon import _daemons
 
 
-dictConfig(LogConfig().dict())
+# dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 
-daemons =  [mp.Process(target=func) for func in _daemons]
+daemons =  []
 
 # Adding CORS middleware
 origins = [
@@ -68,7 +69,7 @@ if PY_ENV == 'dev':
 @app.on_event("startup")
 async def startup():
     # connect to databases
-    asyncio.gather(*[
+    await asyncio.gather(*[
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4())),
         api_db.connect(),
         foxlink_dbs.connect()
@@ -76,8 +77,12 @@ async def startup():
     logger.info("Foxlink API Server startup complete.")
 
     # start background daemons
-    for d in daemons:
-        d.start()
+    for args in _daemons:
+        daemons.append(
+            await asyncio.create_subprocess_exec(
+                sys.executable,'-m', *args,
+            )
+        )
     logger.info("Foxlink API Server startup complete.")
     
 
@@ -85,16 +90,20 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     # disconnect databases
-    asyncio.gather(*[
+    await asyncio.gather(*[
         mqtt_client.disconnect(),
         api_db.disconnect(),
         foxlink_dbs.disconnect()
     ])
     logger.info("Foxlink API Server shutdown complete.")
 
+    
     # stop background daemons
-    for d in daemons:
-        d.kill()
+    await asyncio.gather(*[
+        asyncio.wait_for(d.wait(), timeout=10)
+        for d in daemons 
+        if d.terminate() or True
+    ])
 
 if __name__ == "__main__":
     import uvicorn

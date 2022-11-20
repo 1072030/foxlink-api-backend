@@ -17,7 +17,7 @@ from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt import mqtt_client
 import logging
 from app.services.user import get_user_by_username, is_user_working_on_mission, move_user_to_position
-from app.my_log_conf import LOGGER_NAME
+from app.log import LOGGER_NAME
 from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
 from app.utils.utils import get_shift_type_now
 
@@ -66,7 +66,7 @@ async def get_missions_by_username(username: str):
     return missions
 
 
-@database.transaction()
+@api_db.transaction()
 async def update_mission_by_id(id: int, dto: MissionUpdate):
     mission = await get_mission_by_id(id)
     if mission is None:
@@ -87,7 +87,7 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
             await assign_mission(id, username)
 
 
-@database.transaction()
+@api_db.transaction()
 async def start_mission_by_id(mission_id: int, worker: User):
     mission = await Mission.objects.select_related(["assignees", "device"]).get_or_none(
         id=mission_id
@@ -369,7 +369,7 @@ async def delete_mission_by_id(mission_id: int):
     await mission.delete()
 
 
-@database.transaction()
+@api_db.transaction()
 async def cancel_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
@@ -489,7 +489,7 @@ async def assign_mission(mission_id: int, username: str):
     )
 
 
-@database.transaction()
+@api_db.transaction()
 async def request_assistance(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 

@@ -2,7 +2,7 @@ import datetime
 from paho.mqtt import client
 import json
 import logging
-from app.my_log_conf import LOGGER_NAME
+from app.log import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 

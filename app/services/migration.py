@@ -25,7 +25,7 @@ def generate_device_id(project: str, line: int, device_name: str) -> str:
     return f"{project}@{int(line)}@{device_name}"
 
 
-@database.transaction()
+@api_db.transaction()
 async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFrame]:
     raw_excel: bytes = await excel_file.read()
     frame: pd.DataFrame = pd.read_excel(raw_excel, sheet_name=0)
@@ -120,7 +120,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
 # TODO: remove orphan category priorities
 # 匯入 Device's Category & Priority
-@database.transaction()
+@api_db.transaction()
 async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
     """
     Return: parameters in pandas format
@@ -178,7 +178,7 @@ async def calcuate_factory_layout_matrix(
     return data["parameter"]
 
 
-@database.transaction()
+@api_db.transaction()
 async def import_factory_worker_infos(
     workshop_name: str, excel_file: UploadFile
 ) -> pd.DataFrame:

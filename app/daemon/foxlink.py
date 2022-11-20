@@ -18,7 +18,8 @@ from app.foxlink import (
     FoxlinkEvent,
     generate_device_id
 )
-
+import argparse
+import functools
 from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist, reject_mission_by_id
 
 from app.services.user import (
@@ -62,10 +63,13 @@ from app.core.database import (
 )
 import traceback
 
-logger = logging.getLogger("Foxlink-DB")
+# logging.basicConfig()
+logger = logging.getLogger(f"foxlink(daemon)")
+logger.setLevel(logging.INFO)
 
 dispatch = Foxlink_dispatch()
 
+_terminate = None
 
 def show_duration(func):
     async def wrapper():
@@ -258,13 +262,13 @@ async def overtime_workers_routine():
 async def auto_close_missions():
     """自動結案任務，如果任務的故障已排除則自動結案"""
     working_missions = (
-        await Mission.objects.filter(
+        await Mission.objects.select_related(
+            ["assignees"]
+        ).filter(
             repair_start_date__isnull=True,
             repair_end_date__isnull=True,
             is_cancel=False,
             created_date__lt=datetime.utcnow() - timedelta(minutes=1),
-        ).select_related(
-            ["assignees"]
         )
         .all()
     )
@@ -763,6 +767,7 @@ async def dispatch_routine():
                 logger.error(
                     f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
 
+
 ######### events completed  ########
 
 async def update_complete_events(event: MissionEvent):
@@ -792,7 +797,7 @@ async def update_complete_events_handler():
 ######### sync event ########
 
 async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
-    events = await get_recent_events(host, table_name, since)
+    events = await get_recent_events_from_foxlink(host, table_name, since)
 
     for e in events:
         logger.warning(e)
@@ -865,7 +870,7 @@ async def sync_events_from_foxlink_handler():
             for host,tables in db_table_pairs for table in tables
         ])
 
-async def get_recent_events(host: str, table_name: str, since: str = "") -> List[FoxlinkEvent]:
+async def get_recent_events_from_foxlink(host: str, table_name: str, since: str = "") -> List[FoxlinkEvent]:
     if(since == ""):
         since = f"CURRENT_TIMESTAMP() - INTERVAL {RECENT_EVENT_PAST_DAYS} DAY"
     else:
@@ -925,28 +930,34 @@ async def get_incomplete_event_from_table(host: str, table_name: str, id: int) -
     except:
         return None
 
-def shutdown_callback():
-    logger.warning("Shutting down...")
-    asyncio.gather(*[
-        api_db.disconnect(),
-        mqtt_client.disconnect(),
-        foxlink_dbs.disconnect()
-    ])
-    logger.warning("Daemon Terminated...")
+async def shutdown_callback():
+    pass
+
+    
+async def shutdown_callback_handler():
+    global _terminate
+    _terminate=True
+
 
 async def main(interval:int):
-    signal.signal(signal.SIGINT, shutdown_callback)
-    signal.signal(signal.SIGTERM, shutdown_callback)
+    global _terminate
+    _terminate = False
+
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGINT,functools.partial(asyncio.create_task,shutdown_callback_handler()))
+    loop.add_signal_handler(signal.SIGTERM,functools.partial(asyncio.create_task,shutdown_callback_handler()))
 
     # connect to service
-    asyncio.gather(*[
+    await asyncio.gather(*[
         api_db.connect(),
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4())),
         foxlink_dbs.connect()
     ])
-
+    logger.info("Connections Created.")
+    
     # main loop
-    while True:
+    while not _terminate:
+        await asyncio.sleep(interval)
         try:
             logger.warning('[main_routine] Foxlink daemon is running...')
             start = time.perf_counter()
@@ -955,21 +966,43 @@ async def main(interval:int):
             await overtime_workers_routine()
             await track_worker_status_routine()
             await check_mission_duration_routine()
-            await check_if_mission_cancel_or_close()
-            await check_mission_accept_duration_routine()
-            await check_alive_worker_routine()
-            await check_if_mission_finish()
+            # await check_if_mission_cancel_or_close()
+            # await check_mission_accept_duration_routine()
+            # await check_alive_worker_routine()
+            # await check_if_mission_finish()
+
             if not DISABLE_FOXLINK_DISPATCH:
                 await dispatch_routine()
+
             end = time.perf_counter()
             logger.warning("[main_routine] took %.2f seconds", end - start)
+
         except Exception as e:
             logger.error(f'excpetion in main_routine: {repr(e)}')
             traceback.print_exc()
-            
-        await asyncio.sleep(interval)
 
-def create(interval=10):
-    def entrypoint():
-        asyncio.run(main(interval=interval))
-    return entrypoint
+    # shutdown
+    logger.info("Termiante Databases/Connections...")
+    await asyncio.gather(*[
+        api_db.disconnect(),
+        mqtt_client.disconnect(),
+        foxlink_dbs.disconnect()
+    ])
+    logger.info("Daemon Terminated.")
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-i',dest='interval',type=int,default=10)
+
+def create(**p):
+    args = []
+    for k,_v in p.items():
+        args.append('-'+k)
+        args.append(str(_v))
+    parser.parse_args(args)
+    return [__name__] + args
+
+if __name__=="__main__":    
+    args = parser.parse_args()
+    asyncio.run(main(interval=args.interval))
+
+    

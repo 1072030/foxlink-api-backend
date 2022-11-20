@@ -37,7 +37,7 @@ target_metadata = metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
+print(os.environ)
 
 def get_db_url() -> str:
     DATABASE_HOST = os.getenv("DATABASE_HOST")

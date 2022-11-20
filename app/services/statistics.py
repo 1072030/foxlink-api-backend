@@ -5,7 +5,7 @@ from app.core.database import Mission, ShiftType, UserLevel, api_db, User
 from datetime import datetime, timedelta
 from app.env import TIMEZONE_OFFSET
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
-from app.my_log_conf import LOGGER_NAME
+from app.log import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 

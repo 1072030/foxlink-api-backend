@@ -100,15 +100,16 @@ services:
       PROJECT_ENV: env/od.env
       DAY_SHIFT_BEGIN: "07:40"
       DAY_SHIFT_END: "23:59"
-      DATABASE_HOST: mysql
+      DATABASE_HOST: mysql-test
       DATABASE_PORT: 3306
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
-      DATABASE_NAME: foxlink
-      FOXLINK_DB_HOSTS: "['mysql']"
+      # DATABASE_NAME: foxlink
+      DATABASE_NAME: testing_api
+      FOXLINK_DB_HOSTS: "['mysql-test']"
       FOXLINK_DB_USER: root
       FOXLINK_DB_PWD: AqqhQ993VNto
-      FOXLINK_DB_NAME: events
+      FOXLINK_DB_NAME: testing_foxlink
       FOXLINK_DB_TABLE: foxlinkevents
       JWT_SECRET: secret
       MQTT_BROKER: emqx
@@ -119,6 +120,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - .:/code/
+
   # watchtower:
   #   image: containrrr/watchtower
   #   command: --interval 30
@@ -126,9 +128,28 @@ services:
   #     - /var/run/docker.sock:/var/run/docker.sock
   #     - ./watchtower-config.json:/config.json
 
+  mysql-test:
+    image: mysql-test:latest
+    restart: unless-stopped
+    # build:
+    #   context: .
+    #   dockerfile: testdb.Dockerfile
+    tty: true
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    environment:
+      MYSQL_DATABASE: foxlink
+      MYSQL_ROOT_PASSWORD: AqqhQ993VNto
+    ports:
+      - 27001:3306
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
 
 volumes:
   mysql-data:
+  mysql-test:
+  mysql-test-sample:
