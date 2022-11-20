@@ -60,20 +60,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         username: str = payload.get("sub")
-        current_UUID: str = payload.get("UUID")
+        # current_UUID: str = payload.get("UUID")
         if username is None:
             raise credentials_exception
     except ExpiredSignatureError:
         payload = jwt.decode(token, JWT_SECRET,  algorithms=['HS256'], options={
                              "verify_exp": False, "verify_signature": False})
         username: str = payload["sub"]
-        current_UUID: str = payload.get("UUID")
+        # current_UUID: str = payload.get("UUID")
         user = await get_user_by_username(username)
-        if current_UUID == user.current_UUID:
-            await update_user(
-                user.username,
-                current_UUID="0"
-            )
+        # if current_UUID == user.current_UUID:
+        #     await update_user(
+        #         user.username,
+        #         current_UUID="0"
+        #     )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Signature has expired",
@@ -87,12 +87,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
 
-    if user.current_UUID != current_UUID:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="log on other device, should log out.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # if user.current_UUID != current_UUID:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="log on other device, should log out.",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
 
     return user
 
@@ -121,5 +121,5 @@ async def set_device_UUID(
 ):
     await update_user(
         user.username,
-        current_UUID=UUID
+        # current_UUID=UUID
     )

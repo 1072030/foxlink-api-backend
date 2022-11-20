@@ -61,10 +61,10 @@ async def create_user(dto: UserCreate) -> User:
 
 async def check_user_workstatus(username: str):
     workerStatus = await WorkerStatus.objects.filter(worker=username).get_or_none()
-    if workerStatus.status != WorkerStatusEnum.idle.value:
-        raise HTTPException(
-            status_code=404, detail="You are not allow to logout."
-        )
+    # if workerStatus.status != WorkerStatusEnum.idle.value:
+    #     raise HTTPException(
+    #         status_code=404, detail="You are not allow to logout."
+    #     )
 
 
 async def get_user_by_username(username: str) -> Optional[User]:

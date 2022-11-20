@@ -178,7 +178,7 @@ async def calcuate_factory_layout_matrix(
     return data["parameter"]
 
 
-@api_db.transaction()
+# @api_db.transaction()
 async def import_factory_worker_infos(
     workshop_name: str, excel_file: UploadFile
 ) -> pd.DataFrame:
@@ -231,6 +231,7 @@ async def import_factory_worker_infos(
                 full_name=row["worker_name"],
                 password_hash=get_password_hash("foxlink"),
                 location=workshop_id_mapping[row["workshop"]],
+                expertises=[],
                 level=row["job"],
             )
             create_user_bulk.append(worker)

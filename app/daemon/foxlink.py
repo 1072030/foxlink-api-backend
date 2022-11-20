@@ -21,7 +21,6 @@ from app.foxlink import (
 import argparse
 import functools
 from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist, reject_mission_by_id
-
 from app.services.user import (
     get_user_shift_type,
     get_user_working_mission,
@@ -61,6 +60,14 @@ from app.core.database import (
     Device,
     api_db,
 )
+from pymysql.err import (
+    Warning, Error,
+    InterfaceError, DataError, DatabaseError,
+    OperationalError,
+    IntegrityError, InternalError, NotSupportedError,
+    ProgrammingError
+)
+
 import traceback
 
 # logging.basicConfig()
@@ -976,10 +983,17 @@ async def main(interval:int):
 
             end = time.perf_counter()
             logger.warning("[main_routine] took %.2f seconds", end - start)
-
+            
+        except InterfaceError as e:
+            # weird condition. met once, never met twice.
+            logger.error(f'API Database connection failure.')
+            await api_db.disconnect()
+            await api_db.connect()
+    
         except Exception as e:
-            logger.error(f'excpetion in main_routine: {repr(e)}')
+            logger.error(f'Unknown excpetion in main_routine: {repr(e)}')
             traceback.print_exc()
+        
 
     # shutdown
     logger.info("Termiante Databases/Connections...")

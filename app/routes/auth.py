@@ -46,9 +46,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    await set_device_UUID(user, form_data.client_id)
+    # await set_device_UUID(user, form_data.client_id)
     access_token = create_access_token(
-        data={"sub": user.username, "UUID": user.current_UUID}, expires_delta=access_token_expires
+        data={"sub": user.username, "UUID": 0}, expires_delta=access_token_expires
     )
 
     today_login_timestamp = await get_user_first_login_time_today(user.username)

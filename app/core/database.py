@@ -84,7 +84,7 @@ class User(ormar.Model):
     username: str = ormar.String(primary_key=True, max_length=100, index=True)
     password_hash: str = ormar.String(max_length=100)
     full_name: str = ormar.String(max_length=50)
-    expertises: sqlalchemy.JSON = ormar.JSON()
+    expertises: sqlalchemy.JSON = ormar.JSON(nullable=True)
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
     is_active: bool = ormar.Boolean(server_default="1")
     is_admin: bool = ormar.Boolean(server_default="0")
