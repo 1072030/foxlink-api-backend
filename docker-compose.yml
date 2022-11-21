@@ -98,7 +98,7 @@ services:
     environment:
       # PY_ENV: production
       PROJECT_ENV: env/od.env
-      DAY_SHIFT_BEGIN: "07:40"
+      DAY_SHIFT_BEGIN: "00:01"
       DAY_SHIFT_END: "23:59"
       DATABASE_HOST: mysql-test
       DATABASE_PORT: 3306
@@ -129,7 +129,7 @@ services:
   #     - ./watchtower-config.json:/config.json
 
   mysql-test:
-    image: mysql-test:latest
+    image: mysql-test:test1
     restart: unless-stopped
     # build:
     #   context: .

@@ -650,7 +650,7 @@ async def dispatch_routine():
             SELECT udl.*, u.full_name, u.level as userlevel FROM userdevicelevels udl
             INNER JOIN users u ON u.username = udl.`user`
             WHERE udl.device = :device_id AND udl.shift=:shift AND udl.level > 0 AND u.location = :location
-        """,
+            """,
             {'device_id': mission_1st.device.id, 'shift': get_shift_type_now(
             ).value, 'location': mission_1st.device.workshop.id}
         )
@@ -776,7 +776,6 @@ async def dispatch_routine():
 
 
 ######### events completed  ########
-
 async def update_complete_events(event: MissionEvent):
     e = await get_incomplete_event_from_table(
         event.host,
@@ -790,6 +789,7 @@ async def update_complete_events(event: MissionEvent):
         return True
     return False
 
+@show_duration
 async def update_complete_events_handler():
     """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
     incomplete_mission_events = await MissionEvent.objects.filter(
@@ -807,7 +807,7 @@ async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
     events = await get_recent_events_from_foxlink(host, table_name, since)
 
     for e in events:
-        logger.warning(e)
+        logger.info(e)
         if await MissionEvent.objects.filter(
             event_id=e.id, host=host, table_name=table_name
         ).exists():
@@ -867,6 +867,7 @@ async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
             )
         )
 
+@show_duration
 async def sync_events_from_foxlink_handler():
         db_table_pairs = await foxlink_dbs.get_all_db_tables()
         proximity_mission =  await MissionEvent.objects.order_by(MissionEvent.event_start_date.desc()).get_or_none()
@@ -883,13 +884,16 @@ async def get_recent_events_from_foxlink(host: str, table_name: str, since: str 
     else:
         since = f"'{since}'"
 
-    stmt = (f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE "
-                "((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND "
-                "End_Time is NULL AND "
-            f"Start_Time >= {since} "
-                "ORDER BY Start_Time DESC;")
-    
-    rows = await foxlink_dbs[host].fetch_all(query=stmt)
+    stmt = (
+        f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE "
+        "((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND "
+        "End_Time is NULL AND "
+        f"Start_Time >= {since} "
+        "ORDER BY Start_Time DESC;"
+    )
+    rows = await foxlink_dbs[host].fetch_all(
+        query=stmt
+    )
     return [
         FoxlinkEvent(
             id=x[0],
@@ -937,14 +941,14 @@ async def get_incomplete_event_from_table(host: str, table_name: str, id: int) -
     except:
         return None
 
+######### main #########
+
 async def shutdown_callback():
     pass
 
-    
 async def shutdown_callback_handler():
     global _terminate
     _terminate=True
-
 
 async def main(interval:int):
     global _terminate
@@ -968,6 +972,8 @@ async def main(interval:int):
         try:
             logger.warning('[main_routine] Foxlink daemon is running...')
             start = time.perf_counter()
+            await update_complete_events_handler()
+            await sync_events_from_foxlink_handler()
             await auto_close_missions()
             await worker_monitor_routine()
             await overtime_workers_routine()

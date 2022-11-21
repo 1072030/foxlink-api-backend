@@ -195,7 +195,8 @@ async def import_factory_worker_infos(
     create_user_bulk: List[User] = []
     create_workerstatus_bulk: List[WorkerStatus] = []
     update_user_bulk: List[User] = []
-    for index, row in factory_worker_info.iterrows():
+    _dframe_selected_columns = factory_worker_info[['workshop','worker_id','worker_name','job']].drop_duplicates()
+    for index, row in  _dframe_selected_columns.iterrows():
         if workshop_id_mapping.get(row["workshop"]) is None:
             workshop = (
                 await FactoryMap.objects.filter(name=row["workshop"])
@@ -280,12 +281,15 @@ async def import_factory_worker_infos(
         await WorkerStatus.objects.bulk_create(create_workerstatus_bulk)
 
     # remove original device levels
-    for username in full_name_mapping.values():
-        await UserDeviceLevel.objects.select_related("device").filter(
-            user=username
-        ).delete(each=True)
+    # for username in full_name_mapping.values():
+    #     await UserDeviceLevel.objects.select_related("device").filter(
+    #         user=username
+    #     ).delete(each=True)
 
-    for index, row in factory_worker_info.iterrows():
+    _dframe_selected_columns = factory_worker_info[[
+        'workshop','process','project','device_name','worker_id','superior','shift','level'
+    ]].drop_duplicates()
+    for index, row in _dframe_selected_columns.iterrows():
         workshop = (
             await FactoryMap.objects.filter(name=row["workshop"])
             .fields(["id", "name"])

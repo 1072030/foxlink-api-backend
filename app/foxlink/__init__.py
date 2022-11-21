@@ -90,11 +90,13 @@ class FoxlinkDatabasePool:
     async def get_db_tables(self,host:str) -> Tuple[List[str],str]:
         r = await self._dbs[host].fetch_all(
             "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :schema_name",
-            {"schema_name": FOXLINK_DB_NAME},
+            {
+                "schema_name": FOXLINK_DB_NAME,
+            },
         )
         return (
             host,
-            [x[0] for x in r]
+            [x[0] for x in r if "events" in x[0]]
         )
 
     async def get_all_db_tables(self) -> List[List[str]]:
@@ -109,7 +111,7 @@ class FoxlinkDatabasePool:
         db_disconnect_routines = [db.disconnect() for db in self._dbs.values()]
         await asyncio.gather(*db_disconnect_routines)
 
-def generate_device_id(self, event: FoxlinkEvent) -> str:
+def generate_device_id(event: FoxlinkEvent) -> str:
     project = event.project.split(" ")[0]
     return f"{project}@{event.line}@{event.device_name}"
 

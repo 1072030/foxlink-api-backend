@@ -66,7 +66,7 @@ async def get_missions_by_username(username: str):
     return missions
 
 
-@api_db.transaction()
+# @api_db.transaction()
 async def update_mission_by_id(id: int, dto: MissionUpdate):
     mission = await get_mission_by_id(id)
     if mission is None:
@@ -87,7 +87,7 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
             await assign_mission(id, username)
 
 
-@api_db.transaction()
+# @api_db.transaction()
 async def start_mission_by_id(mission_id: int, worker: User):
     mission = await Mission.objects.select_related(["assignees", "device"]).get_or_none(
         id=mission_id
@@ -369,7 +369,7 @@ async def delete_mission_by_id(mission_id: int):
     await mission.delete()
 
 
-@api_db.transaction()
+# @api_db.transaction()
 async def cancel_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
@@ -489,7 +489,7 @@ async def assign_mission(mission_id: int, username: str):
     )
 
 
-@api_db.transaction()
+# @api_db.transaction()
 async def request_assistance(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 

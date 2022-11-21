@@ -63,8 +63,8 @@ EMQX_PASSWORD = get_env("EMQX_PASSWORD", str, "public")
 # Day shift: 07:40 ~ 19:40, Night shift: 19:40 ~ 07:40
 WORKER_REJECT_AMOUNT_NOTIFY = get_env("WORKER_REJECT_AMOUNT_NOTIFY", int, 2)
 MISSION_REJECT_AMOUT_NOTIFY = get_env("MISSION_REJECT_AMOUT_NOTIFY", int, 2)
-DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "07:40")
-DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "19:40")
+DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "00:01")
+DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
 

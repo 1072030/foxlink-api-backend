@@ -113,3 +113,8 @@ async def mark_mission_as_done(mission_id: int):
             done_verified=True, event_end_date=datetime.utcnow() + timedelta(hours=8),
         )
 
+
+
+@router.post("/swap/day", status_code=200, tags=["test"])
+async def mark_day_start_time(time:str):
+    pass

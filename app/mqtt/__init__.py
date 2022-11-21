@@ -18,18 +18,17 @@ class MQTT_Client:
         - port: MQTT broker port
         - client_id: MQTT client ID
         """
-        global mqtt_client
-        mqtt_client = client.Client(client_id)
-        mqtt_client.on_connect = self.on_connect
-        mqtt_client.connect(broker, port=port)
-        mqtt_client.loop_start()  
+        self.mqtt_client = client.Client(client_id)
+        self.mqtt_client.on_connect = self.on_connect
+        self.mqtt_client.connect(broker, port=port)
+        self.mqtt_client.loop_start()  
     
     async def disconnect(self):
         """關閉MQTT連線"""
-        if mqtt_client is not None:
-            mqtt_client.disconnect()
+        if self.mqtt_client is not None:
+            self.mqtt_client.disconnect()
     
-    async def publish(self,topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
+    def publish(self,topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
         """發送訊息到MQTT broker
         Args:
         - topic: 訊息主題
@@ -37,11 +36,11 @@ class MQTT_Client:
         - qos: 訊息優先度
         - retain: 是否保留訊息
         """
-        if mqtt_client is None:
+        if self.mqtt_client is None:
             raise Exception("MQTT client is not initialized")
 
         json_str = json.dumps(payload, default=self.serializer)
-        result = mqtt_client.publish(topic, payload=json_str, qos=qos, retain=retain)
+        result = self.mqtt_client.publish(topic, payload=json_str, qos=qos, retain=retain)
         # if result[0] is 0, then publish successfully
         return result[0] == 0
 
