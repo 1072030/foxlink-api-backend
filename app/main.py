@@ -22,7 +22,7 @@ from app.core.database import api_db
 from app.mqtt import mqtt_client
 from app.log import LOGGER_NAME
 from fastapi.middleware.cors import CORSMiddleware
-from app.foxlink import foxlink_dbs
+from app.foxlink.db import foxlink_dbs
 from app.daemon.daemon import _daemons
 
 
@@ -107,4 +107,4 @@ async def shutdown():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8080,reload=False,workers=8)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8080,reload=True,workers=1)

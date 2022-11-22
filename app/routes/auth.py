@@ -26,32 +26,24 @@ class Token(BaseModel):
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 60*12
 
-router = APIRouter(prefix="/auth")
+router = APIRouter(prefix="/auth",tags=["auth"])
 
 
-@router.post(
-    "/token",
-    response_model=Token,
-    tags=["auth"],
-    responses={401: {"description": "Invalid username/password"}},
-)
+@router.post("/token",response_model=Token,responses={401: {"description": "Invalid username/password"}})
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    
     user = await authenticate_user(form_data.username, form_data.password)
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrent credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    # await set_device_UUID(user, form_data.client_id)
+    
     access_token = create_access_token(
         data={"sub": user.username, "UUID": 0}, expires_delta=access_token_expires
     )
 
+    # await set_device_UUID(user, form_data.client_id)
+
     today_login_timestamp = await get_user_first_login_time_today(user.username)
+
     is_first_login_today = today_login_timestamp is None
 
     await AuditLogHeader.objects.create(

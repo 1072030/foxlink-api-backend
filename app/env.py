@@ -27,7 +27,6 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
         else:
             return dtype(val)  # type: ignore
 
-
 logger = logging.getLogger(LOGGER_NAME)
 
 TIMEZONE_OFFSET = 8
@@ -43,12 +42,19 @@ DATABASE_PORT = get_env("DATABASE_PORT", int)
 DATABASE_USER = get_env("DATABASE_USER", str)
 DATABASE_PASSWORD = get_env("DATABASE_PASSWORD", str)
 DATABASE_NAME = get_env("DATABASE_NAME", str)
+
 PY_ENV = get_env("PY_ENV", str, "production")
 
-FOXLINK_DB_HOSTS = get_env("FOXLINK_DB_HOSTS", List[str])
-FOXLINK_DB_USER = get_env("FOXLINK_DB_USER", str)
-FOXLINK_DB_PWD = get_env("FOXLINK_DB_PWD", str)
-FOXLINK_DB_NAME = get_env("FOXLINK_DB_NAME", str, "aoi")
+FOXLINK_EVENT_DB_HOSTS = get_env("FOXLINK_EVENT_DB_HOSTS", List[str])
+FOXLINK_EVENT_DB_USER = get_env("FOXLINK_EVENT_DB_USER", str)
+FOXLINK_EVENT_DB_PWD = get_env("FOXLINK_EVENT_DB_PWD", str)
+FOXLINK_EVENT_DB_NAME = get_env("FOXLINK_EVENT_DB_NAME", str)
+
+FOXLINK_DEVICE_DB_HOST = get_env("FOXLINK_DEVICE_DB_HOST", str)
+FOXLINK_DEVICE_DB_USER = get_env("FOXLINK_DEVICE_DB_USER", str)
+FOXLINK_DEVICE_DB_PWD = get_env("FOXLINK_DEVICE_DB_PWD", str)
+FOXLINK_DEVICE_DB_NAME = get_env("FOXLINK_DEVICE_DB_NAME", str)
+
 
 JWT_SECRET = get_env("JWT_SECRET", str, "secret")
 
@@ -63,10 +69,11 @@ EMQX_PASSWORD = get_env("EMQX_PASSWORD", str, "public")
 # Day shift: 07:40 ~ 19:40, Night shift: 19:40 ~ 07:40
 WORKER_REJECT_AMOUNT_NOTIFY = get_env("WORKER_REJECT_AMOUNT_NOTIFY", int, 2)
 MISSION_REJECT_AMOUT_NOTIFY = get_env("MISSION_REJECT_AMOUT_NOTIFY", int, 2)
+
 DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "00:01")
 DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
-MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
+MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
 OVERTIME_MISSION_NOTIFY_PERIOD = get_env(
     "OVERTIME_MISSION_NOTIFY_PERIOD", List[int], [20, 10, 10]
@@ -96,8 +103,8 @@ if os.environ.get("USE_ALEMBIC") is None:
             "For security, JWT_SECRET is highly recommend to be set in production environment!!"
         )
 
-    if len(FOXLINK_DB_HOSTS) == 0:
-        logger.error("FOXLINK_DB_HOSTS env should not be empty!")
+    if len(FOXLINK_EVENT_DB_HOSTS) == 0:
+        logger.error("FOXLINK_EVENT_DB_HOSTS env should not be empty!")
         exit(1)
 
     if MQTT_BROKER is None:

@@ -121,7 +121,7 @@ async def get_user_first_login_time_today(username: str) -> Optional[datetime]:
             .first()
         )
         return first_login_record.created_date
-    except Exception:
+    except Exception as e:
         return None
 
 

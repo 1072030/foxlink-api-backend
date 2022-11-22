@@ -29,9 +29,9 @@ services:
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
       DATABASE_NAME: foxlink
-      FOXLINK_DB_HOSTS: "['140.118.157.12:27001']"
-      FOXLINK_DB_USER: root
-      FOXLINK_DB_PWD: 123456
+      FOXLINK_EVENT_DB_HOSTS: "['140.118.157.12:27001']"
+      FOXLINK_EVENT_DB_USER: root
+      FOXLINK_EVENT_DB_PWD: 123456
       JWT_SECRET: secret
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
@@ -59,9 +59,9 @@ services:
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
       DATABASE_NAME: foxlink
-      FOXLINK_DB_HOSTS: "['140.118.157.12:27001']"
-      FOXLINK_DB_USER: root
-      FOXLINK_DB_PWD: 123456
+      FOXLINK_EVENT_DB_HOSTS: "['140.118.157.12:27001']"
+      FOXLINK_EVENT_DB_USER: root
+      FOXLINK_EVENT_DB_PWD: 123456
       JWT_SECRET: secret
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
@@ -98,22 +98,33 @@ services:
     environment:
       # PY_ENV: production
       PROJECT_ENV: env/od.env
+
       DAY_SHIFT_BEGIN: "00:01"
       DAY_SHIFT_END: "23:59"
+
       DATABASE_HOST: mysql-test
       DATABASE_PORT: 3306
       DATABASE_USER: root
       DATABASE_PASSWORD: AqqhQ993VNto
-      # DATABASE_NAME: foxlink
       DATABASE_NAME: testing_api
-      FOXLINK_DB_HOSTS: "['mysql-test']"
-      FOXLINK_DB_USER: root
-      FOXLINK_DB_PWD: AqqhQ993VNto
-      FOXLINK_DB_NAME: testing_foxlink
-      FOXLINK_DB_TABLE: foxlinkevents
-      JWT_SECRET: secret
+      # DATABASE_NAME: foxlink
+
+      FOXLINK_EVENT_DB_HOSTS: "['mysql-test']"
+      FOXLINK_EVENT_DB_USER: root
+      FOXLINK_EVENT_DB_PWD: AqqhQ993VNto
+      FOXLINK_EVENT_DB_NAME: testing_foxlink
+      FOXLINK_EVENT_DB_TABLE: foxlinkevents
+
+      FOXLINK_DEVICE_DB_HOST: '140.118.157.9:27001'
+      FOXLINK_DEVICE_DB_USER: root
+      FOXLINK_DEVICE_DB_PWD: AqqhQ993VNto
+      FOXLINK_DEVICE_DB_NAME: sfc
+
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
+
+      JWT_SECRET: secret
+
     networks:
       - backend
     extra_hosts:
@@ -129,7 +140,7 @@ services:
   #     - ./watchtower-config.json:/config.json
 
   mysql-test:
-    image: mysql-test:test1
+    image: mysql-test:clean_v8
     restart: unless-stopped
     # build:
     #   context: .

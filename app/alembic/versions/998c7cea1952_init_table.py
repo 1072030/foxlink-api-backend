@@ -73,13 +73,13 @@ def upgrade():
             "created_date",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
-            nullable=True,
+            # nullable=True,
         ),
         sa.Column(
             "updated_date",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
-            nullable=True,
+            # nullable=True,
         ),
         sa.ForeignKeyConstraint(
             ["workshop"], ["factorymaps.id"], name="fk_devices_factorymaps_id_workshop"

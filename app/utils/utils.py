@@ -24,7 +24,6 @@ def get_shift_type_now() -> ShiftType:
     else:
         return ShiftType.night
 
-
 def get_shift_type_by_datetime(dt: datetime) -> ShiftType:
     day_begin = datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M")
     day_end = datetime.strptime(DAY_SHIFT_END, "%H:%M")

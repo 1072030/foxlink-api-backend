@@ -4,6 +4,8 @@ import aiohttp
 import uuid
 import signal
 import time
+import argparse
+import functools
 from databases import Database
 from typing import Any, Dict, List, Tuple, Optional
 from datetime import datetime, timedelta
@@ -13,13 +15,10 @@ from app.routes import user
 from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
 from foxlink_dispatch.dispatch import Foxlink_dispatch
-from app.foxlink import (
-    foxlink_dbs,
-    FoxlinkEvent,
-    generate_device_id
-)
-import argparse
-import functools
+from app.foxlink.model import FoxlinkEvent
+from app.foxlink.utils import assemble_device_id
+from app.foxlink.db import foxlink_dbs
+
 from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist, reject_mission_by_id
 from app.services.user import (
     get_user_shift_type,
@@ -33,10 +32,10 @@ from app.mqtt import mqtt_client
 from app.env import (
     CHECK_MISSION_ASSIGN_DURATION,
     DISABLE_FOXLINK_DISPATCH,
-    FOXLINK_DB_HOSTS,
-    FOXLINK_DB_PWD,
-    FOXLINK_DB_USER,
-    FOXLINK_DB_NAME,
+    FOXLINK_EVENT_DB_HOSTS,
+    FOXLINK_EVENT_DB_PWD,
+    FOXLINK_EVENT_DB_USER,
+    FOXLINK_EVENT_DB_NAME,
     MQTT_BROKER,
     MAX_NOT_ALIVE_TIME,
     EMQX_USERNAME,
@@ -70,7 +69,6 @@ from pymysql.err import (
 
 import traceback
 
-# logging.basicConfig()
 logger = logging.getLogger(f"foxlink(daemon)")
 logger.setLevel(logging.INFO)
 
@@ -885,7 +883,7 @@ async def get_recent_events_from_foxlink(host: str, table_name: str, since: str 
         since = f"'{since}'"
 
     stmt = (
-        f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE "
+        f"SELECT * FROM `{FOXLINK_EVENT_DB_NAME}`.`{table_name}` WHERE "
         "((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND "
         "End_Time is NULL AND "
         f"Start_Time >= {since} "
@@ -920,7 +918,7 @@ async def get_incomplete_event_from_table(host: str, table_name: str, id: int) -
     - id: 事件資料的 id
     """
 
-    stmt = f"SELECT * FROM `{FOXLINK_DB_NAME}`.`{table_name}` WHERE ID = :id;"
+    stmt = f"SELECT * FROM `{FOXLINK_EVENT_DB_NAME}`.`{table_name}` WHERE ID = :id;"
 
     try:
         # type: ignore

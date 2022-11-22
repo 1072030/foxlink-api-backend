@@ -36,16 +36,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 async def authenticate_user(username: str, password: str):
     user = await get_user_by_username(username)
 
-    if not user:
-        return False
-    if not verify_password(password, user.password_hash):
-        return False
-
     if user is None:
         raise HTTPException(
-            status_code=404, detail="the user with this id is not found"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="the user with this id is not found."
         )
 
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="the password is incorrect."
+        )
+    
     return user
 
 
