@@ -140,16 +140,13 @@ services:
   #     - ./watchtower-config.json:/config.json
 
   mysql-test:
-  #### Initialize ###
-    build:
-    context: .
-    dockerfile: testdb.Dockerfile
-  #### For each Scenario ####
-  #  image: mysql-test:clean_v8
-    restart: unless-stopped
+    #### Initialize ###
     # build:
-    #   context: .
-    #   dockerfile: testdb.Dockerfile
+    # context: .
+    # dockerfile: testdb.Dockerfile
+    #### For each Scenario ####
+    image: mysql-test:clean_v8
+    restart: unless-stopped
     tty: true
     labels:
       com.centurylinklabs.watchtower.enable: "false"
