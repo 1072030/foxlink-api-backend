@@ -32,7 +32,7 @@ logger = logging.getLogger(LOGGER_NAME)
 TIMEZONE_OFFSET = 8
 WEEK_START = 1  # the week should start on Sunday or Monday or even else.
 
-PROJECT_ENV = get_env("PROJECT_ENV", str)
+PROJECT_ENV = get_env("PROJECT_ENV", str, "")
 logger.info(f"Initilize Environments from: {PROJECT_ENV}")
 if PROJECT_ENV != "":
     load_dotenv(PROJECT_ENV)
