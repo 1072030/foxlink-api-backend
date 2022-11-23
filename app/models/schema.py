@@ -30,7 +30,6 @@ class WorkerSummary(BaseModel):
 class UserBase(BaseModel):
     username: str
     full_name: str
-    expertises: List[str]
     level: UserLevel
 
 
@@ -41,13 +40,11 @@ class UserCreate(UserBase):
 
 class UserPatch(BaseModel):
     full_name: Optional[str]
-    expertises: Optional[List[str]]
     password: Optional[str]
 
 
 class UserOut(UserBase):
     workshop: str
-    is_admin: bool
     is_changepwd: bool
 
 

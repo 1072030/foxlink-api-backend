@@ -244,7 +244,6 @@ async def overtime_workers_routine():
             name=m.name,
             description=f"換班任務，沿用 Mission ID: {m.id}",
             device=m.device,
-            required_expertises=[],
             is_emergency=m.is_emergency
         )
 
@@ -367,7 +366,7 @@ async def worker_monitor_routine():
         rescue_cache[info.id] = all_rescue_devices
 
     workers = await User.objects.filter(
-        level=UserLevel.maintainer.value, is_admin=False
+        level=UserLevel.maintainer.value
     ).all()
 
     for w in workers:
@@ -442,7 +441,6 @@ async def worker_monitor_routine():
 
             mission = await Mission.objects.create(
                 name="前往救援站",
-                required_expertises=[],
                 device=to_rescue_station,
                 repair_start_date=datetime.utcnow(),
                 description=f"請前往救援站 {to_rescue_station}",
@@ -848,7 +846,6 @@ async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
             mission = Mission(
                 device=device,
                 name=f"{device.id} 故障",
-                required_expertises=[],
                 description="",
             )
             await mission.save()

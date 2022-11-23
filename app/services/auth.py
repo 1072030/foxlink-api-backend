@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
 from app.env import JWT_SECRET
 from app.services.user import update_user
+from app.core.database import UserLevel
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
@@ -98,7 +99,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 async def get_admin_active_user(active_user: User = Depends(get_current_user)):
-    if not active_user.is_admin:
+    if not active_user.level == UserLevel.admin.value:
         raise HTTPException(
             status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
         )

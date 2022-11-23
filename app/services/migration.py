@@ -24,6 +24,7 @@ import traceback
 import asyncio
 from datetime import datetime
 from ormar import or_ ,and_
+from app.core.database import UserLevel
 
 data_converter = data_convert()
 
@@ -145,45 +146,45 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
 # TODO: remove orphan category priorities
 # 匯入 Device's Category & Priority
-@api_db.transaction()
-async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
-    """
-    Return: parameters in pandas format
-    """
-    raw_excel: bytes = await excel_file.read()
-    data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
-    df, param = data["result"], data["parameter"]
+# @api_db.transaction()
+# async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
+#     """
+#     Return: parameters in pandas format
+#     """
+#     raw_excel: bytes = await excel_file.read()
+#     data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
+#     df, param = data["result"], data["parameter"]
 
-    project_name = df["project"].unique()[0]
+#     project_name = df["project"].unique()[0]
 
-    for device_name in df["Device_Name"].unique():
-        devices = await Device.objects.filter(
-            project__iexact=project_name,
-            device_name__iexact=device_name.replace(" ", "_"),
-        ).all()
+#     for device_name in df["Device_Name"].unique():
+#         devices = await Device.objects.filter(
+#             project__iexact=project_name,
+#             device_name__iexact=device_name.replace(" ", "_"),
+#         ).all()
 
-        for d in devices:
-            await d.categorypris.clear()
+#         for d in devices:
+#             await d.categorypris.clear()
 
-    for index, row in data["result"].iterrows():
-        if math.isnan(row["优先顺序"]):
-            continue
+#     for index, row in data["result"].iterrows():
+#         if math.isnan(row["优先顺序"]):
+#             continue
 
-        devices = await Device.objects.filter(
-            project__iexact=row["project"],
-            device_name__iexact=row["Device_Name"].replace(" ", "_"),
-        ).all()
+#         devices = await Device.objects.filter(
+#             project__iexact=row["project"],
+#             device_name__iexact=row["Device_Name"].replace(" ", "_"),
+#         ).all()
 
-        # await CategoryPRI.objects.filter(devices=devices).delete(each=True)
+#         # await CategoryPRI.objects.filter(devices=devices).delete(each=True)
 
-        p = await CategoryPRI.objects.create(
-            category=row["Category"], message=row["MESSAGE"], priority=row["优先顺序"],
-        )
+#         p = await CategoryPRI.objects.create(
+#             category=row["Category"], message=row["MESSAGE"], priority=row["优先顺序"],
+#         )
 
-        for d in devices:
-            await p.devices.add(d)  # type: ignore
+#         for d in devices:
+#             await p.devices.add(d)  # type: ignore
 
-    return param
+#     return param
 
 
 async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> pd.DataFrame:
@@ -248,7 +249,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
             username: str = row["worker_id"]
             full_name: str = row["worker_name"]
             location: int  = workshop_entity_dict[row["workshop"]].id
-            expertises: List[str] = []
             level: str = row["job"]
 
             name_id_map[full_name] = username
@@ -260,7 +260,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     full_name = full_name,
                     password_hash = get_password_hash("foxlink"),
                     location = location,
-                    expertises = expertises,
                     level = level,
                 )
                 create_worker_bulk.append(worker)
@@ -270,7 +269,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     username = username,
                     full_name = full_name,
                     location = location,
-                    expertises = expertises,
                     level = level
                 )
                 update_worker_bulk.append(worker)
@@ -305,7 +303,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         await User.objects.exclude(
             or_(
                 username__in = [user.username for user in (create_worker_bulk+update_worker_bulk)],
-                is_admin=1
+                level=UserLevel.admin.value
             )
         ).delete(each=True)
 

@@ -21,6 +21,7 @@ from app.env import (
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
 api_db = databases.Database(DATABASE_URI, max_size=20)
+
 metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")
@@ -84,10 +85,7 @@ class User(ormar.Model):
     username: str = ormar.String(primary_key=True, max_length=100, index=True)
     password_hash: str = ormar.String(max_length=100,nullable=True)
     full_name: str = ormar.String(max_length=50)
-    expertises: sqlalchemy.JSON = ormar.JSON(nullable=True)
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
-    is_active: bool = ormar.Boolean(server_default="1")
-    is_admin: bool = ormar.Boolean(server_default="0")
     is_changepwd: bool = ormar.Boolean(server_default="0")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
 
@@ -153,7 +151,6 @@ class Mission(ormar.Model):
     description: Optional[str] = ormar.String(max_length=256)
     repair_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
     repair_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
-    required_expertises: sqlalchemy.JSON = ormar.JSON()
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
     is_autocanceled: bool = ormar.Boolean(default=False, nullable=False)
@@ -193,9 +190,6 @@ class Mission(ormar.Model):
             return True
         else:
             return False
-
-
-MissionEvent.update_forward_refs()
 
 
 class AuditActionEnum(Enum):
@@ -246,18 +240,15 @@ class AuditLogHeader(ormar.Model):
     description: Optional[str] = ormar.String(max_length=256, nullable=True)
 
 
-LogValue.update_forward_refs()
-
 # Device's Category Priority
-class CategoryPRI(ormar.Model):
-    class Meta(MainMeta):
-        pass
-
-    id: int = ormar.Integer(primary_key=True, index=True)
-    category: int = ormar.Integer(nullable=False)
-    priority: int = ormar.Integer(nullable=False)
-    message: Optional[str] = ormar.String(max_length=100)
-    devices: Optional[List[Device]] = ormar.ManyToMany(Device)
+# class CategoryPRI(ormar.Model):
+#     class Meta(MainMeta):
+#         pass
+#     id: int = ormar.Integer(primary_key=True, index=True)
+#     category: int = ormar.Integer(nullable=False)
+#     priority: int = ormar.Integer(nullable=False)
+#     message: Optional[str] = ormar.String(max_length=100)
+#     devices: Optional[List[Device]] = ormar.ManyToMany(Device)
 
 
 class WorkerStatus(ormar.Model):
@@ -277,6 +268,7 @@ class WorkerStatus(ormar.Model):
         server_default=func.now(), timezone=True
     )
 
+
 class WhitelistDevice(ormar.Model):
     class Meta(MainMeta):
         ...
@@ -286,6 +278,13 @@ class WhitelistDevice(ormar.Model):
     workers: List[User] = ormar.ManyToMany(User)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+
+
+MissionEvent.update_forward_refs()
+
+
+LogValue.update_forward_refs()
+
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):

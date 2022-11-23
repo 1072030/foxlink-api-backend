@@ -437,12 +437,6 @@ async def assign_mission(mission_id: int, username: str):
             status_code=404, detail="the user you requested is not found"
         )
 
-    for e in mission.required_expertises:
-        if e not in the_user.expertises:
-            raise HTTPException(
-                status_code=400,
-                detail="the user does not have the expertise this mission requires.",
-            )
 
     filter = [u for u in mission.assignees if u.username == the_user.username]
 

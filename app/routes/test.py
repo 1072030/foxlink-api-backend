@@ -72,7 +72,7 @@ async def create_fake_mission(workshop_name: str):
         raise HTTPException(status_code=404, detail="no device is available")
 
     new_mission = await Mission.objects.create(
-        device=pick_device_id, name="測試任務", description="測試任務", required_expertises=[]
+        device=pick_device_id, name="測試任務", description="測試任務"
     )
 
     while True:

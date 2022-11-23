@@ -2,7 +2,7 @@ from app.models.schema import ImportDevicesOut
 from app.services.auth import get_admin_active_user, get_manager_active_user
 from app.services.migration import (
     import_devices,
-    import_workshop_events,
+    # import_workshop_events,
     import_factory_worker_infos,
 )
 from fastapi import APIRouter, Depends, File, Response, UploadFile, Form
@@ -41,50 +41,53 @@ async def import_devices_from_excel(
         raise HTTPException(status_code=400, detail=repr(e))
 
 
-@router.post("/workshop-eventbook", tags=["migration"], status_code=201,
-             responses={
-    201: {
-        "content": {"image/csv": {}},
-        "description": "Return parameters in csv format",
-    },
-    400: {"description": "There's is an error in your document."},
-    415: {"description": "The file you uploaded is not in correct format.", },
-}
-)
-async def import_workshop_eventbooks_from_excel(
-    file: UploadFile = File(...),
-    # clear_all: bool = Form(default=False),
-    user: User = Depends(get_manager_active_user),
-):
-    if file.filename.split(".")[1] != "xlsx" and file.filename.split(".")[1] != "xls":
-        raise HTTPException(415)
-
-    try:
-        params = await import_workshop_events(file)
-        return Response(
-            content=params.to_csv(),
-            status_code=201,
-            media_type='text/csv'
-        )
-    except Exception as e:
-        await AuditLogHeader.objects.create(
-            table_name="categorypris",
-            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
-            user=user,
-            description="Import workshop eventbooks failed",
-        )
-        raise HTTPException(status_code=400, detail=repr(e))
+# @router.post("/workshop-eventbook", tags=["migration"], status_code=201,
+#              responses={
+#     201: {
+#         "content": {"image/csv": {}},
+#         "description": "Return parameters in csv format",
+#     },
+#     400: {"description": "There's is an error in your document."},
+#     415: {"description": "The file you uploaded is not in correct format.", },
+# }
+# )
+# async def import_workshop_eventbooks_from_excel(
+#     file: UploadFile = File(...),
+#     # clear_all: bool = Form(default=False),
+#     user: User = Depends(get_manager_active_user),
+# ):
+#     if file.filename.split(".")[1] != "xlsx" and file.filename.split(".")[1] != "xls":
+#         raise HTTPException(415)
+#     try:
+#         params = await import_workshop_events(file)
+#         return Response(
+#             content=params.to_csv(),
+#             status_code=201,
+#             media_type='text/csv'
+#         )
+#     except Exception as e:
+#         await AuditLogHeader.objects.create(
+#             table_name="categorypris",
+#             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
+#             user=user,
+#             description="Import workshop eventbooks failed",
+#         )
+#         raise HTTPException(status_code=400, detail=repr(e))
 
 
 @router.post("/factory-worker-infos", tags=["migration"], status_code=201,
-             responses={
-    201: {
-        "content": {"image/csv": {}},
-        "description": "Return parameters in csv format",
-    },
-    400: {"description": "There's is an error in your document."},
-    415: {"description": "The file you uploaded is not in correct format.", },
-}
+    responses={
+        201: {
+            "content": {"image/csv": {}},
+            "description": "Return parameters in csv format",
+        },
+        400: {
+            "description": "There's is an error in your document."
+        },
+        415: {
+            "description": "The file you uploaded is not in correct format.", 
+        },
+    }
 )
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
