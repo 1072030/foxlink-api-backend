@@ -26,6 +26,7 @@ metadata = MetaData()
 
 MissionRef = ForwardRef("Mission")
 AuditLogHeaderRef = ForwardRef("AuditLogHeader")
+UserRef = ForwardRef("User")
 
 
 def generate_uuidv4():
@@ -83,11 +84,16 @@ class User(ormar.Model):
         pass
 
     username: str = ormar.String(primary_key=True, max_length=100, index=True)
-    password_hash: str = ormar.String(max_length=100,nullable=True)
     full_name: str = ormar.String(max_length=50)
+    password_hash: str = ormar.String(max_length=100)
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
-    is_changepwd: bool = ormar.Boolean(server_default="0")
+    superior: UserRef = ormar.ForeignKey(UserRef, on_delete="SET NULL")
     level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
+    shift: int = ormar.SmallInteger(choices=list(ShiftType))
+    is_changepwd: bool = ormar.Boolean(server_default="0")
+    
+
+    
 
 
 class Device(ormar.Model):
@@ -117,9 +123,6 @@ class UserDeviceLevel(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
     device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
-    superior: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL", related_name="superior")
-    shift: bool = ormar.Boolean(nullable=False)
-    level: int = ormar.SmallInteger(minimum=0)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
@@ -146,7 +149,7 @@ class Mission(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    assignees: List[User] = ormar.ManyToMany(User)
+    worker: User = ormar.ForeignKey(User, ondelete="CASCADE")
     name: str = ormar.String(max_length=100, nullable=False)
     description: Optional[str] = ormar.String(max_length=256)
     repair_start_date: Optional[datetime] = ormar.DateTime(nullable=True)

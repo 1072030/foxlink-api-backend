@@ -14,7 +14,7 @@ from app.core.database import (
     api_db,
 )
 from app.services.user import (
-    get_user_all_level_subordinates_by_username,
+    # get_user_all_level_subordinates_by_username,
     get_user_first_login_time_today,
     get_user_summary,
     create_user,
@@ -181,16 +181,16 @@ async def delete_a_user_by_username(
     return True
 
 
-@router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
-async def get_user_mission_history(user: User = Depends(get_current_user)):
-    return await get_worker_mission_history(user.username)
+# @router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
+# async def get_user_mission_history(user: User = Depends(get_current_user)):
+#    return await get_worker_mission_history(user.username)
 
 
-@router.get("/subordinates", tags=["users"], response_model=List[WorkerStatusDto])
-async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
-    return await get_user_all_level_subordinates_by_username(user.username)
+# @router.get("/subordinates", tags=["users"], response_model=List[WorkerStatusDto])
+# async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
+#     return await get_user_all_level_subordinates_by_username(user.username)
 
 
-@router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
-async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
-    return await get_users_overview(workshop_name)
+# @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
+# async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
+#     return await get_users_overview(workshop_name)

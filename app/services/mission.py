@@ -172,7 +172,7 @@ async def accept_mission(mission_id: int, worker: User):
     )
 
 
-async def reject_mission_by_id(mission_id: int, user: User):
+async def reject_mission_by_id(mission_id: int, worker: User):
     mission = (
         await Mission.objects.select_related(["assignees", 'device', 'device__workshop'])
         .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
@@ -183,7 +183,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
         raise HTTPException(
             404, "the mission you request to start is not found")
 
-    if len([u for u in mission.assignees if u.username == user.username]) == 0:
+    if len([u for u in mission.assignees if u.username == worker.username]) == 0:
         raise HTTPException(400, "the mission haven't assigned to you")
 
     if mission.is_started or mission.is_closed:
@@ -198,13 +198,13 @@ async def reject_mission_by_id(mission_id: int, user: User):
     # if accept_count > 0:
     #     raise HTTPException(400, "you have already accepted the mission")
 
-    await mission.assignees.remove(user)  # type: ignore
+    await mission.assignees.remove(worker)  # type: ignore
 
     await AuditLogHeader.objects.create(
         table_name="missions",
         action=AuditActionEnum.MISSION_REJECTED.value,
         record_pk=str(mission.id),
-        user=user,
+        user=worker,
     )
 
     mission_reject_amount = await AuditLogHeader.objects.filter(
@@ -217,7 +217,7 @@ async def reject_mission_by_id(mission_id: int, user: User):
             f"foxlink/{mission.device.workshop.name}/mission/rejected",
             {
                 "id": mission.id,
-                "worker": user.full_name,
+                "worker": worker.full_name,
                 "rejected_count": mission_reject_amount,
             },
             qos=2,
@@ -225,30 +225,23 @@ async def reject_mission_by_id(mission_id: int, user: User):
         )
 
     worker_reject_amount_today = await AuditLogHeader.objects.filter(
-        user=user,
+        user=worker,
         action=AuditActionEnum.MISSION_REJECTED.value,
         created_date__gte=datetime.utcnow() - timedelta(days=1),
     ).count()
 
     if worker_reject_amount_today >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
-        worker_device_info = await UserDeviceLevel.objects.filter(
-            user=user, device=mission.device.id, shift=get_shift_type_now().value,
-        ).get_or_none()
-
-        if worker_device_info is None:
-            return
-
-        if worker_device_info.superior is not None:
-            mqtt_client.publish(
-                f"foxlink/users/{worker_device_info.superior.username}/subordinate-rejected",
-                {
-                    "subordinate_id": user.username,
-                    "subordinate_name": user.full_name,
-                    "total_rejected_count": worker_reject_amount_today,
-                },
-                qos=2,
-                retain=True,
-            )
+        
+        mqtt_client.publish(
+            f"foxlink/users/{worker.superior.username}/subordinate-rejected",
+            {
+                "subordinate_id": worker.username,
+                "subordinate_name": worker.full_name,
+                "total_rejected_count": worker_reject_amount_today,
+            },
+            qos=2,
+            retain=True,
+        )
 
 
 async def finish_mission_by_id(mission_id: int, worker: User):
@@ -509,15 +502,8 @@ async def request_assistance(mission_id: int, validate_user: User):
 
     for worker in mission.assignees:
         try:
-            worker_device_level = await UserDeviceLevel.objects.select_related(['superior']).filter(
-                user=worker.username, device=mission.device.id
-            ).first()
-
-            if worker_device_level.superior is None:
-                continue
-
             mqtt_client.publish(
-                f"foxlink/users/{worker_device_level.superior.username}/missions",
+                f"foxlink/users/{worker.superior.username}/missions",
                 {
                     "type": "emergency",
                     "mission_id": mission.id,
@@ -542,7 +528,7 @@ async def request_assistance(mission_id: int, validate_user: User):
             )
         except Exception as e:
             logger.error(
-                f"failed to send emergency message to {worker_device_level.superior.username}, Exception: {repr(e)}")
+                f"failed to send emergency message to {worker.superior.username}, Exception: {repr(e)}")
 
 
 async def is_mission_in_whitelist(mission_id: int):

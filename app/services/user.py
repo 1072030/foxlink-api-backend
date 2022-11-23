@@ -144,41 +144,41 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
     return [MissionDto.from_mission(x) for x in missions]
 
 
-async def get_subordinates_list_by_username(username: str):
-    the_user = await User.objects.filter(username=username).get_or_none()
+# async def get_subordinates_list_by_username(username: str):
+#     the_user = await User.objects.filter(username=username).get_or_none()
 
-    if the_user is None:
-        raise HTTPException(404, "the user with this id is not found")
+#     if the_user is None:
+#         raise HTTPException(404, "the user with this id is not found")
 
-    async def get_subsordinates_list(username: str) -> List[str]:
-        result = await api_db.fetch_all("""
-        SELECT DISTINCT user FROM userdevicelevels u 
-        WHERE u.superior = :superior
-        """, {'superior': username})
+#     async def get_subsordinates_list(username: str) -> List[str]:
+#         result = await api_db.fetch_all("""
+#         SELECT DISTINCT user FROM userdevicelevels u 
+#         WHERE u.superior = :superior
+#         """, {'superior': username})
 
-        return [row[0] for row in result]
+#         return [row[0] for row in result]
 
-    all_subsordinates = await get_subsordinates_list(username)
+#     all_subsordinates = await get_subsordinates_list(username)
 
-    while True:
-        temp = []
-        for name in all_subsordinates:
-            t2 = await get_subsordinates_list(name)
+#     while True:
+#         temp = []
+#         for name in all_subsordinates:
+#             t2 = await get_subsordinates_list(name)
 
-            for x in t2:
-                if x not in temp and x not in all_subsordinates:
-                    temp.append(x)
-        if len(temp) == 0:
-            break
-        all_subsordinates.extend(temp)
-    return all_subsordinates
+#             for x in t2:
+#                 if x not in temp and x not in all_subsordinates:
+#                     temp.append(x)
+#         if len(temp) == 0:
+#             break
+#         all_subsordinates.extend(temp)
+#     return all_subsordinates
 
 
-async def get_user_all_level_subordinates_by_username(username: str):
-    subsordinates = await get_subordinates_list_by_username(username)
-    promises = [get_worker_status(name) for name in subsordinates]
-    result = await asyncio.gather(*promises)
-    return [x for x in result if x is not None]
+# async def get_user_all_level_subordinates_by_username(username: str):
+#     subsordinates = await get_subordinates_list_by_username(username)
+#     promises = [get_worker_status(name) for name in subsordinates]
+#     result = await asyncio.gather(*promises)
+#     return [x for x in result if x is not None]
 
 
 async def move_user_to_position(username: str, device_id: str):
@@ -298,9 +298,9 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
             overview = UserOverviewOut(
                 username=u.username,
                 full_name=u.full_name,
+                superior=u.superior.full_name,
                 level=u.level,
                 shift=s,
-                experiences=[],
             )
 
             if u.location is not None:
@@ -316,9 +316,6 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
                 continue
 
             for dl in device_levels:
-                if overview.superior is None and dl.superior is not None:
-                    overview.superior = dl.superior.full_name
-
                 overview.experiences.append(
                     DeviceExp(
                         project=dl.device.project,
@@ -477,13 +474,10 @@ async def get_user_shift_type(username: str) -> ShiftType:
     if user is None:
         raise HTTPException(404, 'the user is not found')
 
-    if not await UserDeviceLevel.objects.filter(user=user).exists():
+    if not await User.objects.filter(user=user).exists():
         raise HTTPException(404, 'no shift existed for this user')
 
-    if await UserDeviceLevel.objects.filter(user=user, shift=ShiftType.day.value).exists():
-        return ShiftType.day
-    else:
-        return ShiftType.night
+    return user.shift
 
 
 async def is_worker_in_whitelist(username: str) -> bool:

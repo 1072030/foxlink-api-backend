@@ -183,20 +183,21 @@ async def check_alive_worker_routine():
                         ):
 
                             # await w.update(status=WorkerStatusEnum.leave.value)
-                            device_level = await UserDeviceLevel.objects.filter(
-                                user=w.worker.username
-                            ).first()
-                            if device_level is not None:
-                                superior = device_level.superior
-                                mqtt_client.publish(
-                                    f"foxlink/users/{superior.username}/worker-unusual-offline",
-                                    {
-                                        "worker_id": w.worker.username,
-                                        "worker_name": w.worker.full_name,
-                                    },
-                                    qos=2,
-                                    retain=True,
-                                )
+                            
+                            # device_level = await UserDeviceLevel.objects.filter(
+                            #     user=w.worker.username
+                            # ).first()
+                            
+                            superior =w.worker.superior
+                            mqtt_client.publish(
+                                f"foxlink/users/{superior.username}/worker-unusual-offline",
+                                {
+                                    "worker_id": w.worker.username,
+                                    "worker_name": w.worker.full_name,
+                                },
+                                qos=2,
+                                retain=True,
+                            )
                     else:
                         await w.update(check_alive_time=datetime.utcnow())
                 except:
@@ -538,25 +539,13 @@ async def check_mission_duration_routine():
                 if is_sent:
                     continue
 
-                base_worker = m.assignees[0].username
-                to_notify_superior: Optional[User] = None
-
-                for _ in range(idx + 1):
-                    device_level = await UserDeviceLevel.objects.filter(
-                        device=m.device.id, user=base_worker
-                    ).get_or_none()
-
-                    if device_level is None or device_level.superior is None:
-                        break
-
-                    base_worker = device_level.superior.username
-                    to_notify_superior = device_level.superior
-
-                if to_notify_superior is None:
+                superior: Optional[User] = m.worker.superior
+                    
+                if superior is None:
                     break
 
                 mqtt_client.publish(
-                    f"foxlink/users/{to_notify_superior.username}/mission-overtime",
+                    f"foxlink/users/{superior.username}/mission-overtime",
                     {
                         "mission_id": m.id,
                         "mission_name": m.name,
@@ -574,6 +563,7 @@ async def check_mission_duration_routine():
                     record_pk=str(m.id),
                     user=m.assignees[0].username,
                 )
+
 
 
 @show_duration

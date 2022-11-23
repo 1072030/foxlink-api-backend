@@ -244,12 +244,17 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
 
         # process non-repeating worker rows
         default_password_hash: str = get_password_hash("foxlink")
-        _dframe_selected_columns = factory_worker_info[['workshop','worker_id','worker_name','job']].drop_duplicates()
+        _dframe_selected_columns = factory_worker_info[[
+            'workshop','worker_id','worker_name','job','superior','shift'
+        ]].drop_duplicates()
+        
         for index, row in  _dframe_selected_columns.iterrows():
             username: str = row["worker_id"]
             full_name: str = row["worker_name"]
             location: int  = workshop_entity_dict[row["workshop"]].id
-            level: str = row["job"]
+            superior: str = name_id_map.get(row["superior"])
+            shift: bool = bool(row["shift"])
+            level: int =  int(row["job"])
 
             name_id_map[full_name] = username
 
@@ -260,16 +265,24 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     full_name = full_name,
                     password_hash = get_password_hash("foxlink"),
                     location = location,
+                    superior = superior,
                     level = level,
+                    shift = shift,
+
                 )
-                create_worker_bulk.append(worker)
+                if(not superior):
+                    create_worker_bulk.append(worker)
+                else:
+                    create_worker_bulk.insert(0,worker)
             else:
                 # update worker entity
                 worker = User(
                     username = username,
                     full_name = full_name,
                     location = location,
-                    level = level
+                    superior = superior,
+                    level = level,
+                    shift = shift,
                 )
                 update_worker_bulk.append(worker)
 
@@ -283,6 +296,11 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 )
                 create_worker_status_bulk.append(w_status)
         
+        # create worker
+        if len(create_worker_bulk) > 0:
+            await User.objects.bulk_create(create_worker_bulk)
+
+
         # update worker
         if len(update_worker_bulk) > 0:
             sample = update_worker_bulk[0]
@@ -290,10 +308,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 objects=update_worker_bulk,
                 columns=list(sample.dict(exclude_defaults=True).keys())
             )
-        
-        # create worker
-        if len(create_worker_bulk) > 0:
-            await User.objects.bulk_create(create_worker_bulk)
         
         # create worker status
         if len(create_worker_status_bulk) > 0:
@@ -303,24 +317,22 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         await User.objects.exclude(
             or_(
                 username__in = [user.username for user in (create_worker_bulk+update_worker_bulk)],
-                level=UserLevel.admin.value
+                level__gt=UserLevel.maintainer.value
             )
         ).delete(each=True)
 
         # process user device levels
         _dframe_selected_columns = factory_worker_info[[
-            'workshop', 'process','project','device_name','worker_id','superior','shift','level'
+            'workshop', 'process','project','device_name','worker_id'
         ]].drop_duplicates()
         unknown_devices_in_table = []
+        
         for _, row in _dframe_selected_columns.iterrows():
             workshop = row["workshop"]
             process: int = row["process"]
             project: str = row["project"]
             device_name: str = row["device_name"]
             user: str = row["worker_id"]
-            superior: str = name_id_map.get(row["superior"])
-            shift: bool = bool(row["shift"])
-            level: int =  int(row["level"])
             device_id: str = assemble_device_id(project,"%",device_name)
             split_device_id =  device_id.split('%')
             assert len(split_device_id) == 2, "the format isn't correct, need adjustments."
@@ -332,7 +344,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
 
             if(len(match_devices) == 0):
                 unknown_devices_in_table.append(
-                    (workshop,project,device_name,user,superior,shift,level,device_id)
+                    (workshop,project,device_name,user,device_id)
                 )
             else:
                 for device in match_devices:
@@ -347,9 +359,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                                 id=entity.id,
                                 device=device.id,
                                 user=user,
-                                superior=superior,
-                                shift=False,
-                                level=level,
                                 updated_date=datetime.utcnow()
                             )    
                         )
@@ -357,10 +366,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                         create_user_device_levels_bulk.append(
                             UserDeviceLevel(
                                 device=device.id,
-                                user=user,
-                                superior=superior,
-                                shift=shift,
-                                level=level
+                                user=user
                             )                       
                         )
 
