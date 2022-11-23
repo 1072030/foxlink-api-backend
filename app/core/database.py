@@ -82,7 +82,7 @@ class User(ormar.Model):
         pass
 
     username: str = ormar.String(primary_key=True, max_length=100, index=True)
-    password_hash: str = ormar.String(max_length=100)
+    password_hash: str = ormar.String(max_length=100,nullable=True)
     full_name: str = ormar.String(max_length=50)
     expertises: sqlalchemy.JSON = ormar.JSON(nullable=True)
     location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
@@ -113,15 +113,14 @@ class Device(ormar.Model):
 
 class UserDeviceLevel(ormar.Model):
     class Meta(MainMeta):
+        pass
         constraints = [ormar.UniqueColumns("device", "user", "shift")]
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
-    superior: Optional[User] = ormar.ForeignKey(
-        User, nullable=True, ondelete="SET NULL", related_name="superior",
-    )
-    shift: bool = ormar.Boolean(nullable=False, choices=list(ShiftType))
+    device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
+    superior: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL", related_name="superior")
+    shift: bool = ormar.Boolean(nullable=False)
     level: int = ormar.SmallInteger(minimum=0)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)

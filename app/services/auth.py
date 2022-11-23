@@ -7,7 +7,7 @@ from typing import Optional
 from pydantic import BaseModel
 from jose import jwt
 from .user import get_user_by_username, pwd_context
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
 from app.env import JWT_SECRET
 from app.services.user import update_user
@@ -38,12 +38,12 @@ async def authenticate_user(username: str, password: str):
 
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="the user with this id is not found."
+            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="the user with this id is not found."
         )
 
     if not verify_password(password, user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="the password is incorrect."
+            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="the password is incorrect."
         )
     
     return user
@@ -52,7 +52,7 @@ async def authenticate_user(username: str, password: str):
 async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     credentials_exception = HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
+        status_code=HTTPStatus.HTTP_403_FORBIDDEN,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
@@ -75,7 +75,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         #         current_UUID="0"
         #     )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="Signature has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -89,7 +89,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     # if user.current_UUID != current_UUID:
     #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         status_code=HTTPStatus.HTTP_403_FORBIDDEN,
     #         detail="log on other device, should log out.",
     #         headers={"WWW-Authenticate": "Bearer"},
     #     )
@@ -100,7 +100,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def get_admin_active_user(active_user: User = Depends(get_current_user)):
     if not active_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
+            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
         )
     return active_user
 
@@ -110,7 +110,7 @@ async def get_manager_active_user(
 ):
     if manager_user.level <= 1:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED,
             detail="You're not manager or admin!",
         )
     return manager_user

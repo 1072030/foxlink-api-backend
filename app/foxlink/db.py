@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Optional,Dict,Tuple,List
 from databases import Database
 from app.env import (
@@ -133,11 +134,19 @@ class FoxlinkDatabasePool:
 
     async def connect(self):
         db_connect_routines = [db.connect() for db in self.event_dbs.values()]
-        await asyncio.gather(*db_connect_routines, self.device_db.connect())
+        await asyncio.gather(*db_connect_routines)
+        
+        try:
+            await self.device_db.connect()
+        except:
+            logging.warning("cannot connect to foxlink device DB.")
 
     async def disconnect(self):
         db_disconnect_routines = [db.disconnect() for db in self.event_dbs.values()]
         await asyncio.gather(*db_disconnect_routines,self.device_db.disconnect())
+        
+        if self.device_db.is_connected:
+            await self.device_db.disconnect()
 
 
 foxlink_dbs = FoxlinkDatabasePool()

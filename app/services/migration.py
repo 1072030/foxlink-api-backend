@@ -9,9 +9,10 @@ from app.core.database import (
     CategoryPRI,
     WorkerStatus,
     WorkerStatusEnum,
+    ShiftType,
     api_db,
 )
-from fastapi.exceptions import HTTPException
+from fastapi import HTTPException,status as HTTPStatus
 from app.services.user import get_password_hash
 from fastapi import UploadFile
 import pandas as pd
@@ -22,6 +23,7 @@ from sqlalchemy.sql import func
 import traceback
 import asyncio
 from datetime import datetime
+from ormar import or_ ,and_
 
 data_converter = data_convert()
 
@@ -90,7 +92,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
                 is_rescue = is_rescue,
                 workshop = workshop_entity_dict[workshop].id,
                 device_cname=device_cname,
-                updated_date=datetime.now()
+                updated_date=datetime.utcnow()
             )        
 
             
@@ -123,7 +125,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
                 sample = update_device_bulk[workshop][0]
                 await Device.objects.bulk_update(
                     objects=update_device_bulk[workshop],
-                    columns=sample.dict(exclude_defaults=True)
+                    columns=list(sample.dict(exclude_defaults=True).keys())
                 )
 
             # create devices
@@ -199,145 +201,194 @@ async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> 
     return data["parameter"]
 
 
-# @api_db.transaction()
-async def import_factory_worker_infos(
-    workshop_name: str, excel_file: UploadFile
-) -> pd.DataFrame:
+async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> pd.DataFrame:
+
     raw_excel: bytes = await excel_file.read()
 
     try:
         data = data_converter.fn_factory_worker_info(excel_file.filename, raw_excel)
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
 
     factory_worker_info, params = data["result"], data["parameter"]
-    workshop_id_mapping: Dict[str, int] = {}
-    full_name_mapping: Dict[str, str] = {}
-    create_user_bulk: List[User] = []
-    create_workerstatus_bulk: List[WorkerStatus] = []
-    update_user_bulk: List[User] = []
-    _dframe_selected_columns = factory_worker_info[['workshop','worker_id','worker_name','job']].drop_duplicates()
-    for index, row in  _dframe_selected_columns.iterrows():
-        if workshop_id_mapping.get(row["workshop"]) is None:
-            workshop = (
-                await FactoryMap.objects.filter(name=row["workshop"])
-                .fields(["id", "name"])
-                .get_or_none()
-            )
-
-            if workshop is None:
+    workshop_entity_dict: Dict[str, FactoryMap] = {}
+    workshop_default_rescue: Dict[str, Device] = {}
+    name_id_map: Dict[str, str] = {}
+    create_worker_bulk: List[User] = []
+    update_worker_bulk: List[User] = []
+    create_user_device_levels_bulk: List[UserDeviceLevel] = []
+    update_user_device_levels_bulk: List[UserDeviceLevel] = []
+    create_worker_status_bulk: List[WorkerStatus] = []
+    
+    transaction = await api_db.transaction()
+    try:
+        # fetch occuring workshop related entities
+        for workshop in factory_worker_info['workshop'].unique():
+            # build entity matching
+            entity =  await FactoryMap.objects.fields(["id","name"]).filter(name=workshop).get_or_none()
+            if(entity == None):
                 raise HTTPException(
                     status_code=400, detail=f"unknown workshop name: {row['workshop']}"
                 )
+            workshop_entity_dict[workshop] = entity
 
-            workshop_id_mapping[workshop.name] = workshop.id
+            # build rescue station matching
+            rescue =  await Device.objects.filter(workshop=workshop_entity_dict[workshop], is_rescue=True).first()
+            if(rescue == None):
+                raise HTTPException(
+                    status_code=400, detail=f"rescue device missing in workshop: {row['workshop']}"
+                )
+            workshop_default_rescue[workshop] = rescue
 
-        full_name_mapping[row["worker_name"]] = str(row["worker_id"])
-        worker = await User.objects.get_or_none(username=row["worker_id"])
+        # process non-repeating worker rows
+        default_password_hash: str = get_password_hash("foxlink")
+        _dframe_selected_columns = factory_worker_info[['workshop','worker_id','worker_name','job']].drop_duplicates()
+        for index, row in  _dframe_selected_columns.iterrows():
+            username: str = row["worker_id"]
+            full_name: str = row["worker_name"]
+            location: int  = workshop_entity_dict[row["workshop"]].id
+            expertises: List[str] = []
+            level: str = row["job"]
 
-        # superior_id: Optional[str] = None
-        # if row["員工名字"] != row["負責人"]:
-        #     superior_id = str(
-        #         worker_info[worker_info["員工名字"] == row["負責人"]]["員工工號"].item()
-        #     )
+            name_id_map[full_name] = username
 
-        if (
-            worker is None
-            and len(
-                [u for u in create_user_bulk if u.username == str(row["worker_id"])]
-            )
-            == 0
-        ):
-            worker = User(
-                username=str(row["worker_id"]),
-                full_name=row["worker_name"],
-                password_hash=get_password_hash("foxlink"),
-                location=workshop_id_mapping[row["workshop"]],
-                expertises=[],
-                level=row["job"],
-            )
-            create_user_bulk.append(worker)
+            if not await User.objects.filter(username = username).exists():
+                # create worker entity
+                worker = User(
+                    username = username,
+                    full_name = full_name,
+                    password_hash = get_password_hash("foxlink"),
+                    location = location,
+                    expertises = expertises,
+                    level = level,
+                )
+                create_worker_bulk.append(worker)
+            else:
+                # update worker entity
+                worker = User(
+                    username = username,
+                    full_name = full_name,
+                    location = location,
+                    expertises = expertises,
+                    level = level
+                )
+                update_worker_bulk.append(worker)
 
-            if not await WorkerStatus.objects.filter(worker=worker.username).exists():
-                rescue_station = await Device.objects.filter(workshop=workshop_id_mapping[row["workshop"]], is_rescue=True).first()
+            # check if the matching worker status exists
+            if not await WorkerStatus.objects.filter(worker=username).exists():
                 w_status = WorkerStatus(
-                    worker=worker.username,
+                    worker=username,
                     status=WorkerStatusEnum.leave.value,
-                    at_device=rescue_station,
+                    at_device=workshop_default_rescue[workshop],
                     last_event_end_date=datetime.utcnow(),
                 )
-                create_workerstatus_bulk.append(w_status)
-        else:
-            worker = User(
-                username=str(row["worker_id"]),
-                full_name=row["worker_name"],
-                location=workshop_id_mapping[row["workshop"]],
-                level=row["job"],
-                # ignore fields to prevent pydantic error
-                expertises=[],
-                password_hash="",
+                create_worker_status_bulk.append(w_status)
+        
+        # update worker
+        if len(update_worker_bulk) > 0:
+            sample = update_worker_bulk[0]
+            await User.objects.bulk_update(
+                objects=update_worker_bulk,
+                columns=list(sample.dict(exclude_defaults=True).keys())
             )
-            update_user_bulk.append(worker)
+        
+        # create worker
+        if len(create_worker_bulk) > 0:
+            await User.objects.bulk_create(create_worker_bulk)
+        
+        # create worker status
+        if len(create_worker_status_bulk) > 0:
+            await WorkerStatus.objects.bulk_create(create_worker_status_bulk)
 
-    delete_user_bulk: List[str] = []
+        # remove workers not within the provided table
+        await User.objects.exclude(
+            or_(
+                username__in = [user.username for user in (create_worker_bulk+update_worker_bulk)],
+                is_admin=1
+            )
+        ).delete(each=True)
 
-    for w_id in workshop_id_mapping.values():
-        all_workers_in_workshop = await User.objects.filter(location=w_id).all()
+        # process user device levels
+        _dframe_selected_columns = factory_worker_info[[
+            'workshop', 'process','project','device_name','worker_id','superior','shift','level'
+        ]].drop_duplicates()
+        unknown_devices_in_table = []
+        for _, row in _dframe_selected_columns.iterrows():
+            workshop = row["workshop"]
+            process: int = row["process"]
+            project: str = row["project"]
+            device_name: str = row["device_name"]
+            user: str = row["worker_id"]
+            superior: str = name_id_map.get(row["superior"])
+            shift: bool = bool(row["shift"])
+            level: int =  int(row["level"])
+            device_id: str = assemble_device_id(project,"%",device_name)
+            split_device_id =  device_id.split('%')
+            assert len(split_device_id) == 2, "the format isn't correct, need adjustments."
 
-        for u in all_workers_in_workshop:
-            if u.username not in full_name_mapping.values():
-                delete_user_bulk.append(u.username)
+            match_devices:List[Device] = await Device.objects.filter(
+                id__istartswith=split_device_id[0],
+                id__iendswith=split_device_id[1]
+            ).all()
 
-    await User.objects.filter(username__in=delete_user_bulk).delete(each=True)
-
-    if len(update_user_bulk) != 0:
-        await User.objects.bulk_update(
-            update_user_bulk, columns=["full_name", "location", "level"]
-        )
-
-    if len(create_user_bulk) != 0:
-        await User.objects.bulk_create(create_user_bulk)
-
-    if len(create_workerstatus_bulk) != 0:
-        await WorkerStatus.objects.bulk_create(create_workerstatus_bulk)
-
-    # remove original device levels
-    # for username in full_name_mapping.values():
-    #     await UserDeviceLevel.objects.select_related("device").filter(
-    #         user=username
-    #     ).delete(each=True)
-
-    _dframe_selected_columns = factory_worker_info[[
-        'workshop','process','project','device_name','worker_id','superior','shift','level'
-    ]].drop_duplicates()
-    for index, row in _dframe_selected_columns.iterrows():
-        workshop = (
-            await FactoryMap.objects.filter(name=row["workshop"])
-            .fields(["id", "name"])
-            .get()
-        )
-
-        related_devices = await Device.objects.filter(
-            workshop=workshop.id,
-            process=row["process"],
-            project__iexact=row["project"],
-            device_name=row["device_name"],
-        ).all()
-
-        bulk = []
-        for d in related_devices:
-            bulk.append(
-                UserDeviceLevel(
-                    device=d,
-                    user=row["worker_id"],
-                    superior=full_name_mapping.get(row["superior"]),
-                    shift=row["shift"],
-                    level=row["level"],
+            if(len(match_devices) == 0):
+                unknown_devices_in_table.append(
+                    (workshop,project,device_name,user,superior,shift,level,device_id)
                 )
+            else:
+                for device in match_devices:
+                    entity = await UserDeviceLevel.objects.filter(
+                            device=device.id,
+                            user=user
+                    ).get_or_none()
+
+                    if(entity):
+                        update_user_device_levels_bulk.append(
+                            UserDeviceLevel(
+                                id=entity.id,
+                                device=device.id,
+                                user=user,
+                                superior=superior,
+                                shift=False,
+                                level=level,
+                                updated_date=datetime.utcnow()
+                            )    
+                        )
+                    else:
+                        create_user_device_levels_bulk.append(
+                            UserDeviceLevel(
+                                device=device.id,
+                                user=user,
+                                superior=superior,
+                                shift=shift,
+                                level=level
+                            )                       
+                        )
+
+        # create user device levels
+        if len(create_user_device_levels_bulk)> 0:
+            await UserDeviceLevel.objects.bulk_create(create_user_device_levels_bulk)
+
+        # update user device levels
+        if len(update_user_device_levels_bulk)> 0:
+            sample = update_user_device_levels_bulk[0]
+            await UserDeviceLevel.objects.bulk_update(
+                objects=update_user_device_levels_bulk,
+                columns=list(sample.dict(exclude={"user","device"},exclude_defaults=True))
             )
 
-        if len(bulk) != 0:
-            await UserDeviceLevel.objects.bulk_create(bulk)
+    except Exception as e:
+        traceback.print_exc()
+        print(e)
+        await transaction.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.HTTP_400_BAD_REQUEST,
+            detail= repr(e)
+        )
 
-    return params
+    else:
+        await transaction.commit()
+        return params
+    
 
