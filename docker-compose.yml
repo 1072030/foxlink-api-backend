@@ -140,7 +140,12 @@ services:
   #     - ./watchtower-config.json:/config.json
 
   mysql-test:
-    image: mysql-test:clean_v8
+  #### Initialize ###
+    build:
+    context: .
+    dockerfile: testdb.Dockerfile
+  #### For each Scenario ####
+  #  image: mysql-test:clean_v8
     restart: unless-stopped
     # build:
     #   context: .
