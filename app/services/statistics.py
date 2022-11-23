@@ -183,7 +183,7 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
         WHERE 
             action='MISSION_ACCEPTED'
             AND (created_date BETWEEN :start_date AND :end_date)
-            AND u.location = :workshop_id
+            AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
         GROUP BY u.username
         ORDER BY count DESC
@@ -211,7 +211,7 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
         WHERE 
             action='MISSION_REJECTED'
             AND (created_date BETWEEN :start_date AND :end_date)
-            AND u.location = :workshop_id
+            AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
         GROUP BY u.username
         ORDER BY count DESC
@@ -247,7 +247,7 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
             AND u.level = 1
             AND (created_date BETWEEN :start_date AND :end_date)
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
-            AND u.location = :workshop_id;
+            AND u.workshop = :workshop_id;
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )

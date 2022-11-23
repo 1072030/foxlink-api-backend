@@ -350,7 +350,7 @@ async def worker_monitor_routine():
     for ws in at_device_null_worker_status:
         try:
             rescue_station = await Device.objects.filter(
-                workshop=ws.worker.location, is_rescue=True
+                workshop=ws.worker.workshop, is_rescue=True
             ).first()
             await ws.update(at_device=rescue_station)
         except Exception:
@@ -378,14 +378,14 @@ async def worker_monitor_routine():
                 .get_or_none()
             )
 
-            if w.location is None:
+            if w.workshop is None:
                 continue
 
-            rescue_stations = rescue_cache[w.location.id]
+            rescue_stations = rescue_cache[w.workshop.id]
 
             if len(rescue_stations) == 0:
                 logger.error(
-                    f"there's no rescue station in workshop {w.location.id}")
+                    f"there's no rescue station in workshop {w.workshop.id}")
                 logger.error(
                     f"you should create a rescue station as soon as possible")
                 return
@@ -416,7 +416,7 @@ async def worker_monitor_routine():
             if await is_user_working_on_mission(w.username):
                 continue
 
-            factory_map = workshop_cache[w.location.id]
+            factory_map = workshop_cache[w.workshop.id]
             rescue_distances = []
 
             try:
@@ -635,10 +635,10 @@ async def dispatch_routine():
             """
             SELECT udl.*, u.full_name, u.level as userlevel FROM userdevicelevels udl
             INNER JOIN users u ON u.username = udl.`user`
-            WHERE udl.device = :device_id AND udl.shift=:shift AND udl.level > 0 AND u.location = :location
+            WHERE udl.device = :device_id AND udl.shift=:shift AND udl.level > 0 AND u.workshop = :workshop
             """,
             {'device_id': mission_1st.device.id, 'shift': get_shift_type_now(
-            ).value, 'location': mission_1st.device.workshop.id}
+            ).value, 'workshop': mission_1st.device.workshop.id}
         )
 
         # 檢查機台是否被列入白名單，並抓取可能的白名單員工列表

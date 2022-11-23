@@ -77,7 +77,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 await r.update(is_cancel=True)
 
             first_rescue_station = await Device.objects.filter(
-                workshop=user.location, is_rescue=True
+                workshop=user.workshop, is_rescue=True
             ).first()
 
             worker_status.at_device = first_rescue_station

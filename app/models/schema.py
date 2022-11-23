@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, List
 from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 from app.core.database import (
-    CategoryPRI,
+    # CategoryPRI,
     Device,
     Mission,
     MissionEvent,
@@ -45,7 +45,7 @@ class UserPatch(BaseModel):
 
 class UserOut(UserBase):
     workshop: str
-    is_changepwd: bool
+    change_pwd: bool
 
 
 class UserOutWithWorkTimeAndSummary(UserOut):
@@ -215,41 +215,41 @@ class DeviceOut(BaseModel):
         )
 
 
-class CategoryPriorityDeviceInfo(BaseModel):
-    device_id: str
-    project: str
-    line: int
-    device_name: str
+# class CategoryPriorityDeviceInfo(BaseModel):
+#     device_id: str
+#     project: str
+#     line: int
+#     device_name: str
 
 
-class CategoryPriorityOut(BaseModel):
-    category: int
-    priority: int
-    message: str
-    devices: List[CategoryPriorityDeviceInfo]
+# class CategoryPriorityOut(BaseModel):
+#     category: int
+#     priority: int
+#     message: str
+#     devices: List[CategoryPriorityDeviceInfo]
 
-    @classmethod
-    def from_categorypri(cls, pri: CategoryPRI):
-        obj = cls(
-            category=pri.category,
-            priority=pri.priority,
-            message=pri.message,
-            devices=[],
-        )
+#     @classmethod
+#     def from_categorypri(cls, pri: CategoryPRI):
+#         obj = cls(
+#             category=pri.category,
+#             priority=pri.priority,
+#             message=pri.message,
+#             devices=[],
+#         )
 
-        if pri.devices is not None:
-            obj.devices = [
-                CategoryPriorityDeviceInfo(
-                    device_id=x.id,
-                    project=x.project,
-                    line=x.line,
-                    device_name=x.device_name,
-                )
-                for x in pri.devices
-                if pri.devices is not None
-            ]
+#         if pri.devices is not None:
+#             obj.devices = [
+#                 CategoryPriorityDeviceInfo(
+#                     device_id=x.id,
+#                     project=x.project,
+#                     line=x.line,
+#                     device_name=x.device_name,
+#                 )
+#                 for x in pri.devices
+#                 if pri.devices is not None
+#             ]
 
-        return obj
+#         return obj
 
 
 class WorkerMissionStats(BaseModel):

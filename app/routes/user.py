@@ -54,10 +54,10 @@ async def read_all_users(
     user: User = Depends(get_admin_active_user), workshop_name: Optional[str] = None
 ):
     if workshop_name is None:
-        users = await User.objects.select_related("location").all()
+        users = await User.objects.select_related("workshop").all()
     else:
         users = (
-            await User.objects.select_related("location")
+            await User.objects.select_related("workshop")
             .filter(location__name=workshop_name)
             .exclude_fields(["location__map", "location__related_devices"])
             .all()
@@ -65,7 +65,7 @@ async def read_all_users(
 
     return [
         UserOut(
-            workshop=user.location.name if user.location is not None else "無",
+            workshop=user.workshop.name if user.workshop is not None else "無",
             **user.dict()
         )
         for user in users
@@ -83,11 +83,11 @@ async def create_a_new_user(
 async def get_user_himself_info(user: User = Depends(get_current_user)):
     first_login_timestamp = await get_user_first_login_time_today(user.username)
 
-    if user.location is None:
+    if user.workshop is None:
         workshop_name = "無"
     else:
         workshop_name = (
-            await FactoryMap.objects.filter(id=user.location.id)
+            await FactoryMap.objects.filter(id=user.workshop.id)
             .fields(["id", "name"])
             .get()
         ).name
@@ -135,7 +135,7 @@ async def change_password(
     await update_user(
         user.username,
         password_hash=get_password_hash(dto.new_password),
-        is_changepwd=True,
+        change_pwd=True,
     )
 
 

@@ -34,9 +34,6 @@ target_metadata = db_meta
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 url = f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
-print(url)
-
-print(context.is_offline_mode())
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode.

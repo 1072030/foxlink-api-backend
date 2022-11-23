@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from ormar import NoMatch
 from app.core.database import (
-    CategoryPRI,
+    # CategoryPRI,
     Device,
     FactoryMap,
     Mission,

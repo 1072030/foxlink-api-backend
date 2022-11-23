@@ -61,6 +61,28 @@ class LogoutReasonEnum(Enum):
     offwork = "OffWork"
 
 
+class AuditActionEnum(Enum):
+    MISSION_CREATED = "MISSION_CREATED"
+    MISSION_REJECTED = "MISSION_REJECTED"
+    MISSION_ACCEPTED = "MISSION_ACCEPTED"
+    MISSION_ASSIGNED = "MISSION_ASSIGNED"
+    MISSION_STARTED = "MISSION_STARTED"
+    MISSION_FINISHED = "MISSION_FINISHED"
+    MISSION_DELETED = "MISSION_DELETED"
+    MISSION_UPDATED = "MISSION_UPDATED"
+    MISSION_OVERTIME = "MISSION_OVERTIME"
+    MISSION_CANCELED = "MISSION_CANCELED"
+    MISSION_USER_DUTY_SHIFT = "MISSION_USER_DUTY_SHIFT"
+    MISSION_EMERGENCY = "MISSION_EMERGENCY"
+    USER_LOGIN = "USER_LOGIN"
+    USER_LOGOUT = "USER_LOGOUT"
+    USER_MOVE_POSITION = "USER_MOVE_POSITION"
+    DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
+    DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
+
+    NOTIFY_MISSION_NO_WORKER = "NOTIFY_MISSION_NO_WORKER"
+
+
 class MainMeta(ormar.ModelMeta):
     metadata = metadata
     database = api_db
@@ -68,7 +90,7 @@ class MainMeta(ormar.ModelMeta):
 
 class FactoryMap(ormar.Model):
     class Meta(MainMeta):
-        pass
+        tablename = "factory_maps"
 
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, index=True, unique=True)
@@ -84,41 +106,40 @@ class User(ormar.Model):
         pass
 
     username: str = ormar.String(primary_key=True, max_length=100, index=True)
-    full_name: str = ormar.String(max_length=50)
-    password_hash: str = ormar.String(max_length=100)
-    location: Optional[FactoryMap] = ormar.ForeignKey(FactoryMap, ondelete="SET NULL")
-    superior: UserRef = ormar.ForeignKey(UserRef, on_delete="SET NULL")
-    level: int = ormar.SmallInteger(nullable=False, choices=list(UserLevel))
-    shift: int = ormar.SmallInteger(choices=list(ShiftType))
-    is_changepwd: bool = ormar.Boolean(server_default="0")
-    
-
-    
+    full_name: str = ormar.String(max_length=50,nullable=False)
+    password_hash: str = ormar.String(max_length=100,nullable=True)
+    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, ondelete="SET NULL",nullable=True)
+    superior: UserRef = ormar.ForeignKey(UserRef, on_delete="SET NULL",nullable=True)
+    level: int = ormar.SmallInteger(choices=list(UserLevel),nullable=False)
+    shift: int = ormar.SmallInteger(choices=list(ShiftType),nullable=True)
+    change_pwd: bool = ormar.Boolean(server_default="0",nullable=True)  
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class Device(ormar.Model):
     class Meta(MainMeta):
-        pass
+        tablename = "devices"
 
     id: str = ormar.String(max_length=100, primary_key=True, index=True)
     project: str = ormar.String(max_length=50, nullable=False)
-    process: Optional[str] = ormar.String(max_length=50, nullable=True)
+    process: str = ormar.String(max_length=50, nullable=True)
     line: int = ormar.Integer(nullable=True)
     device_name: str = ormar.String(max_length=20, nullable=False)
-    device_cname: Optional[str] = ormar.String(max_length=100, nullable=True)
+    device_cname: str = ormar.String(max_length=100, nullable=True)
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
     is_rescue: bool = ormar.Boolean(default=False)
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
-    sop_link: Optional[str] = ormar.String(max_length=128, nullable=True)
+    sop_link: str = ormar.String(max_length=128, nullable=True)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class UserDeviceLevel(ormar.Model):
     class Meta(MainMeta):
-        pass
-        constraints = [ormar.UniqueColumns("device", "user", "shift")]
+        tablename = "user_device_levels"
+        constraints = [ormar.UniqueColumns("device", "user")]
 
     id: int = ormar.Integer(primary_key=True, index=True)
     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
@@ -129,6 +150,7 @@ class UserDeviceLevel(ormar.Model):
 
 class MissionEvent(ormar.Model):
     class Meta(MainMeta):
+        tablename = "mission_events"
         constraints = [ormar.UniqueColumns("event_id", "table_name", "mission")]
 
     id: int = ormar.Integer(primary_key=True)
@@ -136,24 +158,27 @@ class MissionEvent(ormar.Model):
     event_id: int = ormar.Integer()
     table_name: str = ormar.String(max_length=50)
     category: int = ormar.Integer(nullable=False)
-    message: Optional[str] = ormar.String(max_length=100, nullable=True)
+    message: str = ormar.String(max_length=100, nullable=True)
     done_verified: bool = ormar.Boolean(default=False)
-    event_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
-    event_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    event_start_date: datetime = ormar.DateTime(nullable=True)
+    event_end_date: datetime = ormar.DateTime(nullable=True)
     host: str = ormar.String(max_length=50)
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class Mission(ormar.Model):
+
     class Meta(MainMeta):
-        pass
+        tablename = "missions"
 
     id: int = ormar.Integer(primary_key=True, index=True)
     device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
     worker: User = ormar.ForeignKey(User, ondelete="CASCADE")
     name: str = ormar.String(max_length=100, nullable=False)
-    description: Optional[str] = ormar.String(max_length=256)
-    repair_start_date: Optional[datetime] = ormar.DateTime(nullable=True)
-    repair_end_date: Optional[datetime] = ormar.DateTime(nullable=True)
+    description: str = ormar.String(max_length=256)
+    repair_start_date: datetime = ormar.DateTime(nullable=True)
+    repair_end_date: datetime = ormar.DateTime(nullable=True)
     is_cancel: bool = ormar.Boolean(default=False)
     is_emergency: bool = ormar.Boolean(default=False)
     is_autocanceled: bool = ormar.Boolean(default=False, nullable=False)
@@ -195,31 +220,10 @@ class Mission(ormar.Model):
             return False
 
 
-class AuditActionEnum(Enum):
-    MISSION_CREATED = "MISSION_CREATED"
-    MISSION_REJECTED = "MISSION_REJECTED"
-    MISSION_ACCEPTED = "MISSION_ACCEPTED"
-    MISSION_ASSIGNED = "MISSION_ASSIGNED"
-    MISSION_STARTED = "MISSION_STARTED"
-    MISSION_FINISHED = "MISSION_FINISHED"
-    MISSION_DELETED = "MISSION_DELETED"
-    MISSION_UPDATED = "MISSION_UPDATED"
-    MISSION_OVERTIME = "MISSION_OVERTIME"
-    MISSION_CANCELED = "MISSION_CANCELED"
-    MISSION_USER_DUTY_SHIFT = "MISSION_USER_DUTY_SHIFT"
-    MISSION_EMERGENCY = "MISSION_EMERGENCY"
-    USER_LOGIN = "USER_LOGIN"
-    USER_LOGOUT = "USER_LOGOUT"
-    USER_MOVE_POSITION = "USER_MOVE_POSITION"
-    DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
-    DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
-
-    NOTIFY_MISSION_NO_WORKER = "NOTIFY_MISSION_NO_WORKER"
-
-
 class LogValue(ormar.Model):
+
     class Meta(MainMeta):
-        pass
+        tablename = "log_values"
 
     id: int = ormar.Integer(primary_key=True, index=True)
     log_header: AuditLogHeaderRef = ormar.ForeignKey(AuditLogHeaderRef, ondelete="CASCADE")  # type: ignore
@@ -229,52 +233,41 @@ class LogValue(ormar.Model):
 
 
 class AuditLogHeader(ormar.Model):
+
     class Meta(MainMeta):
-        pass
+        tablename = "audit_log_headers"
 
     id: int = ormar.Integer(primary_key=True, index=True)
     action: str = ormar.String(
         max_length=50, nullable=False, index=True, choices=list(AuditActionEnum)
     )
-    table_name: Optional[str] = ormar.String(max_length=50, index=True)
-    record_pk: Optional[str] = ormar.String(max_length=100, index=True, nullable=True)
-    user: Optional[User] = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
+    table_name: str = ormar.String(max_length=50, index=True)
+    record_pk: str = ormar.String(max_length=100, index=True, nullable=True)
+    user: User = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    description: Optional[str] = ormar.String(max_length=256, nullable=True)
-
-
-# Device's Category Priority
-# class CategoryPRI(ormar.Model):
-#     class Meta(MainMeta):
-#         pass
-#     id: int = ormar.Integer(primary_key=True, index=True)
-#     category: int = ormar.Integer(nullable=False)
-#     priority: int = ormar.Integer(nullable=False)
-#     message: Optional[str] = ormar.String(max_length=100)
-#     devices: Optional[List[Device]] = ormar.ManyToMany(Device)
+    description: str = ormar.String(max_length=256, nullable=True)
 
 
 class WorkerStatus(ormar.Model):
+
     class Meta(MainMeta):
         tablename = "worker_status"
-
+        
     id: int = ormar.Integer(primary_key=True)
     worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE")
-    at_device: Optional[Device] = ormar.ForeignKey(
-        Device, nullable=True, ondelete="SET NULL"
-    )
+    at_device: Device = ormar.ForeignKey(Device, nullable=True, ondelete="SET NULL")
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime(timezone=True)
     dispatch_count: int = ormar.Integer(default=0)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    check_alive_time: datetime = ormar.DateTime(
-        server_default=func.now(), timezone=True
-    )
+    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)    
+    check_alive_time: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
 
 class WhitelistDevice(ormar.Model):
+
     class Meta(MainMeta):
-        ...
+        tablename = "whitelist_devices"
 
     id: int = ormar.Integer(primary_key=True)
     device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE', nullable=False)
@@ -284,9 +277,8 @@ class WhitelistDevice(ormar.Model):
 
 
 MissionEvent.update_forward_refs()
-
-
 LogValue.update_forward_refs()
+User.update_forward_refs()
 
 
 @pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus, WhitelistDevice])

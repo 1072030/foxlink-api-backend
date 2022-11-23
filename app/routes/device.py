@@ -1,8 +1,22 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Form, HTTPException
-from app.models.schema import CategoryPriorityOut, DeviceDispatchableWorker, DeviceOut, WhitelistRecommendDevice
+from app.models.schema import (
+    # CategoryPriorityOut,
+    DeviceDispatchableWorker,
+    DeviceOut,
+    WhitelistRecommendDevice
+)
 from app.services.auth import get_manager_active_user, get_current_user
-from app.core.database import CategoryPRI, Device, ShiftType, User, FactoryMap, UserDeviceLevel, UserLevel, WhitelistDevice
+from app.core.database import (
+    # CategoryPRI,
+    Device,
+    ShiftType,
+    User,
+    FactoryMap,
+    UserDeviceLevel,
+    UserLevel,
+    WhitelistDevice
+)
 from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices, show_recommend_whitelist_devices
 
 router = APIRouter(prefix="/device")
@@ -26,27 +40,27 @@ async def get_all_devices(
     return [DeviceOut.from_device(d) for d in devices]
 
 
-@router.get(
-    "/category-priority", response_model=List[CategoryPriorityOut], tags=["device"]
-)
-async def get_category_priority_by_project(
-    workshop_name: str, project: str, user: User = Depends(get_manager_active_user)
-):
-    workshop = (
-        await FactoryMap.objects.filter(name=workshop_name)
-        .exclude_fields(["map", "image"])
-        .get_or_none()
-    )
+# @router.get(
+#     "/category-priority", response_model=List[CategoryPriorityOut], tags=["device"]
+# )
+# async def get_category_priority_by_project(
+#     workshop_name: str, project: str, user: User = Depends(get_manager_active_user)
+# ):
+#     workshop = (
+#         await FactoryMap.objects.filter(name=workshop_name)
+#         .exclude_fields(["map", "image"])
+#         .get_or_none()
+#     )
 
-    if workshop is None:
-        raise HTTPException(404, "the workshop is not found")
+#     if workshop is None:
+#         raise HTTPException(404, "the workshop is not found")
 
-    category_pri = (
-        await CategoryPRI.objects.select_related(["devices"])
-        .filter(devices__project__iexact=project, devices__workshop=workshop.id)
-        .all()
-    )
-    return [CategoryPriorityOut.from_categorypri(c) for c in category_pri]
+#     category_pri = (
+#         await CategoryPRI.objects.select_related(["devices"])
+#         .filter(devices__project__iexact=project, devices__workshop=workshop.id)
+#         .all()
+#     )
+#     return [CategoryPriorityOut.from_categorypri(c) for c in category_pri]
 
 @router.get("/whitelist", tags=['whitelist device'])
 async def get_whitelist_devices(workshop_name: str):
