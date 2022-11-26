@@ -88,7 +88,7 @@ class MissionEventOut(BaseModel):
     category: int
     message: str
     done_verified: bool
-    event_start_date: datetime
+    event_beg_date: datetime
     event_end_date: Optional[datetime]
 
     @classmethod
@@ -97,7 +97,7 @@ class MissionEventOut(BaseModel):
             category=e.category,
             message=e.message,
             done_verified=e.done_verified,
-            event_start_date=e.event_start_date,
+            event_beg_date=e.event_beg_date,
             event_end_date=e.event_end_date,
         )
 
@@ -107,7 +107,7 @@ class MissionDto(BaseModel):
     device: DeviceDto
     name: str
     description: str
-    assignees: List[UserNameDto]
+    worker: Optional[UserNameDto]
     events: List[MissionEventOut]
     is_started: bool
     is_closed: bool
@@ -135,11 +135,11 @@ class MissionDto(BaseModel):
             is_closed=m.is_closed,
             is_cancel=m.is_cancel,
             is_emergency=m.is_emergency,
-            assignees=[
-                UserNameDto(username=u.username, full_name=u.full_name)
-                for u in m.assignees
-            ],
-            events=[MissionEventOut.from_missionevent(e) for e in m.missionevents],
+            worker= UserNameDto(
+                username=m.worker.username, 
+                full_name=m.worker.full_name
+            ) if m.worker else None,
+            events=[MissionEventOut.from_missionevent(e) for e in m.events],
             created_date=m.created_date,
             updated_date=m.updated_date,
         )

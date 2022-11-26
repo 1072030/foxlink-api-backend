@@ -10,7 +10,6 @@ from .user import get_user_by_username, pwd_context
 from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
 from app.env import JWT_SECRET
-from app.services.user import update_user
 from app.core.database import UserLevel
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
@@ -65,16 +64,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         if username is None:
             raise credentials_exception
     except ExpiredSignatureError:
-        payload = jwt.decode(token, JWT_SECRET,  algorithms=['HS256'], options={
-                             "verify_exp": False, "verify_signature": False})
-        username: str = payload["sub"]
-        # current_UUID: str = payload.get("UUID")
-        user = await get_user_by_username(username)
-        # if current_UUID == user.current_UUID:
-        #     await update_user(
-        #         user.username,
-        #         current_UUID="0"
-        #     )
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN,
             detail="Signature has expired",
@@ -120,7 +109,5 @@ async def get_manager_active_user(
 async def set_device_UUID(
     user: User, UUID: str
 ):
-    await update_user(
-        user.username,
-        # current_UUID=UUID
-    )
+    return None
+    # await user.update(current_UUID=UUID)

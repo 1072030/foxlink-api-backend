@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
@@ -17,13 +17,9 @@ from app.services.user import (
     # get_user_all_level_subordinates_by_username,
     get_user_first_login_time_today,
     get_user_summary,
-    create_user,
+    # create_user,
     get_password_hash,
-    get_users_overview,
-    update_user,
     delete_user_by_username,
-    get_worker_mission_history,
-    update_user,
     get_worker_attendances,
     check_user_workstatus
 )
@@ -72,11 +68,11 @@ async def read_all_users(
     ]
 
 
-@router.post("/", tags=["users"], status_code=201)
-async def create_a_new_user(
-    dto: UserCreate, user: User = Depends(get_admin_active_user)
-):
-    return await create_user(dto)
+# @router.post("/", tags=["users"], status_code=201)
+# async def create_a_new_user(
+#     dto: UserCreate, user: User = Depends(get_admin_active_user)
+# ):
+#     return await create_user(dto)
 
 
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
@@ -103,7 +99,7 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
 
     if first_login_timestamp is not None:
         total_mins = (
-            datetime.datetime.utcnow() - first_login_timestamp
+            datetime.utcnow() - first_login_timestamp
         ).total_seconds() / 60
     else:
         total_mins = 0
@@ -132,10 +128,9 @@ async def change_password(
         raise HTTPException(
             status_code=401, detail="The old password is not matched")
 
-    await update_user(
-        user.username,
+    await user.update(
         password_hash=get_password_hash(dto.new_password),
-        change_pwd=True,
+        change_pwd=True
     )
 
 
@@ -144,16 +139,11 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
-    await check_user_workstatus(user.username)
-    if to_change_status and await WorkerStatus.objects.filter(worker=user.username).exists():
-        await WorkerStatus.objects.filter(worker=user.username).update(
-            status=WorkerStatusEnum.leave.value
-        )
+    worker_status = await WorkerStatus.objects.filter(worker=user).get()
 
-    await update_user(
-        user.username,
-        # current_UUID="0"
-    )
+    await worker_status.update(status=WorkerStatusEnum.leave.value)
+
+    await user.update(logout_date=datetime.utcnow())
 
     await AuditLogHeader.objects.create(
         user=user,
@@ -170,7 +160,7 @@ async def update_user_information(
     if user.level < UserLevel.manager.value:
         raise HTTPException(401, "You do not have permission to do this")
 
-    return await update_user(username, **dto.dict())
+    return await user.update(**dto.dict())
 
 
 @router.delete("/{username}", tags=["users"])

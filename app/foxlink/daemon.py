@@ -23,7 +23,6 @@ from app.services.mission import assign_mission, get_mission_by_id, is_mission_i
 from app.services.user import (
     get_user_shift_type,
     get_user_working_mission,
-    is_user_working_on_mission,
     is_worker_in_whitelist,
 )
 
@@ -93,63 +92,6 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
         raise ValueError(msg)
 
 
-@show_duration
-async def check_if_mission_finish():
-    working_missions = await Mission.objects.select_related(['assignees']).filter(
-        device__is_rescue=False, repair_start_date__isnull=False, repair_end_date__isnull=True, is_cancel=False
-    ).all()
-
-    working_missions = [
-        x for x in working_missions if len(x.assignees) > 0]
-
-    for m in working_missions:
-        is_done = await m.is_done_events
-        if not is_done:
-            return
-        for a in m.assignees:
-            mqtt_client.publish(
-                f"foxlink/users/{a.username}/missions/finish",
-                {
-                    "mission_id": m.id,
-                    "mission_state": "finish"
-                },
-                qos=2,
-            )
-
-        is_worker_actually_repair = False
-        now_time = datetime.utcnow()
-        for e in m.missionevents:
-            if e.event_end_date - timedelta(hours=8) > m.repair_start_date:
-                is_worker_actually_repair = True
-                break
-
-        async with api_db.transaction():
-            if is_worker_actually_repair:
-                await m.update(
-                    repair_end_date=now_time, is_cancel=False,
-                )
-            else:
-                await m.update(
-                    repair_end_date=m.repair_start_date, is_cancel=False,
-                )
-
-            # set each assignee's last_event_end_date
-            for w in m.assignees:
-                await WorkerStatus.objects.filter(worker=w).update(
-                    # 改補員工按下任務結束的時間點，而不是 Mission events 中最晚的。
-                    status=WorkerStatusEnum.idle.value,
-                    last_event_end_date=now_time
-                )
-
-            # record this operation
-            for w in m.assignees:
-                await AuditLogHeader.objects.create(
-                    table_name="missions",
-                    action=AuditActionEnum.MISSION_FINISHED.value,
-                    record_pk=str(m.id),
-                    user=w.username,
-                )
-
 
 @show_duration
 async def check_alive_worker_routine():
@@ -207,39 +149,40 @@ async def check_alive_worker_routine():
 @api_db.transaction()
 async def overtime_workers_routine():
     """檢查是否有員工超時，如果超時則發送通知"""
-    working_missions = await Mission.objects.select_related(['assignees', 'device']).filter(
-        repair_end_date__isnull=True, is_cancel=False, device__is_rescue=False,
+    working_missions = await Mission.objects.filter(
+        is_cancel=False,
+        repair_end_date__isnull=True,
+        device__is_rescue=False,
+        worker__isnull=False
     ).all()
 
-    working_missions = [x for x in working_missions if len(x.assignees) > 0]
 
-    for m in working_missions:
+    for mission in working_missions:
         should_cancel = False
-        for u in m.assignees:
-            duty_shift = await get_user_shift_type(u.username)
+        duty_shift = await get_user_shift_type(mission.worker.username)
 
-            if get_shift_type_now() != duty_shift:
-                await AuditLogHeader.objects.create(
-                    action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
-                    table_name="missions",
-                    description=f"員工換班，維修時長: {datetime.utcnow() - m.repair_start_date if m.repair_start_date is not None else 0}",
-                    user=u.username,
-                    record_pk=m.id,
-                )
-                mqtt_client.publish(
-                    f"foxlink/users/{u.username}/missions/finish",
-                    {
-                        "mission_id": m.id,
-                        "mission_state": "ovetime-duty"
-                    },
-                    qos=2,
-                )
-                should_cancel = True
+        if get_shift_type_now() != duty_shift:
+            await AuditLogHeader.objects.create(
+                action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
+                table_name="missions",
+                description=f"員工換班，維修時長: {datetime.utcnow() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
+                user=mission.worker.username,
+                record_pk=mission.id,
+            )
+            mqtt_client.publish(
+                f"foxlink/users/{mission.worker.username}/missions/finish",
+                {
+                    "mission_id": mission.id,
+                    "mission_state": "ovetime-duty"
+                },
+                qos=2,
+            )
+            should_cancel = True
 
         if not should_cancel:
             continue
 
-        await m.update(is_cancel=True, description='換班任務，自動結案')
+        await mission.update(is_cancel=True, description='換班任務，自動結案')
 
         copied_mission = await Mission.objects.create(
             name=m.name,
@@ -248,7 +191,7 @@ async def overtime_workers_routine():
             is_emergency=m.is_emergency
         )
 
-        mission_events = await MissionEvent.objects.filter(mission=m.id).all()
+        mission_events = await MissionEvent.objects.filter(mission=mission.id).all()
 
         for e in mission_events:
             new_missionevent = MissionEvent(
@@ -257,7 +200,7 @@ async def overtime_workers_routine():
                 category=e.category,
                 message=e.message,
                 done_verified=e.done_verified,
-                event_start_date=e.event_start_date,
+                event_beg_date=e.event_beg_date,
                 event_end_date=e.event_end_date
             )
             await copied_mission.missionevents.add(new_missionevent)
@@ -266,29 +209,31 @@ async def overtime_workers_routine():
 @show_duration
 async def auto_close_missions():
     """自動結案任務，如果任務的故障已排除則自動結案"""
-    working_missions = (
-        await Mission.objects.select_related(
-            ["assignees"]
-        ).filter(
-            repair_start_date__isnull=True,
+    non_accepted_missions = (
+        await Mission.objects.filter(
+            repair_beg_date__isnull=True,
             repair_end_date__isnull=True,
-            is_cancel=False,
-            created_date__lt=datetime.utcnow() - timedelta(minutes=1),
+            is_cancel=False
+        )
+        .select_related("events")
+        .filter(
+            events__done_verified=False
         )
         .all()
     )
 
-    # working_missions = [x for x in working_missions if len(x.assignees) == 0]
 
-    for m in working_missions:
-        undone_count = await api_db.fetch_val("SELECT COUNT(*) FROM missionevents m WHERE m.mission = :mission_id AND m.done_verified = 0", {"mission_id": m.id})
-        if undone_count == 0:
-            await m.update(is_cancel=True, is_autocanceled=True)
-        if len(m.assignees) > 0:
+    for mission in non_accepted_missions:
+        if len(mission.events) == 0:
+            await mission.update(
+                is_cancel=True,
+                is_autocanceled=True
+            )
+        if mission.worker:
             mqtt_client.publish(
-                f"foxlink/users/{m.assignees[0].username}/missions/stop-notify",
+                f"foxlink/users/{mission.worker.username}/missions/stop-notify",
                 {
-                    "mission_id": m.id,
+                    "mission_id": mission.id,
                     "mission_state": "finish"
                 },
                 qos=2,
@@ -296,116 +241,63 @@ async def auto_close_missions():
 
 
 @show_duration
-async def track_worker_status_routine():
-    """追蹤員工狀態，視任務狀態而定"""
-    async def check_routine(s: WorkerStatus):
-        working_mission = await get_user_working_mission(s.worker.username)
-
-        if working_mission is None and s.status == WorkerStatusEnum.idle.value:
-            return
-
-        if working_mission is None and s.status != WorkerStatusEnum.idle.value:
-            await s.update(status=WorkerStatusEnum.idle.value)
-            return
-
-        # 任務是否曾被接受過
-        is_accepted = await AuditLogHeader.objects.filter(action=AuditActionEnum.MISSION_ACCEPTED.value, table_name="missions", record_pk=str(working_mission.id), user=s.worker.username).exists()
-
-        # 返回消防站任務提示
-        if working_mission.device.is_rescue:
-            if not is_accepted:
-                await s.update(status=WorkerStatusEnum.notice.value)
-            else:
-                await s.update(status=WorkerStatusEnum.moving.value)
-            return
-
-    worker_status = (
-        await WorkerStatus.objects.select_related(["worker"])
-        .filter(
-            status__in=[
-                WorkerStatusEnum.idle.value,
-                WorkerStatusEnum.moving.value,
-                WorkerStatusEnum.notice.value,
-                WorkerStatusEnum.working.value,
-            ]
-        )
-        .all()
-    )
-
-    promises = [check_routine(s) for s in worker_status]
-    await asyncio.gather(*promises)
-
-
-@show_duration
 async def worker_monitor_routine():
     """監控員工閒置狀態，如果員工閒置在機台超過一定時間，則自動發出返回消防站任務"""
     # when a user import device layout to the system, some devices may have been removed.
     # thus there's a chance that at_device could be null, so we need to address that.
-    at_device_null_worker_status = (
-        await WorkerStatus.objects.filter(at_device=None)
-        .select_related(["worker"])
-        .all()
-    )
-
-    for ws in at_device_null_worker_status:
-        try:
-            rescue_station = await Device.objects.filter(
-                workshop=ws.worker.workshop, is_rescue=True
-            ).first()
-            await ws.update(at_device=rescue_station)
-        except Exception:
-            continue
-
     workshop_cache: Dict[int, FactoryMap] = {}  # ID, info
     rescue_cache: Dict[int, List[Device]] = {}  # ID, List[Device]
 
-    all_workshop_infos = await FactoryMap.objects.fields(['id', 'name', 'related_devices', 'map']).all()
+    transaction = await api_db.transaction()
 
-    for info in all_workshop_infos:
-        workshop_cache[info.id] = info
-        all_rescue_devices = await Device.objects.filter(workshop=info.id, is_rescue=True).all()
-        rescue_cache[info.id] = all_rescue_devices
+    try:
+        all_workshop_infos = await FactoryMap.objects.fields(['id', 'name', 'related_devices', 'map']).all()
 
-    workers = await User.objects.filter(
-        level=UserLevel.maintainer.value
-    ).all()
+        for info in all_workshop_infos:
+            workshop_cache[info.id] = info
+            all_rescue_devices = await Device.objects.filter(workshop=info.id, is_rescue=True).all()
+            rescue_cache[info.id] = all_rescue_devices
 
-    for w in workers:
-        async with api_db.transaction():
-            worker_status = (
-                await WorkerStatus.objects.select_related(["worker", "at_device"])
-                .filter(worker=w)
-                .get_or_none()
-            )
+        workers =(
+                await User.objects
+                .filter(
+                    level=UserLevel.maintainer.value,
+                    shift=get_shift_type_now(),
+                    at_device__is_rescue=False,
+                )
+                .select_related('worker_status')
+                .filter(
+                    status= WorkerStatusEnum.idle
+                )
+                .select_related('device')
+                .filter(
+                    is_rescue=False
+                )
+                .all()
+        )
 
-            if w.workshop is None:
+        for worker in workers:
+            
+            if worker.workshop is None:
+                    continue
+
+            worker_status = await WorkerStatus.objects.filter(worker=worker).get_or_none()
+
+            if worker_status is None:
+                logger.error(
+                    f"missing worker status for worker username: {worker.username}"
+                )
                 continue
-
-            rescue_stations = rescue_cache[w.workshop.id]
+        
+            rescue_stations = rescue_cache[worker.workshop.id]
 
             if len(rescue_stations) == 0:
                 logger.error(
-                    f"there's no rescue station in workshop {w.workshop.id}")
-                logger.error(
-                    f"you should create a rescue station as soon as possible")
-                return
-
-            if worker_status is None:
-                await WorkerStatus.objects.create(
-                    worker=w,
-                    status=WorkerStatusEnum.leave.value,
-                    at_device=rescue_stations[0],
-                    last_event_end_date=datetime.utcnow(),
+                    f"there's no rescue station in workshop {worker.workshop.id}"
                 )
-                continue
-
-            if worker_status.status != WorkerStatusEnum.idle.value:
-                continue
-
-            if get_shift_type_now() != (await get_user_shift_type(w.username)):
-                continue
-
-            if worker_status.at_device.is_rescue == True:
+                logger.error(
+                    f"you should create a rescue station as soon as possible"
+                )
                 continue
 
             if datetime.utcnow() - worker_status.last_event_end_date < timedelta(
@@ -413,21 +305,21 @@ async def worker_monitor_routine():
             ):
                 continue
 
-            if await is_user_working_on_mission(w.username):
-                continue
-
-            factory_map = workshop_cache[w.workshop.id]
+            factory_map = workshop_cache[worker.workshop.id]
             rescue_distances = []
 
             try:
                 worker_device_idx = find_idx_in_factory_map(
                     factory_map, worker_status.at_device.id
                 )
-            except ValueError:
+            except ValueError as e:
                 logger.error(
                     f"{worker_status.at_device.id} is not in the map {factory_map.name}"
                 )
+                continue
 
+            
+            # fetch all the rescue stations and the 
             for r in rescue_stations:
                 rescue_idx = find_idx_in_factory_map(factory_map, r.id)
                 rescue_distances.append(
@@ -443,21 +335,21 @@ async def worker_monitor_routine():
             mission = await Mission.objects.create(
                 name="前往救援站",
                 device=to_rescue_station,
-                repair_start_date=datetime.utcnow(),
+                repair_beg_date=datetime.utcnow(),
                 description=f"請前往救援站 {to_rescue_station}",
+                worker=worker
             )
-            await mission.assignees.add(w)
 
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=w.username,
+                user=worker.username,
                 table_name="missions",
                 record_pk=str(mission.id),
                 description="前往消防站",
             )
 
             mqtt_client.publish(
-                f"foxlink/users/{w.username}/move-rescue-station",
+                f"foxlink/users/{worker.username}/move-rescue-station",
                 {
                     "type": "rescue",
                     "mission_id": mission.id,
@@ -469,48 +361,25 @@ async def worker_monitor_routine():
                 retain=True,
             )
 
-
-@show_duration
-async def check_mission_accept_duration_routine():
-    """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級"""
-    assign_mission_check = await AuditLogHeader.objects.filter(
-        action=AuditActionEnum.MISSION_ASSIGNED.value).all()
-
-    for m in assign_mission_check:
-        assign_mission = (
-            await Mission.objects.select_related("assignees")
-            .filter(
-                id=m.record_pk,
-                repair_start_date__isnull=True,
-                is_cancel=False,
-            ).get_or_none())
-        if assign_mission is None:
-            continue
-        if len(assign_mission.assignees) == 0:
-            continue
-        if assign_mission.assignees[0].username != m.user.username:
-            continue
-        if m.accept_duration is None:
-            continue
-        if m.accept_duration.total_seconds() >= CHECK_MISSION_ASSIGN_DURATION:
-            await AuditLogHeader.objects.create(
-                action=AuditActionEnum.MISSION_ACCEPTED_OVERTIME.value,
-                table_name="missions",
-                record_pk=str(m.record_pk),
-                user=m.user,
-            )
-            await reject_mission_by_id(m.record_pk,  m.user)
+    except Exception as e:
+        print(e)
+        logger.error(e)
+        await transaction.rollback()
+    else:
+        await transaction.commit()
 
 
 @show_duration
 async def check_mission_duration_routine():
     """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級"""
     working_missions = (
-        await Mission.objects.select_related("assignees")
+        await Mission.objects
         .filter(
-            # repair_start_date__isnull=False,
+            # repair_beg_date__isnull=False,
             repair_end_date__isnull=True,
+            is_overtime=False,
             is_cancel=False,
+            worker__isnull=False
         )
         .all()
     )
@@ -521,25 +390,14 @@ async def check_mission_duration_routine():
         total_mins += t
         standardize_thresholds += [total_mins]
 
-    working_missions = [m for m in working_missions if len(m.assignees) != 0]
 
-    for m in working_missions:
-        if m.repair_duration is None:
-            continue
-
+    for mission in working_missions:
         for idx, min in enumerate(standardize_thresholds):
-            if m.repair_duration.total_seconds() >= min * 60:
-                is_sent = await AuditLogHeader.objects.filter(
-                    action=AuditActionEnum.MISSION_OVERTIME.value,
-                    table_name="missions",
-                    description=str(min),
-                    record_pk=str(m.id),
-                ).exists()
+            if mission.repair_duration.total_seconds() >= min * 60:
 
-                if is_sent:
-                    continue
+                await mission.update(is_overtime=True)
 
-                superior: Optional[User] = m.worker.superior
+                superior: Optional[User] = mission.worker.superior
                     
                 if superior is None:
                     break
@@ -547,11 +405,11 @@ async def check_mission_duration_routine():
                 mqtt_client.publish(
                     f"foxlink/users/{superior.username}/mission-overtime",
                     {
-                        "mission_id": m.id,
-                        "mission_name": m.name,
-                        "worker_id": m.assignees[0].username,
-                        "worker_name": m.assignees[0].full_name,
-                        "duration": m.mission_duration.total_seconds(),
+                        "mission_id": mission.id,
+                        "mission_name": mission.name,
+                        "worker_id": mission.worker.username,
+                        "worker_name": mission.worker.full_name,
+                        "duration": mission.mission_duration.total_seconds(),
                     },
                     qos=2,
                 )
@@ -560,10 +418,9 @@ async def check_mission_duration_routine():
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
                     description=str(min),
-                    record_pk=str(m.id),
-                    user=m.assignees[0].username,
+                    record_pk=str(mission.id),
+                    user=mission.worker.username,
                 )
-
 
 
 @show_duration
@@ -571,36 +428,34 @@ async def dispatch_routine():
     """處理任務派工給員工的過程"""
 
     # 取得所有未完成的任務
-    avaliable_missions = (
-        await Mission.objects.select_related(["device", "assignees"])
-        .filter(is_cancel=False, repair_end_date__isnull=True)
+    pending_missions = (
+        await Mission.objects
+        .filter(
+            is_cancel=False,
+            repair_end_date__isnull=True,
+            worker__isnull=True
+        )
         .all()
     )
 
-    # 過濾員工數為零的任務
-    avaliable_missions = [
-        x for x in avaliable_missions if len(x.assignees) == 0]
 
-    if len(avaliable_missions) == 0:
+    if len(pending_missions) == 0:
         return
-    m_list = []
 
-    for m in avaliable_missions:
-        reject_count = await AuditLogHeader.objects.filter(
-            action=AuditActionEnum.MISSION_REJECTED.value, record_pk=m.id
-        ).count()
+    mission_item_list = []
 
+    for mission in pending_missions:
         item = {
-            "missionID": m.id,
+            "missionID": mission.id,
             "event_count": 0,
-            "refuse_count": reject_count,
-            "device": m.device.device_name,
-            "process": m.device.process,
-            "create_date": m.created_date,
+            "refuse_count": len(mission.rejections),
+            "device": mission.device.device_name,
+            "process": mission.device.process,
+            "create_date": mission.created_date,
             "category": 0,
         }
 
-        m_list.append(item)
+        mission_item_list.append(item)
 
     workshop_cache: Dict[int, FactoryMap] = {}  # ID, info
     all_workshop_infos = await FactoryMap.objects.fields(['id', 'name', 'related_devices', 'map']).all()
@@ -609,20 +464,21 @@ async def dispatch_routine():
         workshop_cache[info.id] = info
 
     # 取得優先處理的任務，並按照優先級排序
-    dispatch.get_missions(m_list)
+    dispatch.get_missions(mission_item_list)
     mission_rank_list = dispatch.mission_priority()
 
     for idx, mission_id in enumerate(mission_rank_list):
-        mission_1st = (await Mission.objects.select_related(
-            ["assignees", "device", "device__workshop"]
-        )
+        mission_1st = (await Mission.objects
+            .select_related(
+                ["device__workshop"]
+            )
             .exclude_fields(
                 [
                     "device__workshop__map",
                     "device__workshop__related_devices",
                     "device__workshop__image",
                 ]
-        )
+            )
             .filter(id=mission_id)
             .get_or_none()
         )
@@ -631,108 +487,79 @@ async def dispatch_routine():
             continue
 
         # 抓取可維修此機台的員工列表
-        can_dispatch_workers = await api_db.fetch_all(
-            """
-            SELECT udl.*, u.full_name, u.level as userlevel FROM userdevicelevels udl
-            INNER JOIN users u ON u.username = udl.`user`
-            WHERE udl.device = :device_id AND udl.shift=:shift AND udl.level > 0 AND u.workshop = :workshop
-            """,
-            {'device_id': mission_1st.device.id, 'shift': get_shift_type_now(
-            ).value, 'workshop': mission_1st.device.workshop.id}
+        can_dispatch_workers = (await User.objects
+            .filter(
+                shift = get_shift_type_now().value,
+                workshop = mission_1st.device.workshop.id
+            )
+            .select_related(["device_levels","status"])
+            .filter(
+                device_levels__device = mission_1st.device.id,   
+                status__status = WorkerStatusEnum.idle.value
+            )
+            .all()
         )
-
+        
         # 檢查機台是否被列入白名單，並抓取可能的白名單員工列表
         is_in_whitelist = await is_mission_in_whitelist(mission_1st.id)
         whitelist_workers = await get_workers_from_whitelist_devices(mission_1st.device.id)
 
         remove_indice = []
-        for w in can_dispatch_workers:
+        for worker in can_dispatch_workers:
             # 如果該機台不列入白名單，但是員工是白名單員工，則移除
-            if not is_in_whitelist and await is_worker_in_whitelist(w['user']):
-                remove_indice.append(w['user'])
+            if not is_in_whitelist and await is_worker_in_whitelist(worker.username):
+                remove_indice.append(worker.username)
             # 如果該機台是列入白名單，但是員工不是白名單員工，則移除
-            if is_in_whitelist and w['user'] not in whitelist_workers:
-                remove_indice.append(w['user'])
+            if is_in_whitelist and worker.username not in whitelist_workers:
+                remove_indice.append(worker.username)
 
         # 取得該裝置隸屬的車間資訊
         factory_map = workshop_cache[mission_1st.device.workshop.id]
         distance_matrix: List[List[float]] = factory_map.map  # 距離矩陣
-        mission_device_idx = find_idx_in_factory_map(
-            factory_map, mission_1st.device.id)  # 該任務的裝置在矩陣中的位置
+        mission_device_idx = find_idx_in_factory_map(factory_map, mission_1st.device.id) # 該任務的裝置在矩陣中的位置
+        
         # 移除不符合條件的員工
         can_dispatch_workers = [
-            x for x in can_dispatch_workers if x['user'] not in remove_indice]
+            x for x in can_dispatch_workers if x.username not in remove_indice
+        ]
+        worker_list = []
 
-        # 如果沒有可派工的員工，則通知管理層並跳過
-        if len(can_dispatch_workers) == 0:
-            logger.warning(
-                f"No workers available to dispatch for mission {mission_1st.id}"
-            )
+        for worker in can_dispatch_workers:
 
-            if not await AuditLogHeader.objects.filter(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, record_pk=mission_1st.id).exists():
-                await AuditLogHeader.objects.create(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, table_name="missions", record_pk=mission_1st.id)
-                mqtt_client.publish(
-                    f"foxlink/{factory_map.name}/no-available-worker",
-                    MissionDto.from_mission(mission_1st).dict(),
-                    qos=2,
-                )
-            continue
-
-        w_list = []
-        for w in can_dispatch_workers:
-            if w['userlevel'] != UserLevel.maintainer.value:
-                continue
-
-            is_idle = await WorkerStatus.objects.filter(
-                worker=w['user'], status=WorkerStatusEnum.idle.value
-            ).exists()
-
-            # 如果員工非閒置狀態則略過
-            if not is_idle:
-                continue
-
-            # if worker has already working on other mission, skip
-            if (await is_user_working_on_mission(w['user'])) == True:
+            if worker.level != UserLevel.maintainer.value:
                 continue
 
             # if worker rejects this mission once.
-            if await AuditLogHeader.objects.filter(
-                action=AuditActionEnum.MISSION_REJECTED.value,
-                user=w['user'],
-                record_pk=mission_1st.id,
-            ).exists():
+            if worker in mission_1st.rejections:
                 continue
-
-            worker_status = await WorkerStatus.objects.filter(worker=w['user']).get()
-
-            daily_count = await AuditLogHeader.objects.filter(
-                action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=w['user'],
-                created_date__gte=(datetime.utcnow() - timedelta(hours=12)),
-            ).count()
+            
 
             worker_device_idx = find_idx_in_factory_map(
-                factory_map, worker_status.at_device.id
+                factory_map, worker.status[0].at_device.id
             )
 
             item = {
-                "workerID": w['user'],
+                "workerID": worker.username,
                 "distance": distance_matrix[mission_device_idx][worker_device_idx],
                 "idle_time": (
-                    datetime.utcnow() - worker_status.last_event_end_date
+                    datetime.utcnow() - worker.status[0].last_event_end_date
                 ).total_seconds(),
-                "daily_count": daily_count,
-                "level": w['level'],
+                "daily_count": worker.status[0].dispatch_count,
+                "level": worker.level,
             }
-            w_list.append(item)
 
-        if len(w_list) == 0:
+            worker_list.append(item)
+        
+
+        if len(worker_list) == 0:
             logger.warning(
                 f"no worker available to dispatch for mission: (mission_id: {mission_id}, device_id: {mission_1st.device.id})"
             )
 
-            if not await AuditLogHeader.objects.filter(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, record_pk=mission_1st.id).exists():
-                await AuditLogHeader.objects.create(action=AuditActionEnum.NOTIFY_MISSION_NO_WORKER.value, table_name="missions", record_pk=mission_1st.id)
+            if not mission_1st.is_lonely:
+
+                await mission_1st.update(is_lonely=True)
+
                 mqtt_client.publish(
                     f"foxlink/{factory_map.name}/no-available-worker",
                     MissionDto.from_mission(mission_1st).dict(),
@@ -740,25 +567,32 @@ async def dispatch_routine():
                 )
             continue
 
-        dispatch.get_dispatch_info(w_list)
+        dispatch.get_dispatch_info(worker_list)
         worker_1st = dispatch.worker_dispatch()
 
-        async with api_db.transaction():
-            try:
-                await assign_mission(mission_id, worker_1st)
-                await AuditLogHeader.objects.create(
-                    table_name="missions",
-                    record_pk=mission_id,
-                    action=AuditActionEnum.MISSION_ASSIGNED.value,
-                    user=worker_1st,
+        transaction = await api_db.transaction()
+
+        try:
+            await assign_mission(mission_id, worker_1st)
+            await AuditLogHeader.objects.create(
+                table_name="missions",
+                record_pk=mission_id,
+                action=AuditActionEnum.MISSION_ASSIGNED.value,
+                user=worker_1st,
+            )
+            logger.info(
+                "dispatching mission {} to worker {}".format(
+                    mission_1st.id, worker_1st
                 )
-                logger.info(
-                    "dispatching mission {} to worker {}".format(
-                        mission_1st.id, worker_1st)
-                )
-            except Exception as e:
-                logger.error(
-                    f"cannot assign to worker {worker_1st}\nReason: {repr(e)}")
+            )
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(
+                f"cannot assign to worker {worker_1st}\nReason: {repr(e)}"
+            )
+            await transaction.rollback()
+        else:
+            await transaction.commit()
 
 
 ######### events completed  ########
@@ -806,7 +640,7 @@ async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
         ):
             continue
 
-        device_id = generate_device_id(e)
+        device_id = assemble_device_id(e.project,e.line,e.device_name)
 
         # if this device's priority is not existed in `CategoryPRI` table, which means it's not an out-of-order event.
         # Thus, we should skip it.
@@ -840,7 +674,7 @@ async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
             )
             await mission.save()
 
-        await mission.missionevents.add(
+        await mission.events.add(
             MissionEvent(
                 mission=mission.id,
                 event_id=e.id,
@@ -848,15 +682,15 @@ async def sync_events_from_foxlink(host: str, table_name: str, since:str = ""):
                 table_name=table_name,
                 category=e.category,
                 message=e.message,
-                event_start_date=e.start_time,
+                event_beg_date=e.start_time,
             )
         )
 
 @show_duration
 async def sync_events_from_foxlink_handler():
         db_table_pairs = await foxlink_dbs.get_all_db_tables()
-        proximity_mission =  await MissionEvent.objects.order_by(MissionEvent.event_start_date.desc()).get_or_none()
-        since = proximity_mission.event_start_date if type(proximity_mission) != type(None) else ""
+        proximity_mission =  await MissionEvent.objects.order_by(MissionEvent.event_beg_date.desc()).get_or_none()
+        since = proximity_mission.event_beg_date if type(proximity_mission) != type(None) else ""
         
         await asyncio.gather(*[
             sync_events_from_foxlink(host,table,since) 
@@ -959,15 +793,11 @@ async def main(interval:int):
             start = time.perf_counter()
             await update_complete_events_handler()
             await sync_events_from_foxlink_handler()
-            await auto_close_missions()
-            await worker_monitor_routine()
-            await overtime_workers_routine()
-            await track_worker_status_routine()
-            await check_mission_duration_routine()
-            # await check_if_mission_cancel_or_close()
-            # await check_mission_accept_duration_routine()
-            # await check_alive_worker_routine()
-            # await check_if_mission_finish()
+
+            # await auto_close_missions()
+            # await worker_monitor_routine()
+            # await overtime_workers_routine()
+            # await check_mission_duration_routine()
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await dispatch_routine()

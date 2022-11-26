@@ -55,7 +55,7 @@ async def get_missions_by_query(
         "is_emergency": is_emergency,
         "device__is_rescue": is_rescue,
         "device__workshop__name": workshop_name,
-        "repair_start_date__isnull": not is_started if is_started is not None else None,
+        "repair_beg_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
 
@@ -63,7 +63,7 @@ async def get_missions_by_query(
 
     missions = (
         await Mission.objects.select_related(
-            ["device", "assignees", "missionevents", "device__workshop"]
+            ["events", "device__workshop"]
         )
         .exclude_fields(
             [
@@ -79,11 +79,9 @@ async def get_missions_by_query(
 
     if is_assigned is not None:
         if is_assigned:
-            missions = [mission for mission in missions if len(
-                mission.assignees) > 0]
+            missions = [mission for mission in missions if mission.worker]
         else:
-            missions = [mission for mission in missions if len(
-                mission.assignees) == 0]
+            missions = [mission for mission in missions if not mission.worker]
 
     mission_list = [MissionDto.from_mission(x) for x in missions]
 
@@ -108,14 +106,14 @@ async def get_self_mission(
         "is_cancel": is_cancel,
         "is_emergency": is_emergency,
         "device__is_rescue": is_rescue,
-        "repair_start_date__isnull": not is_started if is_started is not None else None,
+        "repair_beg_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
     params = {k: v for k, v in params.items() if v is not None}
 
     missions = (
         await Mission.objects.select_related(
-            ["device", "assignees", "missionevents", "device__workshop"]
+            [ "events", "device__workshop"]
         )
         .exclude_fields(
             [
@@ -131,11 +129,9 @@ async def get_self_mission(
 
     if is_assigned is not None:
         if is_assigned:
-            missions = [mission for mission in missions if len(
-                mission.assignees) > 0]
+            missions = [mission for mission in missions if mission.worker]
         else:
-            missions = [mission for mission in missions if len(
-                mission.assignees) == 0]
+            missions = [mission for mission in missions if not mission.worker]
 
     return [MissionDto.from_mission(x) for x in missions]
 
@@ -150,9 +146,7 @@ async def get_a_mission_by_id(
     if m is None:
         raise HTTPException(404, "the mission you request is not found")
 
-    if user.level == UserLevel.maintainer.value and user.username not in [
-        n.username for n in m.assignees
-    ]:
+    if user.level == UserLevel.maintainer.value and not user.username == m.worker.username:
         raise HTTPException(401, "you are not one of this mission's assignees")
 
     return MissionDto.from_mission(m)

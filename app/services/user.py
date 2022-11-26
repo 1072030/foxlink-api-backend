@@ -18,7 +18,6 @@ from passlib.context import CryptContext
 from app.core.database import (
     AuditActionEnum,
     AuditLogHeader,
-    LogValue,
     Mission,
     ShiftType,
     User,
@@ -33,7 +32,7 @@ from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
 from app.utils.utils import get_current_shift_time_interval
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto",)
 
 
 def get_password_hash(password: str):
@@ -44,19 +43,19 @@ async def get_users() -> List[User]:
     return await User.objects.all()
 
 
-async def create_user(dto: UserCreate) -> User:
-    pw_hash = get_password_hash(dto.password)
-    new_dto = dto.dict()
-    del new_dto["password"]
-    new_dto["password_hash"] = pw_hash
+# async def create_user(dto: UserCreate) -> User:
+#     pw_hash = get_password_hash(dto.password)
+#     new_dto = dto.dict()
+#     del new_dto["password"]
+#     new_dto["password_hash"] = pw_hash
 
-    user = User(**new_dto)
+#     user = User(**new_dto)
 
-    try:
-        return await user.save()
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail="cannot add user:" + str(e))
+#     try:
+#         return await user.save()
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=400, detail="cannot add user:" + str(e))
 
 
 async def check_user_workstatus(username: str):
@@ -69,29 +68,6 @@ async def check_user_workstatus(username: str):
 
 async def get_user_by_username(username: str) -> Optional[User]:
     user = await User.objects.filter(username=username).get_or_none()
-    return user
-
-
-async def update_user(username: str, **kwargs):
-    user = await get_user_by_username(username)
-
-    if user is None:
-        raise HTTPException(
-            status_code=404, detail="the user with this id is not found"
-        )
-
-    try:
-        filtered = {k: v for k, v in kwargs.items() if v is not None}
-
-        if filtered.get("password") is not None:
-            filtered["password_hash"] = get_password_hash(filtered["password"])
-            del filtered["password"]
-
-        await user.update(None, **filtered)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail="cannot update user:" + repr(e))
-
     return user
 
 
@@ -108,19 +84,9 @@ async def get_user_first_login_time_today(username: str) -> Optional[datetime]:
     Get a employee's first login record past 12 hours (today)
     If the employee has not been logined in today, return None
     """
-    past_12_hours = datetime.utcnow() - timedelta(hours=12)
-
     try:
-        first_login_record = (
-            await AuditLogHeader.objects.filter(
-                action=AuditActionEnum.USER_LOGIN.value,
-                user=username,
-                created_date__gte=past_12_hours,
-            )
-            .order_by("created_date")
-            .first()
-        )
-        return first_login_record.created_date
+        user = await User.objects.filter(username=username).get()
+        return user.login_date if user.login_date  > (datetime.utcnow() - timedelta(hours=12)) else None
     except Exception as e:
         return None
 
@@ -214,12 +180,6 @@ async def move_user_to_position(username: str, device_id: str):
             at_device=device, last_event_end_date=datetime.utcnow()
         )
 
-        await LogValue.objects.create(
-            log_header=log.id,
-            field_name="at_device",
-            previous_value=original_at_device,
-            new_value=device_id,
-        )
     except Exception as e:
         raise HTTPException(
             status_code=400, detail="cannot update user's position: " + repr(e)
@@ -239,11 +199,8 @@ async def get_user_working_mission(username: str) -> Optional[Mission]:
             and_(
                 # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
-                    and_(
-                        repair_start_date__isnull=False, repair_end_date__isnull=True,
-                    ),
-                    and_(repair_start_date__isnull=True,
-                         repair_end_date__isnull=True),
+                    and_(repair_beg_date__isnull=False, repair_end_date__isnull=True),
+                    and_(repair_beg_date__isnull=True,repair_end_date__isnull=True),
                 ),
                 assignees__username=username,
                 is_cancel=False,
@@ -270,12 +227,12 @@ async def is_user_working_on_mission(username: str) -> bool:
                 # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
                     and_(
-                        repair_start_date__isnull=False, repair_end_date__isnull=True,
+                        repair_beg_date__isnull=False, repair_end_date__isnull=True,
                     ),
-                    and_(repair_start_date__isnull=True,
+                    and_(repair_beg_date__isnull=True,
                          repair_end_date__isnull=True),
                 ),
-                assignees__username=username,
+                worker__username=username,
                 is_cancel=False,
             )
         ).count()

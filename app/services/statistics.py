@@ -51,8 +51,8 @@ class AbnormalMissionInfo(BaseModel):
 UTC_NIGHT_SHIFT_FILTER = "AND (TIME(m.created_date) BETWEEN '12:00' AND '23:40') # 夜班 in UTC"
 UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') OR (TIME(m.created_date) BETWEEN '00:00' AND '12:00')) # 白班 in UTC"
 
-LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_start_date) BETWEEN '20:00' AND '23:59') OR (TIME(event_start_date) BETWEEN '00:00' AND '07:40'))"
-LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_start_date) BETWEEN '07:40' AND '20:00')"
+LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_beg_date) BETWEEN '20:00' AND '23:59') OR (TIME(event_beg_date) BETWEEN '00:00' AND '07:40'))"
+LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_beg_date) BETWEEN '07:40' AND '20:00')"
 
 
 async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10):
@@ -87,14 +87,14 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
     abnormal_missions = await api_db.fetch_all(
         f"""
         SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
-            SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_start_date, event_end_date) as duration, m.created_date
+            SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_beg_date, event_end_date) as duration, m.created_date
             FROM missionevents
             INNER JOIN missions m ON m.id = mission
             INNER JOIN devices d ON d.id = m.device 
             WHERE 
                 event_end_date IS NOT NULL
                 AND d.is_rescue = FALSE
-                AND (event_start_date BETWEEN :start_date AND :end_date)
+                AND (event_beg_date BETWEEN :start_date AND :end_date)
                 AND d.workshop = :workshop_id
                 {LOCAL_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (LOCAL_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
         ) t1
@@ -116,14 +116,14 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
 
     abnormal_devices: List[AbnormalDeviceInfo] = await api_db.fetch_all(
         f"""
-        SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_start_date, event_end_date)) as duration
+        SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_beg_date, event_end_date)) as duration
         FROM missionevents
         INNER JOIN missions m ON m.id = mission
         INNER JOIN devices d ON d.id = m.device 
         WHERE 
-            event_start_date IS NOT NULL
+            event_beg_date IS NOT NULL
             AND event_end_date IS NOT NULL
-            AND (event_start_date BETWEEN :start_date AND :end_date)
+            AND (event_beg_date BETWEEN :start_date AND :end_date)
             AND d.workshop = :workshop_id
             {LOCAL_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (LOCAL_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
         GROUP BY device
@@ -142,7 +142,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
         top_assignees_in_mission = await api_db.fetch_all(
             """
             SELECT t1.username, t1.full_name, min(t1.duration) as duration FROM (
-                SELECT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_start_date, me.event_end_date) as duration
+                SELECT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_beg_date, me.event_end_date) as duration
                 FROM missionevents me
                 LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
                 INNER JOIN missions m ON m.id = me.mission

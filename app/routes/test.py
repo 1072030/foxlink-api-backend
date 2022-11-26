@@ -83,7 +83,7 @@ async def create_fake_mission(workshop_name: str):
                 table_name="test",
                 category=random.randint(1, 200),
                 message=random.sample(CRASH_MESSAGES, 1)[0],
-                event_start_date=datetime.utcnow() + timedelta(hours=8),
+                event_beg_date=datetime.utcnow() + timedelta(hours=8),
             )
             break
         except Exception:

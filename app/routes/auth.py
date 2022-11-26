@@ -37,14 +37,16 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     access_token = create_access_token(
-        data={"sub": user.username, "UUID": 0}, expires_delta=access_token_expires
+        data={
+            "sub": user.username,
+            "UUID": 0
+        },
+        expires_delta=access_token_expires
     )
 
     # await set_device_UUID(user, form_data.client_id)
 
-    today_login_timestamp = await get_user_first_login_time_today(user.username)
-
-    is_first_login_today = today_login_timestamp is None
+    is_first_login_today = await get_user_first_login_time_today(user.username)
 
     await AuditLogHeader.objects.create(
         table_name="users",
@@ -59,15 +61,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         await worker_status.update(status=WorkerStatusEnum.idle.value)
 
     # if user is a maintainer, then we should mark his status as idle
-    if user.level == UserLevel.maintainer.value and is_first_login_today:
+    if user.level == UserLevel.maintainer.value and is_first_login_today != None:
         if worker_status is not None:
             worker_status.last_event_end_date = datetime.utcnow()  # type: ignore
 
             rescue_missions = (
-                await Mission.objects.select_related(["device", "assignees"])
+                await Mission.objects.select_related(["device"])
                 .filter(
                     device__is_rescue=True,
-                    assignees__username=user.username,
+                    worker=user,
                     is_cancel=False,
                 )
                 .all()
@@ -81,6 +83,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             ).first()
 
             worker_status.at_device = first_rescue_station
+            
             await worker_status.update()
+
+    await user.update( login_date = datetime.utcnow())
 
     return {"access_token": access_token, "token_type": "bearer"}

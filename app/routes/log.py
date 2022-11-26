@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import datetime
 from typing import List
 from pydantic import BaseModel
-from app.core.database import AuditActionEnum, AuditLogHeader, LogValue, User
+from app.core.database import AuditActionEnum, AuditLogHeader, User
 from typing import Optional
 
 from app.services.auth import get_manager_active_user
@@ -17,7 +17,7 @@ class LogValueOut(BaseModel):
     new_value: str
 
     @classmethod
-    def from_logvalue(cls, logvalue: LogValue):
+    def from_logvalue(cls, logvalue):
         return cls(
             field=logvalue.field_name,
             previous_value=logvalue.previous_value,

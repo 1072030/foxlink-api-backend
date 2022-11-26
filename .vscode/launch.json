@@ -15,7 +15,11 @@
       "name": "Python: Background Daemon",
       "type": "python",
       "request": "launch",
-      "module": "app.background_service",
+      "module": "app.foxlink.daemon",
+      "args": [
+        "-i",
+        "1"
+      ],
       "justMyCode": false
     },
     {

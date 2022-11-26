@@ -113,8 +113,13 @@ class User(ormar.Model):
     level: int = ormar.SmallInteger(choices=list(UserLevel),nullable=False)
     shift: int = ormar.SmallInteger(choices=list(ShiftType),nullable=True)
     change_pwd: bool = ormar.Boolean(server_default="0",nullable=True)  
+    
+
+    login_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00", timezone=True)
+    logout_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00",timezone=True)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+
 
 
 class Device(ormar.Model):
@@ -142,7 +147,7 @@ class UserDeviceLevel(ormar.Model):
         constraints = [ormar.UniqueColumns("device", "user")]
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE")
+    user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE",related_name="device_levels")
     device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
@@ -154,15 +159,22 @@ class MissionEvent(ormar.Model):
         constraints = [ormar.UniqueColumns("event_id", "table_name", "mission")]
 
     id: int = ormar.Integer(primary_key=True)
-    mission: MissionRef = ormar.ForeignKey(MissionRef, index=True, ondelete="CASCADE")  # type: ignore
-    event_id: int = ormar.Integer()
-    table_name: str = ormar.String(max_length=50)
+
+    mission: MissionRef = ormar.ForeignKey(
+        MissionRef,
+        index=True,
+        ondelete="CASCADE",
+        related_name="events"
+    )
+    
+    event_id: int = ormar.Integer(nullable=False)
     category: int = ormar.Integer(nullable=False)
     message: str = ormar.String(max_length=100, nullable=True)
+    host: str = ormar.String(max_length=50,nullable=False)
+    table_name: str = ormar.String(max_length=50,nullable=False)
     done_verified: bool = ormar.Boolean(default=False)
-    event_start_date: datetime = ormar.DateTime(nullable=True)
+    event_beg_date: datetime = ormar.DateTime(nullable=True)
     event_end_date: datetime = ormar.DateTime(nullable=True)
-    host: str = ormar.String(max_length=50)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
 
@@ -174,16 +186,29 @@ class Mission(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    worker: User = ormar.ForeignKey(User, ondelete="CASCADE")
+    worker: User = ormar.ForeignKey(User, ondelete="CASCADE",related_name="accepted_mission")
+    rejections: Optional[List[User]] = ormar.ManyToMany(User,related_name="rejected_mission")
     name: str = ormar.String(max_length=100, nullable=False)
     description: str = ormar.String(max_length=256)
-    repair_start_date: datetime = ormar.DateTime(nullable=True)
+
+    is_emergency: bool = ormar.Boolean(default=False, nullable=True)
+    is_cancel: bool = ormar.Boolean(default=False, nullable=True)
+    is_overtime: bool = ormar.Boolean(default=False,nullable=True)
+    is_autocanceled: bool = ormar.Boolean(default=False, nullable=True) #
+    is_lonely: bool  = ormar.Boolean(default=False, nullable=True) # if no worker could be assigned
+    is_shifted: bool = ormar.Boolean(default=False, nullable=True) # if mission complete due to shifting
+
+    notify_send_date: datetime = ormar.DateTime(nullable=True)
+    notify_recv_date: datetime = ormar.DateTime(nullable=True)    
+
+    accept_recv_date: datetime = ormar.DateTime(nullable=True)    
+
+    repair_beg_date: datetime = ormar.DateTime(nullable=True)
     repair_end_date: datetime = ormar.DateTime(nullable=True)
-    is_cancel: bool = ormar.Boolean(default=False)
-    is_emergency: bool = ormar.Boolean(default=False)
-    is_autocanceled: bool = ormar.Boolean(default=False, nullable=False)
+
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    
 
     @property_field
     def mission_duration(self) -> timedelta:
@@ -194,17 +219,22 @@ class Mission(ormar.Model):
 
     @property_field
     def repair_duration(self) -> Optional[timedelta]:
-        if self.repair_start_date is not None:
+        if self.repair_beg_date is not None:
             if self.repair_end_date is not None:
-                return self.repair_end_date - self.repair_start_date
+                return self.repair_end_date - self.repair_beg_date
             else:
-                return datetime.utcnow() - self.repair_start_date
+                return datetime.utcnow() - self.repair_beg_date
         else:
             return None
 
     @property_field
+    def is_accepted(self) -> bool:
+        return self.accept_recv_date is not None
+
+
+    @property_field
     def is_started(self) -> bool:
-        return self.repair_start_date is not None
+        return self.repair_beg_date is not None
 
     @property_field
     def is_closed(self) -> bool:
@@ -218,18 +248,6 @@ class Mission(ormar.Model):
             return True
         else:
             return False
-
-
-class LogValue(ormar.Model):
-
-    class Meta(MainMeta):
-        tablename = "log_values"
-
-    id: int = ormar.Integer(primary_key=True, index=True)
-    log_header: AuditLogHeaderRef = ormar.ForeignKey(AuditLogHeaderRef, ondelete="CASCADE")  # type: ignore
-    field_name: str = ormar.String(max_length=100)
-    previous_value: str = ormar.String(max_length=512)
-    new_value: str = ormar.String(max_length=512)
 
 
 class AuditLogHeader(ormar.Model):
@@ -254,7 +272,7 @@ class WorkerStatus(ormar.Model):
         tablename = "worker_status"
         
     id: int = ormar.Integer(primary_key=True)
-    worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE")
+    worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE",related_name="status")
     at_device: Device = ormar.ForeignKey(Device, nullable=True, ondelete="SET NULL")
     status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
     last_event_end_date: datetime = ormar.DateTime(timezone=True)
@@ -277,7 +295,6 @@ class WhitelistDevice(ormar.Model):
 
 
 MissionEvent.update_forward_refs()
-LogValue.update_forward_refs()
 User.update_forward_refs()
 
 

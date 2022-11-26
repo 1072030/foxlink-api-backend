@@ -269,12 +269,11 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 worker = User(
                     username = username,
                     full_name = full_name,
-                    password_hash = get_password_hash("foxlink"),
+                    password_hash = default_password_hash,
                     workshop = workshop,
                     superior = superior,
                     level = level,
-                    shift = shift,
-
+                    shift = shift
                 )
                 worker_name_entity_dict[full_name] = worker
                 create_worker_bulk.append(worker)

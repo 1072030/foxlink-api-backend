@@ -30,7 +30,7 @@
     "category" : 190, // 該故障的分類編號
     "message" : "进料打码站故障", // 故障資訊
     "done_verified" : false, // 該故障是否維修完畢
-    "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
+    "event_beg_date" : "2022-04-23T07:09:22", // 該故障出現時間
     "event_end_date" : null
   ]
 }
@@ -56,7 +56,7 @@
     "category" : 190, // 該故障的分類編號
     "message" : "进料打码站故障", // 故障資訊
     "done_verified" : false, // 該故障是否維修完畢
-    "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
+    "event_beg_date" : "2022-04-23T07:09:22", // 該故障出現時間
     "event_end_date" : null
   ]
 }
@@ -99,7 +99,7 @@
     "category" : 190,
     "message" : "进料打码站故障",
     "done_verified" : false, // 該故障是否維修完畢
-    "event_start_date" : "2022-04-23T07:09:22", // 該故障出現時間
+    "event_beg_date" : "2022-04-23T07:09:22", // 該故障出現時間
     "event_end_date" : null
   } ],
   "is_started" : false,
