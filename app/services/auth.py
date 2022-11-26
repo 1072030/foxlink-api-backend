@@ -1,7 +1,10 @@
 import logging
 from jose.constants import ALGORITHMS
 from jose.exceptions import  ExpiredSignatureError
-from app.core.database import User
+from app.core.database import (
+    get_ntz_now,
+    User,
+)
 from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
@@ -9,8 +12,11 @@ from jose import jwt
 from .user import get_user_by_badge, pwd_context
 from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
-from app.env import JWT_SECRET
+from app.env import (
+    JWT_SECRET,
+)
 from app.core.database import UserLevel
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
@@ -25,9 +31,9 @@ def verify_password(plain_password: str, hashed_password: str):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = get_ntz_now() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=30)
+        expire = get_ntz_now()
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHMS.HS256)
     return encoded_jwt

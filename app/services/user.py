@@ -16,6 +16,7 @@ from app.models.schema import (
 )
 from passlib.context import CryptContext
 from app.core.database import (
+    get_ntz_now,
     AuditActionEnum,
     AuditLogHeader,
     Mission,
@@ -29,7 +30,8 @@ from app.core.database import (
 )
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
-from app.utils.utils import get_current_shift_time_interval
+from app.utils.utils import get_current_shift_time_interval,get_current_shift_details
+
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto",)
 
@@ -59,7 +61,7 @@ async def get_users() -> List[User]:
 
 
 async def get_user_by_badge(badge: str) -> Optional[User]:
-    user = await User.objects.filter(badge=badge).get_or_none()
+    user = await User.objects.get_or_none(badge=badge)
     return user
 
 
@@ -71,15 +73,15 @@ async def delete_user_by_badge(badge: str):
             status_code=404, detail="user by this id is not found")
 
 
-async def get_user_first_login_time_today(badge: str) -> Optional[datetime]:
+async def check_user_begin_shift(user: User) -> Optional[bool]:
     """
-    Get a employee's first login record past 12 hours (today)
-    If the employee has not been logined in today, return None
+    Check whether the user belongs to current shift and has not start the shift.
     """
     try:
-        user = await User.objects.filter(badge=badge).get()
-        return user.login_date if user.login_date  > (datetime.utcnow() - timedelta(hours=12)) else None
+        shift, start, end = await get_current_shift_details()
+        return (user.shift.id == shift.value  and  not start < user.shift_beg_date < end)
     except Exception as e:
+        print(e)
         return None
 
 
@@ -100,9 +102,6 @@ async def get_worker_mission_history(badge: str) -> List[MissionDto]:
     )
 
     return [MissionDto.from_mission(x) for x in missions]
-
-
-
 
 
 async def move_user_to_position(badge: str, device_id: str):
@@ -135,7 +134,7 @@ async def move_user_to_position(badge: str, device_id: str):
 
         await user.update(
             at_device=device, 
-            last_event_end_date=datetime.utcnow()
+            finish_event_date=get_ntz_now()
         )
 
     except Exception as e:
@@ -423,7 +422,7 @@ async def get_worker_status(worker:User) -> Optional[WorkerStatusDto]:
         worker_id=worker.badge,
         worker_name=worker.username,
         status=worker.status,
-        last_event_end_date=worker.last_event_end_date,
+        finish_event_date=worker.finish_event_date,
         total_dispatches=total_start_count,
     )
 

@@ -18,15 +18,19 @@ from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.foxlink.model import FoxlinkEvent
 from app.foxlink.utils import assemble_device_id
 from app.foxlink.db import foxlink_dbs
-
-from app.services.mission import assign_mission, get_mission_by_id, is_mission_in_whitelist, reject_mission_by_id
+from app.services.mission import (
+    assign_mission,
+    get_mission_by_id,
+    is_mission_in_whitelist,
+    reject_mission_by_id
+)
 from app.services.user import (
     get_user_shift_type,
     get_user_working_mission,
     is_worker_in_whitelist,
 )
 
-from app.utils.utils import get_shift_type_now
+from app.utils.utils import get_current_shift_type
 from app.mqtt import mqtt_client
 from app.env import (
     CHECK_MISSION_ASSIGN_DURATION,
@@ -45,6 +49,7 @@ from app.env import (
     RECENT_EVENT_PAST_DAYS,
 )
 from app.core.database import (
+    get_ntz_now,
     FactoryMap,
     Mission,
     MissionEvent,
@@ -118,7 +123,7 @@ async def check_alive_worker_routine():
                     content = await resp.json()
                     # if the woeker is still not connected to the broker
                     if len(content["data"]) == 0:
-                        if datetime.utcnow() - worker.check_alive_time > timedelta(
+                        if get_ntz_now() - worker.check_alive_time > timedelta(
                             minutes=MAX_NOT_ALIVE_TIME
                         ):
 
@@ -128,7 +133,7 @@ async def check_alive_worker_routine():
                             #     user=w.worker.badge
                             # ).first()
                             
-                            superior =w.worker.superior
+                            superior = w.worker.superior
                             mqtt_client.publish(
                                 f"foxlink/users/{superior.badge}/worker-unusual-offline",
                                 {
@@ -139,7 +144,7 @@ async def check_alive_worker_routine():
                                 retain=True,
                             )
                     else:
-                        await worker.update(check_alive_time=datetime.utcnow())
+                        await worker.update(check_alive_time=get_ntz_now())
                 except:
                     continue
 
@@ -165,11 +170,11 @@ async def overtime_workers_routine():
         should_cancel = False
         duty_shift = await get_user_shift_type(mission.worker.badge)
 
-        if get_shift_type_now() != duty_shift:
+        if (await get_current_shift_type()) != duty_shift:
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
                 table_name="missions",
-                description=f"員工換班，維修時長: {datetime.utcnow() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
+                description=f"員工換班，維修時長: {get_ntz_now() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
                 user=mission.worker.badge,
                 record_pk=mission.id,
             )
@@ -265,7 +270,7 @@ async def worker_monitor_routine():
         workers =(
                 await User.objects
                 .filter(
-                    shift=get_shift_type_now(),
+                    shift= (await get_current_shift_type()).value,
                     level=UserLevel.maintainer.value,
                     at_device__is_rescue=False,
                     status= WorkerStatusEnum.idle
@@ -289,7 +294,7 @@ async def worker_monitor_routine():
                 )
                 continue
 
-            if datetime.utcnow() - worker.last_event_end_date < timedelta(
+            if get_ntz_now() - worker.finish_event_date < timedelta(
                 minutes=MOVE_TO_RESCUE_STATION_TIME
             ):
                 continue
@@ -324,7 +329,7 @@ async def worker_monitor_routine():
             mission = await Mission.objects.create(
                 name="前往救援站",
                 device=to_rescue_station,
-                repair_beg_date=datetime.utcnow(),
+                repair_beg_date=get_ntz_now(),
                 description=f"請前往救援站 {to_rescue_station}",
                 worker=worker
             )
@@ -482,7 +487,7 @@ async def dispatch_routine():
                 level=UserLevel.admin.value
             )
             .filter(
-                shift = get_shift_type_now().value,
+                shift = (await get_current_shift_type()).value,
                 workshop = mission_1st.device.workshop.id,
                 status = WorkerStatusEnum.idle.value
             )
@@ -536,7 +541,7 @@ async def dispatch_routine():
                 "workerID": worker.badge,
                 "distance": distance_matrix[mission_device_idx][worker_device_idx],
                 "idle_time": (
-                    datetime.utcnow() - worker.last_event_end_date
+                    get_ntz_now() - worker.finish_event_date
                 ).total_seconds(),
                 "daily_count": worker.dispatch_count,
                 "level": worker.level,

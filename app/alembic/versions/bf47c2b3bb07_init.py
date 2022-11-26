@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 0a8028b7d1c4
+Revision ID: bf47c2b3bb07
 Revises: 
-Create Date: 2022-11-26 15:16:00.880439
+Create Date: 2022-11-26 23:45:49.385907
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0a8028b7d1c4'
+revision = 'bf47c2b3bb07'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -24,12 +24,19 @@ def upgrade() -> None:
     sa.Column('map', sa.JSON(), nullable=False),
     sa.Column('related_devices', sa.JSON(), nullable=False),
     sa.Column('image', sa.LargeBinary(length=5242880), nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_factory_maps_id'), 'factory_maps', ['id'], unique=False)
     op.create_index(op.f('ix_factory_maps_name'), 'factory_maps', ['name'], unique=True)
+    op.create_table('shifts',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('shift_beg_time', sa.Time(timezone=True), nullable=False),
+    sa.Column('shift_end_time', sa.Time(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_shifts_id'), 'shifts', ['id'], unique=False)
     op.create_table('devices',
     sa.Column('id', sa.String(length=100), nullable=False),
     sa.Column('project', sa.String(length=50), nullable=False),
@@ -42,8 +49,8 @@ def upgrade() -> None:
     sa.Column('is_rescue', sa.Boolean(), nullable=True),
     sa.Column('workshop', sa.Integer(), nullable=True),
     sa.Column('sop_link', sa.String(length=128), nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['workshop'], ['factory_maps.id'], name='fk_devices_factory_maps_id_workshop'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -55,18 +62,20 @@ def upgrade() -> None:
     sa.Column('workshop', sa.Integer(), nullable=True),
     sa.Column('superior', sa.String(length=100), nullable=True),
     sa.Column('level', sa.SmallInteger(), nullable=False),
-    sa.Column('shift', sa.SmallInteger(), nullable=True),
+    sa.Column('shift', sa.Integer(), nullable=True),
     sa.Column('change_pwd', sa.Boolean(), server_default='0', nullable=True),
     sa.Column('status', sa.String(length=15), nullable=True),
     sa.Column('at_device', sa.String(length=100), nullable=True),
     sa.Column('dispatch_count', sa.Integer(), nullable=True),
-    sa.Column('check_alive_time', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('last_event_end_date', sa.DateTime(timezone=True), server_default='1990/01/01 00:00:00', nullable=True),
-    sa.Column('login_date', sa.DateTime(timezone=True), server_default='1990/01/01 00:00:00', nullable=True),
-    sa.Column('logout_date', sa.DateTime(timezone=True), server_default='1990/01/01 00:00:00', nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('check_alive_time', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('shift_beg_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('finish_event_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('login_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('logout_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['at_device'], ['devices.id'], name='fk_users_devices_id_at_device', ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['shift'], ['shifts.id'], name='fk_users_shifts_id_shift'),
     sa.ForeignKeyConstraint(['superior'], ['users.badge'], name='fk_users_users_badge_superior'),
     sa.ForeignKeyConstraint(['workshop'], ['factory_maps.id'], name='fk_users_factory_maps_id_workshop', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('badge')
@@ -75,8 +84,8 @@ def upgrade() -> None:
     op.create_table('whitelist_devices',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('device', sa.String(length=100), nullable=False),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['device'], ['devices.id'], name='fk_whitelist_devices_devices_id_device', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('device')
@@ -87,7 +96,7 @@ def upgrade() -> None:
     sa.Column('table_name', sa.String(length=50), nullable=False),
     sa.Column('record_pk', sa.String(length=100), nullable=True),
     sa.Column('user', sa.String(length=100), nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('description', sa.String(length=256), nullable=True),
     sa.ForeignKeyConstraint(['user'], ['users.badge'], name='fk_audit_log_headers_users_badge_user', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
@@ -113,8 +122,8 @@ def upgrade() -> None:
     sa.Column('accept_recv_date', sa.DateTime(), nullable=True),
     sa.Column('repair_beg_date', sa.DateTime(), nullable=True),
     sa.Column('repair_end_date', sa.DateTime(), nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['device'], ['devices.id'], name='fk_missions_devices_id_device', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['worker'], ['users.badge'], name='fk_missions_users_badge_worker', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
@@ -124,8 +133,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user', sa.String(length=100), nullable=True),
     sa.Column('device', sa.String(length=100), nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['device'], ['devices.id'], name='fk_user_device_levels_devices_id_device', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user'], ['users.badge'], name='fk_user_device_levels_users_badge_user', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -151,8 +160,8 @@ def upgrade() -> None:
     sa.Column('done_verified', sa.Boolean(), nullable=True),
     sa.Column('event_beg_date', sa.DateTime(), nullable=True),
     sa.Column('event_end_date', sa.DateTime(), nullable=True),
-    sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['mission'], ['missions.id'], name='fk_mission_events_missions_id_mission', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('event_id', 'table_name', 'mission', name='uc_mission_events_event_id_table_name_mission')
@@ -187,6 +196,8 @@ def downgrade() -> None:
     op.drop_table('users')
     op.drop_index(op.f('ix_devices_id'), table_name='devices')
     op.drop_table('devices')
+    op.drop_index(op.f('ix_shifts_id'), table_name='shifts')
+    op.drop_table('shifts')
     op.drop_index(op.f('ix_factory_maps_name'), table_name='factory_maps')
     op.drop_index(op.f('ix_factory_maps_id'), table_name='factory_maps')
     op.drop_table('factory_maps')

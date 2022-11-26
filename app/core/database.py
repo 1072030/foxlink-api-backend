@@ -1,4 +1,4 @@
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime,time 
 from typing import Optional, List, ForwardRef
 from enum import Enum
 from ormar import property_field, pre_update
@@ -15,6 +15,9 @@ from app.env import (
     DATABASE_USER,
     DATABASE_PASSWORD,
     DATABASE_NAME,
+    DAY_SHIFT_BEGIN,
+    DAY_SHIFT_END,
+    TZ,
     PY_ENV,
 )
 
@@ -32,6 +35,12 @@ DeviceRef = ForwardRef("Device")
 def generate_uuidv4():
     return str(uuid.uuid4())
 
+def get_ntz_now():
+    return datetime.now()
+
+def get_ntz_min():
+    return datetime.fromisoformat("1990-01-01 00:00:00")
+
 
 class UserLevel(Enum):
     maintainer = 1  # 維修人員
@@ -40,11 +49,20 @@ class UserLevel(Enum):
     chief = 4  # 課級
     admin = 5  # 管理員
 
-
 class ShiftType(Enum):
-    day = 0
-    night = 1
+    day = 1
+    night = 2
 
+ShiftInterval = {
+    ShiftType.day: [
+        time.fromisoformat(DAY_SHIFT_BEGIN),
+        time.fromisoformat(DAY_SHIFT_END)
+    ],
+    ShiftType.night: [
+        time.fromisoformat(DAY_SHIFT_END),
+        time.fromisoformat(DAY_SHIFT_BEGIN)
+    ]
+}
 
 class WorkerStatusEnum(Enum):
     working = "Working"
@@ -82,10 +100,16 @@ class AuditActionEnum(Enum):
 
     NOTIFY_MISSION_NO_WORKER = "NOTIFY_MISSION_NO_WORKER"
 
-
 class MainMeta(ormar.ModelMeta):
     metadata = metadata
     database = api_db
+
+class Shift(ormar.Model):
+    class Meta(MainMeta):
+        pass
+    id: int = ormar.Integer(primary_key=True,index=True,autoincrement=False,choices=list(ShiftType),nullable=False)
+    shift_beg_time =  ormar.Time(timezone=True,nullable=False)
+    shift_end_time =  ormar.Time(timezone=True,nullable=False)
 
 
 class FactoryMap(ormar.Model):
@@ -97,8 +121,8 @@ class FactoryMap(ormar.Model):
     map: Json = ormar.JSON()
     related_devices: Json = ormar.JSON()
     image: bytes = ormar.LargeBinary(max_length=5242880, nullable=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
 
 class User(ormar.Model):
@@ -111,19 +135,21 @@ class User(ormar.Model):
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, ondelete="SET NULL",nullable=True)
     superior: UserRef = ormar.ForeignKey(UserRef, on_delete="SET NULL",nullable=True)
     level: int = ormar.SmallInteger(choices=list(UserLevel),nullable=False)
-    shift: int = ormar.SmallInteger(choices=list(ShiftType),nullable=True)
+    shift: Shift = ormar.ForeignKey(Shift, on_delete="SET NULL",nullable=True)
     change_pwd: bool = ormar.Boolean(server_default="0",nullable=True)  
     ####################
     status: str = ormar.String(max_length=15,default=WorkerStatusEnum.leave, choices=list(WorkerStatusEnum))
     at_device: DeviceRef = ormar.ForeignKey(DeviceRef, ondelete="SET NULL", nullable=True)
     dispatch_count: int = ormar.Integer(default=0,nullable=True)
-    check_alive_time: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    last_event_end_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00",timezone=True)
+    check_alive_time: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    shift_beg_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
+    finish_event_date: datetime = ormar.DateTime(default=get_ntz_min,timezone=True)
     ####################
-    login_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00", timezone=True)
-    logout_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00",timezone=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    login_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
+    logout_date: datetime = ormar.DateTime(default=get_ntz_min,timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    
 
 
 class Device(ormar.Model):
@@ -141,8 +167,8 @@ class Device(ormar.Model):
     is_rescue: bool = ormar.Boolean(default=False)
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
     sop_link: str = ormar.String(max_length=128, nullable=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
 
 class UserDeviceLevel(ormar.Model):
@@ -153,8 +179,8 @@ class UserDeviceLevel(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE",related_name="device_levels")
     device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
 
 class MissionEvent(ormar.Model):
@@ -179,8 +205,8 @@ class MissionEvent(ormar.Model):
     done_verified: bool = ormar.Boolean(default=False)
     event_beg_date: datetime = ormar.DateTime(nullable=True)
     event_end_date: datetime = ormar.DateTime(nullable=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
 
 class Mission(ormar.Model):
@@ -210,8 +236,8 @@ class Mission(ormar.Model):
     repair_beg_date: datetime = ormar.DateTime(nullable=True)
     repair_end_date: datetime = ormar.DateTime(nullable=True)
 
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     
 
     @property_field
@@ -219,7 +245,7 @@ class Mission(ormar.Model):
         if self.repair_end_date is not None:
             return self.repair_end_date - self.created_date
         else:
-            return datetime.utcnow() - self.created_date
+            return get_ntz_now() - self.created_date
 
     @property_field
     def repair_duration(self) -> Optional[timedelta]:
@@ -227,7 +253,7 @@ class Mission(ormar.Model):
             if self.repair_end_date is not None:
                 return self.repair_end_date - self.repair_beg_date
             else:
-                return datetime.utcnow() - self.repair_beg_date
+                return get_ntz_now() - self.repair_beg_date
         else:
             return None
 
@@ -266,7 +292,7 @@ class AuditLogHeader(ormar.Model):
     table_name: str = ormar.String(max_length=50, index=True)
     record_pk: str = ormar.String(max_length=100, index=True, nullable=True)
     user: User = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     description: str = ormar.String(max_length=256, nullable=True)    
 
 
@@ -278,14 +304,15 @@ class WhitelistDevice(ormar.Model):
     id: int = ormar.Integer(primary_key=True)
     device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE', nullable=False)
     workers: List[User] = ormar.ManyToMany(User)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
+    updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
 
 MissionEvent.update_forward_refs()
 User.update_forward_refs()
 
 
+
 @pre_update([User, Device, FactoryMap, Mission, MissionEvent, UserDeviceLevel, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):
-    instance.updated_date = datetime.utcnow()
+    instance.updated_date = get_ntz_now()

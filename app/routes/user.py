@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
 from app.core.database import (
+    get_ntz_now,
     AuditActionEnum,
     LogoutReasonEnum,
     User,
@@ -14,7 +15,6 @@ from app.core.database import (
 )
 from app.services.user import (
     # get_user_all_level_subordinates_by_badge,
-    get_user_first_login_time_today,
     get_user_summary,
     # create_user,
     get_password_hash,
@@ -66,16 +66,9 @@ async def read_all_users(
     ]
 
 
-# @router.post("/", tags=["users"], status_code=201)
-# async def create_a_new_user(
-#     dto: UserCreate, user: User = Depends(get_admin_active_user)
-# ):
-#     return await create_user(dto)
-
-
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_user)):
-    first_login_timestamp = await get_user_first_login_time_today(user.badge)
+    first_login_timestamp = user.login_date
 
     if user.workshop is None:
         workshop_name = "無"
@@ -93,7 +86,7 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
 
     if first_login_timestamp is not None:
         total_mins = (
-            datetime.utcnow() - first_login_timestamp
+            get_ntz_now() - first_login_timestamp
         ).total_seconds() / 60
     else:
         total_mins = 0
@@ -134,9 +127,12 @@ async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
     
-    await user.update(status=WorkerStatusEnum.leave.value)
+    user.logout_date = get_ntz_now()
 
-    await user.update(logout_date=datetime.utcnow())
+    if(not user.level == UserLevel.admin.value):
+        user.status = WorkerStatusEnum.leave.value
+
+    await user.update()
 
     await AuditLogHeader.objects.create(
         user=user,
@@ -162,18 +158,3 @@ async def delete_a_user_by_badge(
 ):
     await delete_user_by_badge(badge)
     return True
-
-
-# @router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
-# async def get_user_mission_history(user: User = Depends(get_current_user)):
-#    return await get_worker_mission_history(user.badge)
-
-
-# @router.get("/subordinates", tags=["users"], response_model=List[WorkerStatusDto])
-# async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
-#     return await get_user_all_level_subordinates_by_badge(user.badge)
-
-
-# @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
-# async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
-#     return await get_users_overview(workshop_name)

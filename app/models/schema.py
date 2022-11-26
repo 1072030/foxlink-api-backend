@@ -147,7 +147,7 @@ class MissionDto(BaseModel):
 class WorkerStatusDto(BaseModel):
     worker_id: str
     worker_name: str
-    last_event_end_date: datetime
+    finish_event_date: datetime
     at_device: Optional[str]
     at_device_cname: Optional[str]
     status: WorkerStatusEnum

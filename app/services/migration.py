@@ -23,7 +23,10 @@ import traceback
 import asyncio
 from datetime import datetime
 from ormar import or_ ,and_
-from app.core.database import UserLevel
+from app.core.database import (
+    UserLevel,
+    get_ntz_now
+)
 
 data_converter = data_convert()
 
@@ -92,7 +95,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
                 is_rescue = is_rescue,
                 workshop = workshop_entity_dict[workshop].id,
                 device_cname=device_cname,
-                updated_date=datetime.utcnow()
+                updated_date=get_ntz_now()
             )        
 
             
@@ -257,7 +260,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
             username: str = row["worker_name"]
             workshop: int  = workshop_entity_dict[row["workshop"]]
             superior: str = None
-            shift: bool = bool(row["shift"])
+            shift: int = int(row["shift"])+1
             level: int =  int(row["job"])
 
             worker = None
@@ -274,7 +277,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     shift = shift,
                     status=WorkerStatusEnum.leave.value,
                     at_device=workshop_default_rescue[workshop.name],
-                    last_event_end_date=datetime.utcnow(),
+                    finish_event_date=get_ntz_now(),
                 )
                 worker_name_entity_dict[username] = worker
                 create_worker_bulk.append(worker)
@@ -365,7 +368,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                                 id=entity.id,
                                 device=device.id,
                                 user=user,
-                                updated_date=datetime.utcnow()
+                                updated_date=get_ntz_now()
                             )    
                         )
                     else:

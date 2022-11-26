@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import time
 from typing import List, Optional
 from app.core.database import (
+    get_ntz_now,
     Mission,
     User,
     AuditLogHeader,
@@ -14,11 +15,14 @@ from app.core.database import (
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt import mqtt_client
-import logging
 from app.services.user import get_user_by_badge, is_user_working_on_mission, move_user_to_position
 from app.log import LOGGER_NAME
-from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
-from app.utils.utils import get_shift_type_now
+from app.env import (
+    WORKER_REJECT_AMOUNT_NOTIFY,
+    MISSION_REJECT_AMOUT_NOTIFY,
+)
+import logging
+
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -95,7 +99,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.device.is_rescue:
-        await mission.update(repair_end_date=datetime.utcnow())
+        await mission.update(repair_end_date=get_ntz_now())
         await move_user_to_position(worker.badge, mission.device.id)
         mqtt_client.publish(
             f"foxlink/users/{worker.badge}/missions/finish",
@@ -121,7 +125,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     # if mission is already started,
     # for example there is previous worker who has started the mission, then we shouldn't update repair start date.
-    await mission.update(repair_beg_date=datetime.utcnow())
+    await mission.update(repair_beg_date=get_ntz_now())
 
     worker.dispatch_count += 1
     worker.status = WorkerStatusEnum.working.value
@@ -160,8 +164,8 @@ async def accept_mission(mission_id: int, worker: User):
             )
 
     await mission.update(
-        accept_recv_date=datetime.utcnow(),
-        notify_recv_date=datetime.utcnow()
+        accept_recv_date=get_ntz_now(),
+        notify_recv_date=get_ntz_now()
     )
 
     await worker.update(
@@ -223,7 +227,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
         .select_related("missions")
         .filter(
             user=worker,
-            created_date__gte=datetime.utcnow() - timedelta(days=1),
+            created_date__gte=get_ntz_now(),
         )
         .count()
     )
@@ -256,17 +260,17 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if mission.is_shifted:
         raise HTTPException(200, "you're no longer this missions assignee due to shifting.")
 
-    now_time = datetime.utcnow()
+    now_time = get_ntz_now()
 
     async with api_db.transaction():
         await mission.update(
             repair_end_date=now_time, is_cancel=False,
         )
 
-        # set each assignee's last_event_end_date
+        # set each assignee's finish_event_date
         await worker.update(
             status=WorkerStatusEnum.idle.value,
-            last_event_end_date=now_time
+            finish_event_date=now_time
         )
 
         await AuditLogHeader.objects.create(
@@ -313,7 +317,7 @@ async def cancel_mission_by_id(mission_id: int):
     await mission.update(is_cancel=True)
 
     await mission.worker.update(
-        last_event_end_date=datetime.utcnow()
+        finish_event_date=get_ntz_now()
     )
 
 
@@ -364,7 +368,7 @@ async def assign_mission(mission_id: int, badge: str):
 
     await mission.update(
         worker=the_user,
-        notify_send_date = datetime.utcnow()
+        notify_send_date = get_ntz_now()
     )
     
     await the_user.update(

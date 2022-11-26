@@ -1,50 +1,81 @@
 from pickle import TUPLE
 import pytz
 from typing import Tuple
-from app.core.database import ShiftType
-from datetime import datetime, timedelta
-from app.env import DAY_SHIFT_BEGIN, DAY_SHIFT_END
+from app.core.database import (
+    get_ntz_now,
+    ShiftType,
+    Shift
+) 
+from datetime import datetime, timedelta,time
+from app.env import (
+    DAY_SHIFT_BEGIN, 
+    DAY_SHIFT_END, 
+    TZ
+)
 
-CST_TIMEZONE = pytz.timezone("Asia/Taipei")
+async def get_current_shift_details()-> Tuple[ShiftType,datetime,datetime]:
+    now = get_ntz_now().astimezone(TZ)
+    now_time = now.time()
+    shifts = await Shift.objects.all()
+    for shift in shifts:
+        tz_now = now.astimezone(TZ)
 
-def get_shift_type_now() -> ShiftType:
-    now_time = datetime.now(CST_TIMEZONE).time()
-    now = datetime(1900, 1, 1, 0, 0).replace(hour=now_time.hour, minute=now_time.minute, second=now_time.second)
-    day_begin = datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M")
-    day_end = datetime.strptime(DAY_SHIFT_END, "%H:%M")
+        # due to the timezone specification problem, 
+        # which is the timezone for shift time is set to TZ,
+        # but the system uses datetime without timezones,
+        # therefore need to convert the time setting from shift to non-timezoned format
+        period_beg =  (
+            tz_now
+            .replace(
+                hour=shift.shift_beg_time.hour,
+                minute=shift.shift_beg_time.minute,
+                second=0
+            )
+            .astimezone(None)
+            .replace(tzinfo=None)
+        )
 
-    if day_end < day_begin:
-        day_end += timedelta(hours=24)
+        period_end = (    
+            tz_now
+            .replace(
+                hour=shift.shift_end_time.hour,
+                minute=shift.shift_end_time.minute,
+                second=0
+            )
+            .astimezone(None)
+            .replace(tzinfo=None)
+        )
+        shift_type = ShiftType(shift.id)
+        if shift.shift_beg_time > shift.shift_end_time:
+            if(now_time > shift.shift_beg_time or now_time < shift.shift_end_time):
+                if(now_time < time.max):
+                    return (
+                        shift_type,
+                        period_beg,
+                        period_end+timedelta(days=1)
+                    )
+                else:
+                    return (
+                        shift_type,
+                        period_beg-timedelta(days=1),
+                        period_end
+                    )
 
-    if now < day_begin:
-        now += timedelta(hours=24)
+        else:
+            if(now_time > shift.shift_beg_time and now_time < shift.shift_end_time):
+                return (
+                    shift_type,
+                    period_beg,
+                    period_end
+                )
 
-    if now >= day_begin and now <= day_end:
-        return ShiftType.day
-    else:
-        return ShiftType.night
+async def get_current_shift_type() -> (ShiftType):
+   return (await get_current_shift_details())[0]
 
-def get_shift_type_by_datetime(dt: datetime) -> ShiftType:
-    day_begin = datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M")
-    day_end = datetime.strptime(DAY_SHIFT_END, "%H:%M")
-
-    china_tz_dt = dt + CST_TIMEZONE.utcoffset(dt)
-    china_tz_dt = china_tz_dt.replace(year=1900, month=1, day=1)
-
-    if day_end < day_begin:
-        day_end += timedelta(hours=24)
-
-    if china_tz_dt < day_begin:
-        china_tz_dt += timedelta(hours=24)
-
-    if china_tz_dt >= day_begin and china_tz_dt <= day_end:
-        return ShiftType.day
-    else:
-        return ShiftType.night
-
-def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
-    shift_type = get_shift_type_now()
-    now_time = datetime.now(CST_TIMEZONE)
+# TODO: No time, need to adjust to new in database shift structure
+async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
+    shift_type = await get_current_shift_type()
+    now_time = get_ntz_now()
 
     day_begin = datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M")
     day_end = datetime.strptime(DAY_SHIFT_END, "%H:%M")
@@ -64,8 +95,9 @@ def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
 
     return shift_start.astimezone(pytz.utc), shift_end.astimezone(pytz.utc)
 
+# TODO: No time, need to adjust to new in database shift structure
 def get_previous_shift_time_interval():
-    now_time = datetime.now(CST_TIMEZONE)
+    now_time = get_ntz_now()
 
     day_begin = datetime.strptime(DAY_SHIFT_BEGIN, "%H:%M")
     day_end = datetime.strptime(DAY_SHIFT_END, "%H:%M")
@@ -88,7 +120,21 @@ def get_previous_shift_time_interval():
 
     return day_shift_start.astimezone(pytz.utc), day_shift_end.astimezone(pytz.utc), night_shift_start.astimezone(pytz.utc), night_shift_end.astimezone(pytz.utc)
 
-    
+# def time_within_period(at: time, beg: time,end: time):
+#     if beg > end:
+#         if(at > beg or at < end):
+#             return True
+#     else:
+#         if(at > beg and at < end):
+#             return True
 
+# async def check_date_in_current_shift(date: datetime,shift: ShiftType):
+#     now = get_ntz_now()
+#     shift = await Shift.objects.filter(shift.value).get_or_none()
+#     return time_within_period(
+#         time(hour=date.hour,minute=date.minute),
+#         shift.shift_beg_time,
+#         shift.shift_end_time
+#     )
 
 

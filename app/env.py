@@ -1,5 +1,6 @@
 import logging
 import os
+import pytz
 from typing import List, TypeVar, Optional, Type
 from dotenv import load_dotenv
 from app.log import LOGGER_NAME
@@ -119,3 +120,5 @@ if os.environ.get("USE_ALEMBIC") is None:
 
 # 例行程序參數設定
 RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
+# Time zone
+TZ = pytz.timezone("Asia/Taipei")

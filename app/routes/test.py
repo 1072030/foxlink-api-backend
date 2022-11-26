@@ -1,9 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta
-
 from ormar import NoMatch
 from app.core.database import (
-    # CategoryPRI,
+    get_ntz_now,
     Device,
     FactoryMap,
     Mission,
@@ -83,7 +82,7 @@ async def create_fake_mission(workshop_name: str):
                 table_name="test",
                 category=random.randint(1, 200),
                 message=random.sample(CRASH_MESSAGES, 1)[0],
-                event_beg_date=datetime.utcnow() + timedelta(hours=8),
+                event_beg_date=get_ntz_now(),
             )
             break
         except Exception:
@@ -110,7 +109,8 @@ async def mark_mission_as_done(mission_id: int):
 
     for e in mission.missionevents:
         await e.update(
-            done_verified=True, event_end_date=datetime.utcnow() + timedelta(hours=8),
+            done_verified=True, 
+            event_end_date=get_ntz_now(),
         )
 
 

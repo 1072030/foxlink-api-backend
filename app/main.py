@@ -18,7 +18,7 @@ from app.routes import (
     device,
     workshop,
 )
-from app.core.database import api_db
+from app.core.database import api_db, Shift, ShiftType, ShiftInterval
 from app.mqtt import mqtt_client
 from app.log import LOGGER_NAME
 from fastapi.middleware.cors import CORSMiddleware
@@ -75,6 +75,20 @@ async def startup():
         foxlink_dbs.connect()
     ])
     logger.info("Foxlink API Server startup complete.")
+
+    # check table exists
+    if(await Shift.objects.count()==0):
+        await Shift.objects.bulk_create(
+            [
+                Shift(
+                    id=shift_type.value,
+                    shift_beg_time=interval[0],
+                    shift_end_time=interval[1]
+                )
+                for shift_type, interval in ShiftInterval.items()
+            ]
+        )
+
 
     # start background daemons
     for args in _daemons:
