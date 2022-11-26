@@ -99,7 +99,7 @@ async def get_all_worker_status(workshop_name: str):
 
     resp: List[WorkerStatusDto] = []
 
-    promises = [get_worker_status(worker.username) for worker in workers]
+    promises = [get_worker_status(worker.badge) for worker in workers]
 
     resp = await asyncio.gather(*promises)
 

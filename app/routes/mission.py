@@ -50,7 +50,7 @@ async def get_missions_by_query(
     params = {
         "created_date__gte": start_date,
         "created_date__lte": end_date,
-        "assignees__username": worker,
+        "assignees__badge": worker,
         "is_cancel": is_cancel,
         "is_emergency": is_emergency,
         "device__is_rescue": is_rescue,
@@ -122,7 +122,7 @@ async def get_self_mission(
                 "device__workshop__image",
             ]
         )
-        .filter(assignees__username=user.username, **params)  # type: ignore
+        .filter(assignees__badge=user.badge, **params)  # type: ignore
         .order_by("-created_date")
         .all()
     )
@@ -146,7 +146,7 @@ async def get_a_mission_by_id(
     if m is None:
         raise HTTPException(404, "the mission you request is not found")
 
-    if user.level == UserLevel.maintainer.value and not user.username == m.worker.username:
+    if user.level == UserLevel.maintainer.value and not user.badge == m.worker.badge:
         raise HTTPException(401, "you are not one of this mission's assignees")
 
     return MissionDto.from_mission(m)
@@ -167,7 +167,7 @@ async def assign_mission_to_user(
             record_pk=mission_id,
             action=AuditActionEnum.MISSION_ASSIGNED.value,
             user=user_name,
-            description=f"From Web API (Reqeust by {user.username})",
+            description=f"From Web API (Reqeust by {user.badge})",
         )
 
 

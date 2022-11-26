@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from jose import jwt
-from .user import get_user_by_username, pwd_context
+from .user import get_user_by_badge, pwd_context
 from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
 from app.env import JWT_SECRET
@@ -15,7 +15,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 class TokenData(BaseModel):
-    username: Optional[str] = None
+    badge: Optional[str] = None
 
 
 def verify_password(plain_password: str, hashed_password: str):
@@ -33,8 +33,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-async def authenticate_user(username: str, password: str):
-    user = await get_user_by_username(username)
+async def authenticate_user(badge: str, password: str):
+    user = await get_user_by_badge(badge)
 
     if user is None:
         raise HTTPException(
@@ -59,9 +59,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        username: str = payload.get("sub")
+        badge: str = payload.get("sub")
         # current_UUID: str = payload.get("UUID")
-        if username is None:
+        if badge is None:
             raise credentials_exception
     except ExpiredSignatureError:
         raise HTTPException(
@@ -72,7 +72,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except:
         raise credentials_exception
 
-    user = await get_user_by_username(username)
+    user = await get_user_by_badge(badge)
 
     if user is None:
         raise credentials_exception

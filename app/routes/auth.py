@@ -37,7 +37,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     
     access_token = create_access_token(
         data={
-            "sub": user.username,
+            "sub": user.badge,
             "UUID": 0
         },
         expires_delta=access_token_expires
@@ -45,11 +45,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     # await set_device_UUID(user, form_data.client_id)
 
-    is_first_login_today = await get_user_first_login_time_today(user.username)
+    is_first_login_today = await get_user_first_login_time_today(user.badge)
 
     await AuditLogHeader.objects.create(
         table_name="users",
-        record_pk=user.username,
+        record_pk=user.badge,
         action=AuditActionEnum.USER_LOGIN.value,
         user=user,
     )

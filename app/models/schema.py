@@ -27,8 +27,8 @@ class WorkerSummary(BaseModel):
 
 
 class UserBase(BaseModel):
+    badge: str
     username: str
-    full_name: str
     level: UserLevel
 
 
@@ -38,7 +38,7 @@ class UserCreate(UserBase):
 
 
 class UserPatch(BaseModel):
-    full_name: Optional[str]
+    username: Optional[str]
     password: Optional[str]
 
 
@@ -79,8 +79,8 @@ class DeviceDto(BaseModel):
 
 
 class UserNameDto(BaseModel):
+    badge: str
     username: str
-    full_name: str
 
 
 class MissionEventOut(BaseModel):
@@ -135,8 +135,8 @@ class MissionDto(BaseModel):
             is_cancel=m.is_cancel,
             is_emergency=m.is_emergency,
             worker= UserNameDto(
-                username=m.worker.username, 
-                full_name=m.worker.full_name
+                badge=m.worker.badge, 
+                username=m.worker.username
             ) if m.worker else None,
             events=[MissionEventOut.from_missionevent(e) for e in m.events],
             created_date=m.created_date,
@@ -170,8 +170,8 @@ class DeviceExp(BaseModel):
 
 
 class UserOverviewOut(BaseModel):
+    badge: str
     username: str
-    full_name: str
     workshop: Optional[str]
     level: int
     shift: Optional[ShiftType]
@@ -252,8 +252,8 @@ class DeviceOut(BaseModel):
 
 
 class WorkerMissionStats(BaseModel):
+    badge: str
     username: str
-    full_name: str
     count: int
 
 
@@ -274,5 +274,5 @@ class WhitelistRecommendDevice(BaseModel):
     night: Dict[str, int]
 
 class DeviceDispatchableWorker(BaseModel):
+    badge: str
     username: str
-    full_name: str

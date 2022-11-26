@@ -13,12 +13,12 @@ from app.core.database import (
     api_db,
 )
 from app.services.user import (
-    # get_user_all_level_subordinates_by_username,
+    # get_user_all_level_subordinates_by_badge,
     get_user_first_login_time_today,
     get_user_summary,
     # create_user,
     get_password_hash,
-    delete_user_by_username,
+    delete_user_by_badge,
     get_worker_attendances,
 )
 from app.services.auth import (
@@ -75,7 +75,7 @@ async def read_all_users(
 
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_user)):
-    first_login_timestamp = await get_user_first_login_time_today(user.username)
+    first_login_timestamp = await get_user_first_login_time_today(user.badge)
 
     if user.workshop is None:
         workshop_name = "無"
@@ -98,7 +98,7 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
     else:
         total_mins = 0
 
-    summary = await get_user_summary(user.username)
+    summary = await get_user_summary(user.badge)
 
     return UserOutWithWorkTimeAndSummary(
         at_device=at_device,
@@ -111,7 +111,7 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
 
 @router.get("/worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
 async def get_user_attendances(user: User = Depends(get_current_user)):
-    return await get_worker_attendances(user.username)
+    return await get_worker_attendances(user.badge)
 
 
 @router.post("/change-password", tags=["users"])
@@ -146,9 +146,9 @@ async def get_off_work(
     )
 
 
-@router.patch("/{username}", tags=["users"])
+@router.patch("/{badge}", tags=["users"])
 async def update_user_information(
-    username: str, dto: UserPatch, user: User = Depends(get_current_user)
+    badge: str, dto: UserPatch, user: User = Depends(get_current_user)
 ):
     if user.level < UserLevel.manager.value:
         raise HTTPException(401, "You do not have permission to do this")
@@ -156,22 +156,22 @@ async def update_user_information(
     return await user.update(**dto.dict())
 
 
-@router.delete("/{username}", tags=["users"])
-async def delete_a_user_by_username(
-    username: str, user: User = Depends(get_admin_active_user)
+@router.delete("/{badge}", tags=["users"])
+async def delete_a_user_by_badge(
+    badge: str, user: User = Depends(get_admin_active_user)
 ):
-    await delete_user_by_username(username)
+    await delete_user_by_badge(badge)
     return True
 
 
 # @router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
 # async def get_user_mission_history(user: User = Depends(get_current_user)):
-#    return await get_worker_mission_history(user.username)
+#    return await get_worker_mission_history(user.badge)
 
 
 # @router.get("/subordinates", tags=["users"], response_model=List[WorkerStatusDto])
 # async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
-#     return await get_user_all_level_subordinates_by_username(user.username)
+#     return await get_user_all_level_subordinates_by_badge(user.badge)
 
 
 # @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)

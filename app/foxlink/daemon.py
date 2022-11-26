@@ -106,7 +106,7 @@ async def check_alive_worker_routine():
     async with aiohttp.ClientSession() as session:
         for worker in alive_workers:
             async with session.get(
-                f"http://{MQTT_BROKER}:18083/api/v4/clients/{worker.username}",
+                f"http://{MQTT_BROKER}:18083/api/v4/clients/{worker.badge}",
                 auth=aiohttp.BasicAuth(
                     login=EMQX_USERNAME, password=EMQX_PASSWORD),
             ) as resp:
@@ -125,15 +125,15 @@ async def check_alive_worker_routine():
                             # await w.update(status=WorkerStatusEnum.leave.value)
                             
                             # device_level = await UserDeviceLevel.objects.filter(
-                            #     user=w.worker.username
+                            #     user=w.worker.badge
                             # ).first()
                             
                             superior =w.worker.superior
                             mqtt_client.publish(
-                                f"foxlink/users/{superior.username}/worker-unusual-offline",
+                                f"foxlink/users/{superior.badge}/worker-unusual-offline",
                                 {
-                                    "worker_id": worker.username,
-                                    "worker_name": worker.full_name,
+                                    "worker_id": worker.badge,
+                                    "worker_name": worker.username,
                                 },
                                 qos=2,
                                 retain=True,
@@ -163,18 +163,18 @@ async def overtime_workers_routine():
 
     for mission in working_missions:
         should_cancel = False
-        duty_shift = await get_user_shift_type(mission.worker.username)
+        duty_shift = await get_user_shift_type(mission.worker.badge)
 
         if get_shift_type_now() != duty_shift:
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
                 table_name="missions",
                 description=f"員工換班，維修時長: {datetime.utcnow() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
-                user=mission.worker.username,
+                user=mission.worker.badge,
                 record_pk=mission.id,
             )
             mqtt_client.publish(
-                f"foxlink/users/{mission.worker.username}/missions/finish",
+                f"foxlink/users/{mission.worker.badge}/missions/finish",
                 {
                     "mission_id": mission.id,
                     "mission_state": "ovetime-duty"
@@ -235,7 +235,7 @@ async def auto_close_missions():
             )
         if mission.worker:
             mqtt_client.publish(
-                f"foxlink/users/{mission.worker.username}/missions/stop-notify",
+                f"foxlink/users/{mission.worker.badge}/missions/stop-notify",
                 {
                     "mission_id": mission.id,
                     "mission_state": "finish"
@@ -331,14 +331,14 @@ async def worker_monitor_routine():
 
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=worker.username,
+                user=worker.badge,
                 table_name="missions",
                 record_pk=str(mission.id),
                 description="前往消防站",
             )
 
             mqtt_client.publish(
-                f"foxlink/users/{worker.username}/move-rescue-station",
+                f"foxlink/users/{worker.badge}/move-rescue-station",
                 {
                     "type": "rescue",
                     "mission_id": mission.id,
@@ -393,12 +393,12 @@ async def check_mission_duration_routine():
                     break
 
                 mqtt_client.publish(
-                    f"foxlink/users/{superior.username}/mission-overtime",
+                    f"foxlink/users/{superior.badge}/mission-overtime",
                     {
                         "mission_id": mission.id,
                         "mission_name": mission.name,
-                        "worker_id": mission.worker.username,
-                        "worker_name": mission.worker.full_name,
+                        "worker_id": mission.worker.badge,
+                        "worker_name": mission.worker.username,
                         "duration": mission.mission_duration.total_seconds(),
                     },
                     qos=2,
@@ -409,7 +409,7 @@ async def check_mission_duration_routine():
                     table_name="missions",
                     description=str(min),
                     record_pk=str(mission.id),
-                    user=mission.worker.username,
+                    user=mission.worker.badge,
                 )
 
 
@@ -501,11 +501,11 @@ async def dispatch_routine():
         remove_indice = []
         for worker in can_dispatch_workers:
             # 如果該機台不列入白名單，但是員工是白名單員工，則移除
-            if not is_in_whitelist and await is_worker_in_whitelist(worker.username):
-                remove_indice.append(worker.username)
+            if not is_in_whitelist and await is_worker_in_whitelist(worker.badge):
+                remove_indice.append(worker.badge)
             # 如果該機台是列入白名單，但是員工不是白名單員工，則移除
-            if is_in_whitelist and worker.username not in whitelist_workers:
-                remove_indice.append(worker.username)
+            if is_in_whitelist and worker.badge not in whitelist_workers:
+                remove_indice.append(worker.badge)
 
         # 取得該裝置隸屬的車間資訊
         factory_map = workshop_cache[mission_1st.device.workshop.id]
@@ -514,7 +514,7 @@ async def dispatch_routine():
         
         # 移除不符合條件的員工
         can_dispatch_workers = [
-            x for x in can_dispatch_workers if x.username not in remove_indice
+            x for x in can_dispatch_workers if x.badge not in remove_indice
         ]
         worker_list = []
 
@@ -533,7 +533,7 @@ async def dispatch_routine():
             )
 
             item = {
-                "workerID": worker.username,
+                "workerID": worker.badge,
                 "distance": distance_matrix[mission_device_idx][worker_device_idx],
                 "idle_time": (
                     datetime.utcnow() - worker.last_event_end_date

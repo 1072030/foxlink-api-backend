@@ -31,7 +31,7 @@ class LogOut(BaseModel):
     table_name: str
     record_pk: Optional[str]
     values: List[LogValueOut]
-    username: Optional[str]
+    badge: Optional[str]
     description: Optional[str]
     created_date: datetime.datetime
 
@@ -49,7 +49,7 @@ async def get_logs(
     limit: int = 20,
     page: int = 1,
     start_date: Optional[datetime.datetime] = None,
-    username: Optional[str] = None,
+    badge: Optional[str] = None,
     end_date: Optional[datetime.datetime] = None,
     user: User = Depends(get_manager_active_user),
 ):
@@ -62,7 +62,7 @@ async def get_logs(
     params = {
         "created_date__gte": start_date,
         "created_date__lte": end_date,
-        "user__username": username,
+        "user__badge": badge,
     }
 
     if action is not None:
@@ -84,7 +84,7 @@ async def get_logs(
                 table_name=log.table_name,
                 record_pk=log.record_pk,
                 values=[LogValueOut.from_logvalue(v) for v in log.logvalues],
-                username=log.user.username if log.user is not None else None,
+                badge=log.user.badge if log.user is not None else None,
                 description=log.description,
                 created_date=log.created_date,
             )

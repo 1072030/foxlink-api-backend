@@ -253,8 +253,8 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         }
 
         for index, row in  worker_unique_frame.iterrows():
-            username: str = row["worker_id"]
-            full_name: str = row["worker_name"]
+            badge: str = row["worker_id"]
+            username: str = row["worker_name"]
             workshop: int  = workshop_entity_dict[row["workshop"]]
             superior: str = None
             shift: bool = bool(row["shift"])
@@ -262,11 +262,11 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
 
             worker = None
 
-            if not await User.objects.filter(username = username).exists():
+            if not await User.objects.filter(badge = badge).exists():
                 # create worker entity
                 worker = User(
+                    badge = badge,
                     username = username,
-                    full_name = full_name,
                     password_hash = default_password_hash,
                     workshop = workshop,
                     superior = superior,
@@ -276,13 +276,13 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     at_device=workshop_default_rescue[workshop.name],
                     last_event_end_date=datetime.utcnow(),
                 )
-                worker_name_entity_dict[full_name] = worker
+                worker_name_entity_dict[username] = worker
                 create_worker_bulk.append(worker)
             else:
                 # update worker entity
                 worker = User(
+                    badge = badge,
                     username = username,
-                    full_name = full_name,
                     workshop = workshop,
                     superior = superior,
                     level = level,
@@ -290,7 +290,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 )
                 update_worker_bulk.append(worker)
 
-            worker_name_entity_dict[full_name] = worker
+            worker_name_entity_dict[username] = worker
 
         # create worker
         if len(create_worker_bulk) > 0:
@@ -307,20 +307,20 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         # remove workers not within the provided table
         await User.objects.exclude(
             or_(
-                username__in = [user.username for user in (create_worker_bulk+update_worker_bulk)],
+                badge__in = [user.badge for user in (create_worker_bulk+update_worker_bulk)],
                 level__gt=UserLevel.maintainer.value
             )
         ).delete(each=True)
 
         #superior mapping
         for index, row in  worker_unique_frame.iterrows():
-            full_name: str = row["worker_name"]
+            username: str = row["worker_name"]
             superior: str =  (
                 name_id_map[row["superior"]] 
-                if not row["superior"] == full_name else
+                if not row["superior"] == username else
                  None
             )
-            worker_name_entity_dict[full_name].superior = superior
+            worker_name_entity_dict[username].superior = superior
         
         await User.objects.bulk_update(
             objects=list(worker_name_entity_dict.values()),

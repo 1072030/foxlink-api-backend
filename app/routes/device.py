@@ -72,12 +72,12 @@ async def get_whitelist_devices(workshop_name: str):
     
     resp = {}
     for w in whitelist_devices:
-        usernames = []
+        badges = []
         for u in w.workers:
-            usernames.append({'username': u.username, 'full_name': u.full_name})
+            badges.append({'badge': u.badge, 'username': u.username})
 
-        if len(usernames) != 0:
-            resp[w.device.id] = usernames
+        if len(badges) != 0:
+            resp[w.device.id] = badges
     return resp
 
 @router.get("/whitelist/recommend", tags=['whitelist device'], response_model=WhitelistRecommendDevice)
@@ -93,16 +93,16 @@ async def get_workers_from_a_whitelist_device(device_id: str):
     return await get_workers_from_whitelist_devices(device_id)
 
 @router.post("/{device_id}/whitelist", tags=['whitelist device'])
-async def add_worker_to_whitelist_device(device_id: str, username: str):
-    await add_worker_to_device_whitelist(username, device_id)
+async def add_worker_to_whitelist_device(device_id: str, badge: str):
+    await add_worker_to_device_whitelist(badge, device_id)
 
 @router.delete("/{device_id}/whitelist", tags=['whitelist device'])
-async def remove_worker_from_whitelist_device(device_id: str, username: str):
-    user = await User.objects.get_or_none(username=username)
+async def remove_worker_from_whitelist_device(device_id: str, badge: str):
+    user = await User.objects.get_or_none(badge=badge)
     if user is None:
         raise HTTPException(404, 'the user is not found')
 
-    whitelist_device = await WhitelistDevice.objects.filter(device=device_id, workers__username=username).get_or_none()
+    whitelist_device = await WhitelistDevice.objects.filter(device=device_id, workers__badge=badge).get_or_none()
 
     if whitelist_device is None:
         raise HTTPException(404, 'the user is not in whitelist')
@@ -112,7 +112,7 @@ async def remove_worker_from_whitelist_device(device_id: str, username: str):
 @router.get("/{device_id}/workers", tags=["device"], response_model=List[DeviceDispatchableWorker], description="Get dispatchable workers of devices.\n shift_type=0: day shift\n shift_type=1: night shift")
 async def get_device_dispatchable_workers(device_id: str, shift_type: bool):
     user_device_levels = await UserDeviceLevel.objects.select_related(['user']).filter(device=device_id, shift=shift_type, level__gt=0, user__level=UserLevel.maintainer.value).all()
-    return [DeviceDispatchableWorker(username=x.user.username, full_name=x.user.full_name) for x in user_device_levels]
+    return [DeviceDispatchableWorker(badge=x.user.badge, username=x.user.username) for x in user_device_levels]
 
 
 @router.get("/{device_id}", response_model=DeviceOut, tags=["device"])

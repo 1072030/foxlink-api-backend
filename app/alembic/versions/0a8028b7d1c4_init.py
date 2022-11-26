@@ -1,8 +1,8 @@
 """init
 
-Revision ID: b5ac29c3db74
+Revision ID: 0a8028b7d1c4
 Revises: 
-Create Date: 2022-11-26 14:09:45.043283
+Create Date: 2022-11-26 15:16:00.880439
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'b5ac29c3db74'
+revision = '0a8028b7d1c4'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -49,8 +49,8 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_devices_id'), 'devices', ['id'], unique=False)
     op.create_table('users',
-    sa.Column('username', sa.String(length=100), nullable=False),
-    sa.Column('full_name', sa.String(length=50), nullable=False),
+    sa.Column('badge', sa.String(length=100), nullable=False),
+    sa.Column('username', sa.String(length=50), nullable=False),
     sa.Column('password_hash', sa.String(length=100), nullable=True),
     sa.Column('workshop', sa.Integer(), nullable=True),
     sa.Column('superior', sa.String(length=100), nullable=True),
@@ -67,11 +67,11 @@ def upgrade() -> None:
     sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.ForeignKeyConstraint(['at_device'], ['devices.id'], name='fk_users_devices_id_at_device', ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['superior'], ['users.username'], name='fk_users_users_username_superior'),
+    sa.ForeignKeyConstraint(['superior'], ['users.badge'], name='fk_users_users_badge_superior'),
     sa.ForeignKeyConstraint(['workshop'], ['factory_maps.id'], name='fk_users_factory_maps_id_workshop', ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('username')
+    sa.PrimaryKeyConstraint('badge')
     )
-    op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=False)
+    op.create_index(op.f('ix_users_badge'), 'users', ['badge'], unique=False)
     op.create_table('whitelist_devices',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('device', sa.String(length=100), nullable=False),
@@ -89,7 +89,7 @@ def upgrade() -> None:
     sa.Column('user', sa.String(length=100), nullable=True),
     sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('description', sa.String(length=256), nullable=True),
-    sa.ForeignKeyConstraint(['user'], ['users.username'], name='fk_audit_log_headers_users_username_user', ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['user'], ['users.badge'], name='fk_audit_log_headers_users_badge_user', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_audit_log_headers_action'), 'audit_log_headers', ['action'], unique=False)
@@ -116,7 +116,7 @@ def upgrade() -> None:
     sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.ForeignKeyConstraint(['device'], ['devices.id'], name='fk_missions_devices_id_device', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['worker'], ['users.username'], name='fk_missions_users_username_worker', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['worker'], ['users.badge'], name='fk_missions_users_badge_worker', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_missions_id'), 'missions', ['id'], unique=False)
@@ -127,7 +127,7 @@ def upgrade() -> None:
     sa.Column('created_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.ForeignKeyConstraint(['device'], ['devices.id'], name='fk_user_device_levels_devices_id_device', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user'], ['users.username'], name='fk_user_device_levels_users_username_user', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user'], ['users.badge'], name='fk_user_device_levels_users_badge_user', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('device', 'user', name='uc_user_device_levels_device_user')
     )
@@ -136,7 +136,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user', sa.String(length=100), nullable=True),
     sa.Column('whitelistdevice', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['user'], ['users.username'], name='fk_whitelistdevices_users_users_user_username', onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user'], ['users.badge'], name='fk_whitelistdevices_users_users_user_badge', onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['whitelistdevice'], ['whitelist_devices.id'], name='fk_whitelistdevices_users_whitelist_devices_whitelistdevice_id', onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -162,7 +162,7 @@ def upgrade() -> None:
     sa.Column('user', sa.String(length=100), nullable=True),
     sa.Column('mission', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['mission'], ['missions.id'], name='fk_missions_users_missions_mission_id', onupdate='CASCADE', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user'], ['users.username'], name='fk_missions_users_users_user_username', onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user'], ['users.badge'], name='fk_missions_users_users_user_badge', onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
@@ -183,7 +183,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_audit_log_headers_action'), table_name='audit_log_headers')
     op.drop_table('audit_log_headers')
     op.drop_table('whitelist_devices')
-    op.drop_index(op.f('ix_users_username'), table_name='users')
+    op.drop_index(op.f('ix_users_badge'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_devices_id'), table_name='devices')
     op.drop_table('devices')

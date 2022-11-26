@@ -15,7 +15,7 @@ from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt import mqtt_client
 import logging
-from app.services.user import get_user_by_username, is_user_working_on_mission, move_user_to_position
+from app.services.user import get_user_by_badge, is_user_working_on_mission, move_user_to_position
 from app.log import LOGGER_NAME
 from app.env import WORKER_REJECT_AMOUNT_NOTIFY, MISSION_REJECT_AMOUT_NOTIFY
 from app.utils.utils import get_shift_type_now
@@ -46,7 +46,7 @@ async def get_mission_by_id(id: int, select_fields: List[str] = ["worker", "devi
     return mission
 
 
-async def get_missions_by_username(username: str):
+async def get_missions_by_badge(badge: str):
     missions = (
         await Mission.objects.select_related(
             ["events", "device__workshop"]
@@ -58,14 +58,13 @@ async def get_missions_by_username(username: str):
                 "device__workshop__image",
             ]
         )
-        .filter(assignees__username=username)
+        .filter(assignees__badge=badge)
         .order_by("-created_date")
         .all()
     )
     return missions
 
 
-# @api_db.transaction()
 async def update_mission_by_id(id: int, dto: MissionUpdate):
     mission = await get_mission_by_id(id)
     if mission is None:
@@ -85,8 +84,6 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
         await assign_mission(id, dto.worker)
             
 
-
-# @api_db.transaction()
 async def start_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -94,14 +91,14 @@ async def start_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(
             404, "the mission you request to start is not found")
 
-    if worker.username != mission.worker.username:
+    if worker.badge != mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.device.is_rescue:
         await mission.update(repair_end_date=datetime.utcnow())
-        await move_user_to_position(worker.username, mission.device.id)
+        await move_user_to_position(worker.badge, mission.device.id)
         mqtt_client.publish(
-            f"foxlink/users/{worker.username}/missions/finish",
+            f"foxlink/users/{worker.badge}/missions/finish",
             {
                 "mission_id": mission.id,
                 "mission_state": "finish"
@@ -131,10 +128,10 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     await worker.update()
 
-    await move_user_to_position(worker.username, mission.device.id)
+    await move_user_to_position(worker.badge, mission.device.id)
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_STARTED.value,
-        user=worker.username,
+        user=worker.badge,
         table_name="missions",
         record_pk=str(mission.id),
     )
@@ -149,7 +146,7 @@ async def accept_mission(mission_id: int, worker: User):
             "the mission you request is not found"
         )
 
-    if not worker.username == mission.worker.username:
+    if not worker.badge == mission.worker.badge:
         raise HTTPException(
             400, 
             "you are not this mission's assignee"
@@ -173,7 +170,7 @@ async def accept_mission(mission_id: int, worker: User):
     
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_ACCEPTED.value,
-        user=worker.username,
+        user=worker.badge,
         table_name="missions",
         record_pk=str(mission_id),
     )
@@ -186,7 +183,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(
             404, "the mission you request to start is not found")
 
-    if not worker.username == mission.worker.username:
+    if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "the mission haven't assigned to you")
 
     if mission.is_started or mission.is_closed:
@@ -215,7 +212,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
             f"foxlink/{mission.device.workshop.name}/mission/rejected",
             {
                 "id": mission.id,
-                "worker": worker.full_name,
+                "worker": worker.username,
                 "rejected_count": mission_reject_amount,
             },
             qos=2,
@@ -234,10 +231,10 @@ async def reject_mission_by_id(mission_id: int, worker: User):
     if worker_reject_amount_today >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
         
         mqtt_client.publish(
-            f"foxlink/users/{worker.superior.username}/subordinate-rejected",
+            f"foxlink/users/{worker.superior.badge}/subordinate-rejected",
             {
-                "subordinate_id": worker.username,
-                "subordinate_name": worker.full_name,
+                "subordinate_id": worker.badge,
+                "subordinate_name": worker.username,
                 "total_rejected_count": worker_reject_amount_today,
             },
             qos=2,
@@ -276,7 +273,7 @@ async def finish_mission_by_id(mission_id: int, worker: User):
             table_name="missions",
             action=AuditActionEnum.MISSION_FINISHED.value,
             record_pk=str(mission.id),
-            user=worker.username,
+            user=worker.badge,
         )
          
 
@@ -292,7 +289,6 @@ async def delete_mission_by_id(mission_id: int):
     await mission.delete()
 
 
-# @api_db.transaction()
 async def cancel_mission_by_id(mission_id: int):
     mission = await get_mission_by_id(mission_id)
 
@@ -321,8 +317,8 @@ async def cancel_mission_by_id(mission_id: int):
     )
 
 
-async def assign_mission(mission_id: int, username: str):
-    user = await User.objects.get_or_none(username=username)
+async def assign_mission(mission_id: int, badge: str):
+    user = await User.objects.get_or_none(badge=badge)
 
     mission = await Mission.objects.select_related(["events"]).get_or_none(id=mission_id)
 
@@ -344,14 +340,14 @@ async def assign_mission(mission_id: int, username: str):
         )
 
     # if worker has already working on other mission, skip
-    if (await is_user_working_on_mission(username)) == True:
+    if (await is_user_working_on_mission(badge)) == True:
         raise HTTPException(
             status_code=400, detail="the worker you requested is working on other mission"
         )
 
     
     if mission.worker:
-        if username == mission.worker.username:
+        if badge == mission.worker.badge:
             raise HTTPException(
                 status_code=400, detail="this mission is already assigned to this user"
             )
@@ -359,7 +355,7 @@ async def assign_mission(mission_id: int, username: str):
             raise HTTPException(
                 status_code=400, detail="the mission is already assigned")
 
-    the_user = await get_user_by_username(username)
+    the_user = await get_user_by_badge(badge)
 
     if the_user is None:
         raise HTTPException(
@@ -378,7 +374,7 @@ async def assign_mission(mission_id: int, username: str):
 
 
     mqtt_client.publish(
-        f"foxlink/users/{the_user.username}/missions",
+        f"foxlink/users/{the_user.badge}/missions",
         {
             "type": "new",
             "mission_id": mission.id,
@@ -394,8 +390,8 @@ async def assign_mission(mission_id: int, username: str):
             "name": mission.name,
             "description": mission.description,
             "assingees": [{
-                "username": the_user.username,
-                "full_name":the_user.full_name
+                "badge": the_user.badge,
+                "username":the_user.username
             }],
             "events": [
                 MissionEventOut.from_missionevent(e).dict()
@@ -412,7 +408,6 @@ async def assign_mission(mission_id: int, username: str):
     )
 
 
-# @api_db.transaction()
 async def request_assistance(mission_id: int, validate_user: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -424,7 +419,7 @@ async def request_assistance(mission_id: int, validate_user: User):
             400, "you can't mark to-rescue-station mission as emergency"
         )
 
-    if not validate_user.username == mission.worker.username:
+    if not validate_user.badge == mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.is_emergency:
@@ -445,15 +440,15 @@ async def request_assistance(mission_id: int, validate_user: User):
     for worker in mission.assignees:
         try:
             mqtt_client.publish(
-                f"foxlink/users/{worker.superior.username}/missions",
+                f"foxlink/users/{worker.superior.badge}/missions",
                 {
                     "type": "emergency",
                     "mission_id": mission.id,
                     "name": mission.name,
                     "description": mission.description,
                     "worker": {
+                        "badge": worker.badge,
                         "username": worker.username,
-                        "full_name": worker.full_name,
                     },
                     "device": {
                         "project": mission.device.project,
@@ -470,7 +465,7 @@ async def request_assistance(mission_id: int, validate_user: User):
             )
         except Exception as e:
             logger.error(
-                f"failed to send emergency message to {worker.superior.username}, Exception: {repr(e)}")
+                f"failed to send emergency message to {worker.superior.badge}, Exception: {repr(e)}")
 
 
 async def is_mission_in_whitelist(mission_id: int):

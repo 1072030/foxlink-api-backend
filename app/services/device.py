@@ -30,10 +30,10 @@ async def get_workers_from_whitelist_devices(device_id: str):
     if whitelist_device is None:
         return []
 
-    return [x.username for x in whitelist_device.workers]
+    return [x.badge for x in whitelist_device.workers]
 
-async def add_worker_to_device_whitelist(username: str, device_id: str):
-    user = await User.objects.filter(username=username).get_or_none()
+async def add_worker_to_device_whitelist(badge: str, device_id: str):
+    user = await User.objects.filter(badge=badge).get_or_none()
 
     if user is None:
         raise HTTPException(404, 'user is not found')

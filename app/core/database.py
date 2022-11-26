@@ -105,8 +105,8 @@ class User(ormar.Model):
     class Meta(MainMeta):
         pass
 
-    username: str = ormar.String(primary_key=True, max_length=100, index=True)
-    full_name: str = ormar.String(max_length=50,nullable=False)
+    badge: str = ormar.String(primary_key=True, max_length=100, index=True)
+    username: str = ormar.String(max_length=50,nullable=False)
     password_hash: str = ormar.String(max_length=100,nullable=True)
     workshop: FactoryMap = ormar.ForeignKey(FactoryMap, ondelete="SET NULL",nullable=True)
     superior: UserRef = ormar.ForeignKey(UserRef, on_delete="SET NULL",nullable=True)

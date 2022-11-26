@@ -58,34 +58,34 @@ async def get_users() -> List[User]:
 
 
 
-async def get_user_by_username(username: str) -> Optional[User]:
-    user = await User.objects.filter(username=username).get_or_none()
+async def get_user_by_badge(badge: str) -> Optional[User]:
+    user = await User.objects.filter(badge=badge).get_or_none()
     return user
 
 
-async def delete_user_by_username(username: str):
-    affected_row = await User.objects.delete(username=username)
+async def delete_user_by_badge(badge: str):
+    affected_row = await User.objects.delete(badge=badge)
 
     if affected_row != 1:
         raise HTTPException(
             status_code=404, detail="user by this id is not found")
 
 
-async def get_user_first_login_time_today(username: str) -> Optional[datetime]:
+async def get_user_first_login_time_today(badge: str) -> Optional[datetime]:
     """
     Get a employee's first login record past 12 hours (today)
     If the employee has not been logined in today, return None
     """
     try:
-        user = await User.objects.filter(username=username).get()
+        user = await User.objects.filter(badge=badge).get()
         return user.login_date if user.login_date  > (datetime.utcnow() - timedelta(hours=12)) else None
     except Exception as e:
         return None
 
 
-async def get_worker_mission_history(username: str) -> List[MissionDto]:
+async def get_worker_mission_history(badge: str) -> List[MissionDto]:
     missions = (
-        await Mission.objects.filter(assignees__username=username)
+        await Mission.objects.filter(assignees__badge=badge)
         .select_related(["device", "device__workshop"])
         .exclude_fields(
             [
@@ -105,8 +105,8 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
 
 
 
-async def move_user_to_position(username: str, device_id: str):
-    user = await get_user_by_username(username)
+async def move_user_to_position(badge: str, device_id: str):
+    user = await get_user_by_badge(badge)
     device = await get_device_by_id(device_id)
 
     if user is None:
@@ -144,8 +144,8 @@ async def move_user_to_position(username: str, device_id: str):
         )
 
 
-async def get_user_working_mission(username: str) -> Optional[Mission]:
-    the_user = await User.objects.filter(username=username).get_or_none()
+async def get_user_working_mission(badge: str) -> Optional[Mission]:
+    the_user = await User.objects.filter(badge=badge).get_or_none()
 
     if the_user is None:
         raise HTTPException(
@@ -160,7 +160,7 @@ async def get_user_working_mission(username: str) -> Optional[Mission]:
                     and_(repair_beg_date__isnull=False, repair_end_date__isnull=True),
                     and_(repair_beg_date__isnull=True,repair_end_date__isnull=True),
                 ),
-                assignees__username=username,
+                assignees__badge=badge,
                 is_cancel=False,
             )
         ).order_by("-id").first()
@@ -169,9 +169,9 @@ async def get_user_working_mission(username: str) -> Optional[Mission]:
         return None
 
 
-async def is_user_working_on_mission(username: str) -> bool:
+async def is_user_working_on_mission(badge: str) -> bool:
 
-    the_user = await User.objects.filter(username=username).get_or_none()
+    the_user = await User.objects.filter(badge=badge).get_or_none()
 
     if the_user is None:
         raise HTTPException(
@@ -190,7 +190,7 @@ async def is_user_working_on_mission(username: str) -> bool:
                     and_(repair_beg_date__isnull=True,
                          repair_end_date__isnull=True),
                 ),
-                worker__username=username,
+                worker__badge=badge,
                 is_cancel=False,
             )
         ).count()
@@ -211,9 +211,9 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
     for s in shift_types:
         for u in users:
             overview = UserOverviewOut(
+                badge=u.badge,
                 username=u.username,
-                full_name=u.full_name,
-                superior=u.superior.full_name,
+                superior=u.superior.username,
                 level=u.level,
                 shift=s,
             )
@@ -249,8 +249,8 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
 
 
-async def get_user_summary(username: str) -> Optional[WorkerSummary]:
-    worker = await User.objects.filter(username=username).get_or_none()
+async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
+    worker = await User.objects.filter(badge=badge).get_or_none()
 
     if worker is None:
         raise HTTPException(
@@ -265,7 +265,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         SELECT COUNT(DISTINCT record_pk)
         FROM auditlogheaders
         WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
-        AND user='{username}'
+        AND user='{badge}'
         AND MONTH(`created_date` + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
         """,
     )
@@ -274,7 +274,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         f"""
         SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
         WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
-        AND user='{username}'
+        AND user='{badge}'
         AND YEARWEEK(`created_date` + HOUR({TIMEZONE_OFFSET}), {WEEK_START}) = YEARWEEK(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}), {WEEK_START})
         """,
     )
@@ -284,7 +284,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         SELECT COUNT(DISTINCT record_pk)
         FROM auditlogheaders
         WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
-        AND user='{username}'
+        AND user='{badge}'
         AND MONTH(`created_date` + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
         """,
     )
@@ -293,7 +293,7 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
         f"""
         SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
         WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
-        AND user='{username}'
+        AND user='{badge}'
         AND YEARWEEK(`created_date` + HOUR({TIMEZONE_OFFSET}), {WEEK_START}) = YEARWEEK(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}), {WEEK_START})
         """,
     )
@@ -306,8 +306,8 @@ async def get_user_summary(username: str) -> Optional[WorkerSummary]:
     )
 
 
-async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
-    if not await User.objects.filter(username=username).exists():
+async def get_worker_attendances(badge: str) -> List[WorkerAttendance]:
+    if not await User.objects.filter(badge=badge).exists():
         return []
 
     worker_attendances: List[WorkerAttendance] = []
@@ -319,7 +319,7 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
         (
             SELECT action, MIN(created_date) min_login_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
             FROM auditlogheaders
-            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{username}'
+            WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{badge}'
             GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
         ) min_login
         WHERE loginrecord.`action` = '{AuditActionEnum.USER_LOGIN.value}' AND loginrecord.created_date = min_login.min_login_date;
@@ -333,7 +333,7 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
         (
             SELECT action, MAX(created_date) max_logout_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
             FROM auditlogheaders
-            WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{username}'
+            WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{badge}'
             GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
         ) max_logout
         WHERE logoutrecord.`action` = '{AuditActionEnum.USER_LOGOUT.value}' AND logoutrecord.created_date = max_logout.max_logout_date;
@@ -353,7 +353,7 @@ async def get_worker_attendances(username: str) -> List[WorkerAttendance]:
     return worker_attendances
 
 
-async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
+async def check_user_connected(badge: str) -> Tuple[bool, Optional[str]]:
     """
     Get client connection status from EMQX API.
 
@@ -363,7 +363,7 @@ async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
     """
     async with aiohttp.ClientSession() as session:
         async with session.get(
-            f"http://{MQTT_BROKER}:18083/api/v4/clients/{username}",
+            f"http://{MQTT_BROKER}:18083/api/v4/clients/{badge}",
             auth=aiohttp.BasicAuth(login=EMQX_USERNAME,
                                    password=EMQX_PASSWORD),
         ) as resp:
@@ -381,10 +381,10 @@ async def check_user_connected(username: str) -> Tuple[bool, Optional[str]]:
                 return False, None
 
 
-async def get_user_shift_type(username: str) -> ShiftType:
+async def get_user_shift_type(badge: str) -> ShiftType:
     """取得員工的班別"""
 
-    user = await get_user_by_username(username)
+    user = await get_user_by_badge(badge)
 
     if user is None:
         raise HTTPException(404, 'the user is not found')
@@ -395,12 +395,12 @@ async def get_user_shift_type(username: str) -> ShiftType:
     return user.shift
 
 
-async def is_worker_in_whitelist(username: str) -> bool:
-    return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username).exists()
+async def is_worker_in_whitelist(badge: str) -> bool:
+    return await WhitelistDevice.objects.select_related(['workers']).filter(workers__badge=badge).exists()
 
 
-async def is_worker_in_device_whitelist(username: str, device_id: str) -> bool:
-    return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username, device=device_id).exists()
+async def is_worker_in_device_whitelist(badge: str, device_id: str) -> bool:
+    return await WhitelistDevice.objects.select_related(['workers']).filter(workers__badge=badge, device=device_id).exists()
 
 
 async def get_worker_status(worker:User) -> Optional[WorkerStatusDto]:
@@ -414,14 +414,14 @@ async def get_worker_status(worker:User) -> Optional[WorkerStatusDto]:
         SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 
         INNER JOIN missions m ON m.id = mu.mission
         INNER JOIN auditlogheaders a ON a.record_pk = m.id 
-        WHERE mu.user = :username AND a.action = 'MISSION_STARTED' AND (a.created_date BETWEEN :shift_start AND :shift_end);
+        WHERE mu.user = :badge AND a.action = 'MISSION_STARTED' AND (a.created_date BETWEEN :shift_start AND :shift_end);
         """,
-        {'username': worker.username, 'shift_start': shift_start, 'shift_end': shift_end},
+        {'badge': worker.badge, 'shift_start': shift_start, 'shift_end': shift_end},
     )
 
     item = WorkerStatusDto(
-        worker_id=worker.username,
-        worker_name=worker.full_name,
+        worker_id=worker.badge,
+        worker_name=worker.username,
         status=worker.status,
         last_event_end_date=worker.last_event_end_date,
         total_dispatches=total_start_count,
@@ -430,7 +430,7 @@ async def get_worker_status(worker:User) -> Optional[WorkerStatusDto]:
     item.at_device = worker.at_device.id if worker.at_device is not None else None
     item.at_device_cname = worker.at_device.device_cname if worker.at_device is not None else None
 
-    mission = await get_user_working_mission(worker.username)
+    mission = await get_user_working_mission(worker.badge)
     if worker.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
         item.mission_duration = mission.mission_duration.total_seconds()  # type: ignore
 

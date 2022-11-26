@@ -11,8 +11,8 @@ logger = logging.getLogger(LOGGER_NAME)
 
 
 class UserInfo(BaseModel):
+    badge: str
     username: str
-    full_name: str
 
 
 class UserInfoWithDuration(UserInfo):
@@ -141,16 +141,16 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
         # fetch top 3 assignees that deal with device out-of-order issue most quickly
         top_assignees_in_mission = await api_db.fetch_all(
             """
-            SELECT t1.username, t1.full_name, min(t1.duration) as duration FROM (
-                SELECT u.username, u.full_name, TIMESTAMPDIFF(SECOND, me.event_beg_date, me.event_end_date) as duration
+            SELECT t1.badge, t1.username, min(t1.duration) as duration FROM (
+                SELECT u.badge, u.username, TIMESTAMPDIFF(SECOND, me.event_beg_date, me.event_end_date) as duration
                 FROM missionevents me
                 LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
                 INNER JOIN missions m ON m.id = me.mission
-                INNER JOIN users u ON u.username = mu.user
+                INNER JOIN users u ON u.badge = mu.user
                 WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
                 ORDER BY duration ASC
             ) t1
-            GROUP BY t1.username
+            GROUP BY t1.badge
             ORDER BY duration
             LIMIT 3;
             """,
@@ -159,7 +159,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
 
         m.top_great_assignees = [
             UserInfoWithDuration(
-                username=x["username"], full_name=x["full_name"], duration=x["duration"]
+                badge=x["badge"], username=x["username"], duration=x["duration"]
             )
             for x in top_assignees_in_mission
         ]
@@ -177,15 +177,15 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
 
     query = await api_db.fetch_all(
         f"""
-        SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
+        SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
-        INNER JOIN users u ON u.username = auditlogheaders.`user`
+        INNER JOIN users u ON u.badge = auditlogheaders.`user`
         WHERE 
             action='MISSION_ACCEPTED'
             AND (created_date BETWEEN :start_date AND :end_date)
             AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
-        GROUP BY u.username
+        GROUP BY u.badge
         ORDER BY count DESC
         LIMIT :limit;
         """,
@@ -205,15 +205,15 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
 
     query = await api_db.fetch_all(
         f"""
-        SELECT u.username, u.full_name, count(DISTINCT record_pk) AS count
+        SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
         FROM `auditlogheaders`
-        INNER JOIN users u ON u.username = auditlogheaders.`user`
+        INNER JOIN users u ON u.badge = auditlogheaders.`user`
         WHERE 
             action='MISSION_REJECTED'
             AND (created_date BETWEEN :start_date AND :end_date)
             AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
-        GROUP BY u.username
+        GROUP BY u.badge
         ORDER BY count DESC
         LIMIT :limit;
         """,
@@ -241,7 +241,7 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
     result = await api_db.fetch_all(
         f"""
         SELECT count(DISTINCT user) FROM `auditlogheaders` a
-        INNER JOIN users u ON a.user = u.username
+        INNER JOIN users u ON a.user = u.badge
         WHERE 
             action='USER_LOGIN'
             AND u.level = 1
