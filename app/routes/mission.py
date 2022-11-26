@@ -161,6 +161,7 @@ async def assign_mission_to_user(
 
     async with api_db.transaction():
         await assign_mission(mission_id, user_name)
+        
         await AuditLogHeader.objects.create(
             table_name="missions",
             record_pk=mission_id,
@@ -175,6 +176,7 @@ async def cancel_a_mission_by_id(
     mission_id: int, user: User = Depends(get_manager_active_user)
 ):
     await cancel_mission_by_id(mission_id)
+
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_CANCELED.value,
         table_name="missions",

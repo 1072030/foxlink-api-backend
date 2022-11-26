@@ -2,7 +2,7 @@ import io
 import qrcode
 from qrcode.constants import ERROR_CORRECT_M
 from fastapi.exceptions import HTTPException
-from app.core.database import Device, FactoryMap, Mission, WorkerStatus, WorkerStatusEnum
+from app.core.database import Device, FactoryMap, Mission, WorkerStatusEnum
 from zipfile import ZipFile
 from PIL import ImageDraw, ImageFont
 from typing import List
@@ -66,9 +66,7 @@ async def get_all_devices_status(workshop_name: str, is_rescue=False):
         else:
             m = related_missions[0]
             if len(m.assignees) > 0:
-                worker_status = await WorkerStatus.objects.filter(worker=m.assignees[0].username).get_or_none()
-
-                if worker_status is None or worker_status.status == WorkerStatusEnum.leave.value:
+                if m.worker.status == WorkerStatusEnum.leave.value:
                     device_status.status = DeviceStatusEnum.halt
                 else:
                     device_status.status = DeviceStatusEnum.repairing

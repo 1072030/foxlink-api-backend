@@ -27,7 +27,7 @@ metadata = MetaData()
 MissionRef = ForwardRef("Mission")
 AuditLogHeaderRef = ForwardRef("AuditLogHeader")
 UserRef = ForwardRef("User")
-
+DeviceRef = ForwardRef("Device")
 
 def generate_uuidv4():
     return str(uuid.uuid4())
@@ -113,13 +113,17 @@ class User(ormar.Model):
     level: int = ormar.SmallInteger(choices=list(UserLevel),nullable=False)
     shift: int = ormar.SmallInteger(choices=list(ShiftType),nullable=True)
     change_pwd: bool = ormar.Boolean(server_default="0",nullable=True)  
-    
-
+    ####################
+    status: str = ormar.String(max_length=15,default=WorkerStatusEnum.leave, choices=list(WorkerStatusEnum))
+    at_device: DeviceRef = ormar.ForeignKey(DeviceRef, ondelete="SET NULL", nullable=True)
+    dispatch_count: int = ormar.Integer(default=0,nullable=True)
+    check_alive_time: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    last_event_end_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00",timezone=True)
+    ####################
     login_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00", timezone=True)
     logout_date: datetime = ormar.DateTime(server_default="1990/01/01 00:00:00",timezone=True)
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
     updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-
 
 
 class Device(ormar.Model):
@@ -263,23 +267,7 @@ class AuditLogHeader(ormar.Model):
     record_pk: str = ormar.String(max_length=100, index=True, nullable=True)
     user: User = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
     created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    description: str = ormar.String(max_length=256, nullable=True)
-
-
-class WorkerStatus(ormar.Model):
-
-    class Meta(MainMeta):
-        tablename = "worker_status"
-        
-    id: int = ormar.Integer(primary_key=True)
-    worker: User = ormar.ForeignKey(User, unique=True, ondelete="CASCADE",related_name="status")
-    at_device: Device = ormar.ForeignKey(Device, nullable=True, ondelete="SET NULL")
-    status: str = ormar.String(max_length=15, choices=list(WorkerStatusEnum))
-    last_event_end_date: datetime = ormar.DateTime(timezone=True)
-    dispatch_count: int = ormar.Integer(default=0)
-    updated_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
-    created_date: datetime = ormar.DateTime(server_default=func.now(), timezone=True)    
-    check_alive_time: datetime = ormar.DateTime(server_default=func.now(), timezone=True)
+    description: str = ormar.String(max_length=256, nullable=True)    
 
 
 class WhitelistDevice(ormar.Model):
@@ -298,6 +286,6 @@ MissionEvent.update_forward_refs()
 User.update_forward_refs()
 
 
-@pre_update([Device, FactoryMap, Mission, UserDeviceLevel, WorkerStatus, WhitelistDevice])
+@pre_update([User, Device, FactoryMap, Mission, MissionEvent, UserDeviceLevel, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):
     instance.updated_date = datetime.utcnow()

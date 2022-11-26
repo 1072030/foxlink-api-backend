@@ -7,7 +7,6 @@ from app.core.database import (
     UserDeviceLevel,
     FactoryMap,
     # CategoryPRI,
-    WorkerStatus,
     WorkerStatusEnum,
     ShiftType,
     api_db,
@@ -220,7 +219,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
     update_worker_bulk: List[User] = []
     create_user_device_levels_bulk: List[UserDeviceLevel] = []
     update_user_device_levels_bulk: List[UserDeviceLevel] = []
-    create_worker_status_bulk: List[WorkerStatus] = []
     
     transaction = await api_db.transaction()
     try:
@@ -273,7 +271,10 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     workshop = workshop,
                     superior = superior,
                     level = level,
-                    shift = shift
+                    shift = shift,
+                    status=WorkerStatusEnum.leave.value,
+                    at_device=workshop_default_rescue[workshop.name],
+                    last_event_end_date=datetime.utcnow(),
                 )
                 worker_name_entity_dict[full_name] = worker
                 create_worker_bulk.append(worker)
@@ -291,17 +292,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
 
             worker_name_entity_dict[full_name] = worker
 
-
-            # check if the matching worker status exists
-            if not await WorkerStatus.objects.filter(worker=username).exists():
-                w_status = WorkerStatus(
-                    worker=username,
-                    status=WorkerStatusEnum.leave.value,
-                    at_device=workshop_default_rescue[workshop.name],
-                    last_event_end_date=datetime.utcnow(),
-                )
-                create_worker_status_bulk.append(w_status)
-        
         # create worker
         if len(create_worker_bulk) > 0:
             await User.objects.bulk_create(create_worker_bulk)
@@ -313,10 +303,6 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 objects=update_worker_bulk,
                 columns=list(sample.dict(exclude_defaults=True).keys())
             )
-        
-        # create worker status
-        if len(create_worker_status_bulk) > 0:
-            await WorkerStatus.objects.bulk_create(create_worker_status_bulk)
 
         # remove workers not within the provided table
         await User.objects.exclude(

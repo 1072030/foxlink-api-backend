@@ -8,7 +8,6 @@ from app.core.database import (
     AuditActionEnum,
     UserDeviceLevel,
     WhitelistDevice,
-    WorkerStatus,
     WorkerStatusEnum,
     api_db,
 )
@@ -28,7 +27,7 @@ async def get_missions() -> List[Mission]:
     return await Mission.objects.select_all().all()
 
 
-async def get_mission_by_id(id: int, select_fields: List[str] = ["events", "device__workshop","worker__status"]) -> Optional[Mission]:
+async def get_mission_by_id(id: int, select_fields: List[str] = ["worker", "device", "events", "device__workshop"]) -> Optional[Mission]:
     mission = (
         await Mission.objects.select_related(
             select_fields
@@ -89,9 +88,7 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
 
 # @api_db.transaction()
 async def start_mission_by_id(mission_id: int, worker: User):
-    mission = await Mission.objects.get_or_none(
-        id=mission_id
-    )
+    mission = await get_mission_by_id(mission_id)
 
     if mission is None:
         raise HTTPException(
@@ -127,13 +124,12 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     # if mission is already started,
     # for example there is previous worker who has started the mission, then we shouldn't update repair start date.
-    if mission.repair_beg_date is None:
-        await mission.update(repair_beg_date=datetime.utcnow())
+    await mission.update(repair_beg_date=datetime.utcnow())
 
-    worker_status = await WorkerStatus.objects.filter(worker=worker).get()
-    worker_status.dispatch_count += 1
-    worker_status.status = WorkerStatusEnum.working.value
-    await worker_status.update()
+    worker.dispatch_count += 1
+    worker.status = WorkerStatusEnum.working.value
+
+    await worker.update()
 
     await move_user_to_position(worker.username, mission.device.id)
     await AuditLogHeader.objects.create(
@@ -148,19 +144,30 @@ async def accept_mission(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
-        raise HTTPException(404, "the mission you request is not found")
+        raise HTTPException(
+            404,
+            "the mission you request is not found"
+        )
 
     if not worker.username == mission.worker.username:
-        raise HTTPException(400, "you are not this mission's assignee")
+        raise HTTPException(
+            400, 
+            "you are not this mission's assignee"
+        )
 
     if not mission.device.is_rescue:
         if mission.is_started or mission.is_closed:
             raise HTTPException(
-                400, "this mission is already started or closed")
+                400, 
+                "this mission is already started or closed"
+            )
 
-    await mission.update(accept_recv_date=datetime.utcnow())
+    await mission.update(
+        accept_recv_date=datetime.utcnow(),
+        notify_recv_date=datetime.utcnow()
+    )
 
-    await WorkerStatus.objects.filter(worker=worker.username).update(
+    await worker.update(
         status=WorkerStatusEnum.moving.value,
     )
     
@@ -173,11 +180,7 @@ async def accept_mission(mission_id: int, worker: User):
 
 
 async def reject_mission_by_id(mission_id: int, worker: User):
-    mission = (
-        await Mission.objects.select_related(['device__workshop'])
-        .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
-        .get_or_none(id=mission_id)
-    )
+    mission = await get_mission_by_id(mission_id)
 
     if mission is None:
         raise HTTPException(
@@ -264,10 +267,11 @@ async def finish_mission_by_id(mission_id: int, worker: User):
         )
 
         # set each assignee's last_event_end_date
-        mission.worker.status[0].update(
+        await worker.update(
             status=WorkerStatusEnum.idle.value,
             last_event_end_date=now_time
         )
+
         await AuditLogHeader.objects.create(
             table_name="missions",
             action=AuditActionEnum.MISSION_FINISHED.value,
@@ -281,7 +285,9 @@ async def delete_mission_by_id(mission_id: int):
 
     if mission is None:
         raise HTTPException(
-            404, "the mission you request to delete is not found")
+            404, 
+            "the mission you request to delete is not found"
+        )
 
     await mission.delete()
 
@@ -292,26 +298,35 @@ async def cancel_mission_by_id(mission_id: int):
 
     if mission is None:
         raise HTTPException(
-            404, "the mission you request to delete is not found"
-    )
+            404,
+            "the mission you request to cancel is not found"
+        )
 
     if mission.is_cancel:
-        raise HTTPException(400, "this mission is already canceled")
+        raise HTTPException(
+            400,
+            "this mission is already canceled"
+        )
 
     if mission.is_closed:
-        raise HTTPException(400, "this mission is already finished")
+        raise HTTPException(
+            400,
+            "this mission is already finished"
+        )
 
     await mission.update(is_cancel=True)
 
-    await mission.worker.status[0].update(
+    await mission.worker.update(
         last_event_end_date=datetime.utcnow()
     )
 
 
 async def assign_mission(mission_id: int, username: str):
-    mission = await Mission.objects.select_related(
-        ["events"]
-    ).get_or_none(id=mission_id)
+    user = await User.objects.get_or_none(username=username)
+
+    mission = await Mission.objects.select_related(["events"]).get_or_none(id=mission_id)
+
+    is_idle = (user.status == WorkerStatusEnum.idle.value)
 
     if mission is None:
         raise HTTPException(
@@ -322,10 +337,6 @@ async def assign_mission(mission_id: int, username: str):
         raise HTTPException(
             status_code=400, detail="the mission you requested is closed"
         )
-
-    is_idle = await WorkerStatus.objects.filter(
-        worker=username, status=WorkerStatusEnum.idle.value
-    ).exists()
 
     if not is_idle:
         raise HTTPException(
@@ -356,17 +367,14 @@ async def assign_mission(mission_id: int, username: str):
         )
 
     await mission.update(
-        worker=the_user
+        worker=the_user,
+        notify_send_date = datetime.utcnow()
     )
     
     await the_user.update(
-        status__status=WorkerStatusEnum.notice.value,
-        notify_send_date = datetime.utcnow()
+        status=WorkerStatusEnum.notice.value,
     )
 
-    # await WorkerStatus.objects.filter(worker=the_user).update(
-    #     status=WorkerStatusEnum.notice.value,
-    # )
 
 
     mqtt_client.publish(

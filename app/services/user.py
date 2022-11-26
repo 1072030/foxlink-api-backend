@@ -24,7 +24,6 @@ from app.core.database import (
     UserDeviceLevel,
     UserLevel,
     WhitelistDevice,
-    WorkerStatus,
     WorkerStatusEnum,
     api_db,
 )
@@ -57,13 +56,6 @@ async def get_users() -> List[User]:
 #         raise HTTPException(
 #             status_code=400, detail="cannot add user:" + str(e))
 
-
-async def check_user_workstatus(username: str):
-    workerStatus = await WorkerStatus.objects.filter(worker=username).get_or_none()
-    # if workerStatus.status != WorkerStatusEnum.idle.value:
-    #     raise HTTPException(
-    #         status_code=404, detail="You are not allow to logout."
-    #     )
 
 
 async def get_user_by_username(username: str) -> Optional[User]:
@@ -110,41 +102,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
     return [MissionDto.from_mission(x) for x in missions]
 
 
-# async def get_subordinates_list_by_username(username: str):
-#     the_user = await User.objects.filter(username=username).get_or_none()
 
-#     if the_user is None:
-#         raise HTTPException(404, "the user with this id is not found")
-
-#     async def get_subsordinates_list(username: str) -> List[str]:
-#         result = await api_db.fetch_all("""
-#         SELECT DISTINCT user FROM userdevicelevels u 
-#         WHERE u.superior = :superior
-#         """, {'superior': username})
-
-#         return [row[0] for row in result]
-
-#     all_subsordinates = await get_subsordinates_list(username)
-
-#     while True:
-#         temp = []
-#         for name in all_subsordinates:
-#             t2 = await get_subsordinates_list(name)
-
-#             for x in t2:
-#                 if x not in temp and x not in all_subsordinates:
-#                     temp.append(x)
-#         if len(temp) == 0:
-#             break
-#         all_subsordinates.extend(temp)
-#     return all_subsordinates
-
-
-# async def get_user_all_level_subordinates_by_username(username: str):
-#     subsordinates = await get_subordinates_list_by_username(username)
-#     promises = [get_worker_status(name) for name in subsordinates]
-#     result = await asyncio.gather(*promises)
-#     return [x for x in result if x is not None]
 
 
 async def move_user_to_position(username: str, device_id: str):
@@ -162,10 +120,9 @@ async def move_user_to_position(username: str, device_id: str):
         )
 
     try:
-        worker_status = await WorkerStatus.objects.filter(worker=user).get()
         original_at_device = (
-            worker_status.at_device.id
-            if worker_status.at_device is not None
+            user.at_device.id
+            if user.at_device is not None
             else "None"
         )
 
@@ -176,8 +133,9 @@ async def move_user_to_position(username: str, device_id: str):
             user=user,
         )
 
-        await worker_status.update(
-            at_device=device, last_event_end_date=datetime.utcnow()
+        await user.update(
+            at_device=device, 
+            last_event_end_date=datetime.utcnow()
         )
 
     except Exception as e:
@@ -195,7 +153,7 @@ async def get_user_working_mission(username: str) -> Optional[Mission]:
         )
 
     try:
-        mission = await Mission.objects.select_related(['device']).filter(
+        mission = await Mission.objects.filter(
             and_(
                 # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
@@ -445,14 +403,8 @@ async def is_worker_in_device_whitelist(username: str, device_id: str) -> bool:
     return await WhitelistDevice.objects.select_related(['workers']).filter(workers__username=username, device=device_id).exists()
 
 
-async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
-    s = (
-        await WorkerStatus.objects.filter(worker=username)
-        .select_related(["worker", 'at_device'])
-        .get_or_none()
-    )
-
-    if s is None:
+async def get_worker_status(worker:User) -> Optional[WorkerStatusDto]:
+    if worker is None:
         return None
 
     shift_start, shift_end = get_current_shift_time_interval()
@@ -464,28 +416,28 @@ async def get_worker_status(username: str) -> Optional[WorkerStatusDto]:
         INNER JOIN auditlogheaders a ON a.record_pk = m.id 
         WHERE mu.user = :username AND a.action = 'MISSION_STARTED' AND (a.created_date BETWEEN :shift_start AND :shift_end);
         """,
-        {'username': username, 'shift_start': shift_start, 'shift_end': shift_end},
+        {'username': worker.username, 'shift_start': shift_start, 'shift_end': shift_end},
     )
 
     item = WorkerStatusDto(
-        worker_id=username,
-        worker_name=s.worker.full_name,
-        status=s.status,
-        last_event_end_date=s.last_event_end_date,
+        worker_id=worker.username,
+        worker_name=worker.full_name,
+        status=worker.status,
+        last_event_end_date=worker.last_event_end_date,
         total_dispatches=total_start_count,
     )
 
-    item.at_device = s.at_device.id if s.at_device is not None else None
-    item.at_device_cname = s.at_device.device_cname if s.at_device is not None else None
+    item.at_device = worker.at_device.id if worker.at_device is not None else None
+    item.at_device_cname = worker.at_device.device_cname if worker.at_device is not None else None
 
-    mission = await get_user_working_mission(username)
-    if s.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
+    mission = await get_user_working_mission(worker.username)
+    if worker.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
         item.mission_duration = mission.mission_duration.total_seconds()  # type: ignore
 
         if mission.repair_duration is not None and not mission.device.is_rescue:
             item.repair_duration = mission.repair_duration.total_seconds()
 
-        if s.status == WorkerStatusEnum.moving.value:
+        if worker.status == WorkerStatusEnum.moving.value:
             item.at_device = mission.device.id
             item.at_device_cname = mission.device.device_cname
 

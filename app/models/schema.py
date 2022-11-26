@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, List
 from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 from app.core.database import (
-    # CategoryPRI,
     Device,
     Mission,
     MissionEvent,

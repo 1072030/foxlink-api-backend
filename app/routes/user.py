@@ -8,7 +8,6 @@ from app.core.database import (
     User,
     UserLevel,
     FactoryMap,
-    WorkerStatus,
     WorkerStatusEnum,
     AuditLogHeader,
     api_db,
@@ -21,7 +20,6 @@ from app.services.user import (
     get_password_hash,
     delete_user_by_username,
     get_worker_attendances,
-    check_user_workstatus
 )
 from app.services.auth import (
     set_device_UUID,
@@ -89,13 +87,9 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
         ).name
 
     at_device = "無"
-    worker_status = (
-        await WorkerStatus.objects.select_related(["at_device"])
-        .filter(worker=user)
-        .get_or_none()
-    )
-    if worker_status is not None and worker_status.at_device is not None:
-        at_device = worker_status.at_device.id
+
+    if user.at_device is not None:
+        at_device = user.at_device.id
 
     if first_login_timestamp is not None:
         total_mins = (
@@ -139,9 +133,8 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
-    worker_status = await WorkerStatus.objects.filter(worker=user).get()
-
-    await worker_status.update(status=WorkerStatusEnum.leave.value)
+    
+    await user.update(status=WorkerStatusEnum.leave.value)
 
     await user.update(logout_date=datetime.utcnow())
 

@@ -2,6 +2,7 @@ import datetime
 from paho.mqtt import client
 import json
 import logging
+import asyncio
 from app.log import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -20,7 +21,18 @@ class MQTT_Client:
         """
         self.mqtt_client = client.Client(client_id)
         self.mqtt_client.on_connect = self.on_connect
-        self.mqtt_client.connect(broker, port=port)
+        for _ in range(3):
+            try:
+                self.mqtt_client.connect(broker, port=port)
+            except:
+                logger.warn("connection failed waiting to reconnect.")
+            else:
+                break
+            await asyncio.sleep(2)
+        else:
+            logger.error("cannot connect to mqtt broker after retries")
+            return
+
         self.mqtt_client.loop_start()  
     
     async def disconnect(self):

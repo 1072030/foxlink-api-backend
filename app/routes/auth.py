@@ -12,7 +12,6 @@ from app.core.database import (
     Device,
     Mission,
     UserLevel,
-    WorkerStatus,
     WorkerStatusEnum,
 )
 from app.services.user import get_user_first_login_time_today
@@ -55,15 +54,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         user=user,
     )
 
-    worker_status = await WorkerStatus.objects.filter(worker=user).get_or_none()
-
-    if worker_status is not None:
-        await worker_status.update(status=WorkerStatusEnum.idle.value)
+    await user.update(status=WorkerStatusEnum.idle.value)
 
     # if user is a maintainer, then we should mark his status as idle
     if user.level == UserLevel.maintainer.value and is_first_login_today != None:
-        if worker_status is not None:
-            worker_status.last_event_end_date = datetime.utcnow()  # type: ignore
+            user.last_event_end_date = datetime.utcnow()  # type: ignore
 
             rescue_missions = (
                 await Mission.objects.select_related(["device"])
@@ -82,9 +77,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 workshop=user.workshop, is_rescue=True
             ).first()
 
-            worker_status.at_device = first_rescue_station
+            user.at_device = first_rescue_station
             
-            await worker_status.update()
+            await user.update()
 
     await user.update( login_date = datetime.utcnow())
 

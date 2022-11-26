@@ -2,7 +2,14 @@ import datetime, logging
 from typing import List, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.core.database import FactoryMap, Mission, ShiftType, WorkerStatus, UserLevel, WorkerStatusEnum
+from app.core.database import (
+    FactoryMap,
+    Mission,
+    ShiftType,
+    UserLevel,
+    User,
+    WorkerStatusEnum
+)
 import asyncio
 from app.env import LOGGER_NAME
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -83,15 +90,17 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
 
 @router.get("/{workshop_name}/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
 async def get_all_worker_status(workshop_name: str):
-    states = (
-        await WorkerStatus.objects.select_related(["worker", "worker__location"])
-        .exclude_fields(['worker__location__related_devices', 'worker__location__image', 'worker__location__map'])
-        .filter(worker__level=UserLevel.maintainer.value, worker__location__name=workshop_name)
+    workers = (
+        await User.objects
+        .exclude_fields(['location__related_devices', 'location__image', 'location__map'])
+        .filter(worker__level=UserLevel.maintainer.value, location__name=workshop_name)
         .all()
     )
 
     resp: List[WorkerStatusDto] = []
 
-    promises = [get_worker_status(s.worker.username) for s in states]
+    promises = [get_worker_status(worker.username) for worker in workers]
+
     resp = await asyncio.gather(*promises)
+
     return resp
