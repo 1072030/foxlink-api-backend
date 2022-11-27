@@ -230,7 +230,6 @@ class MissionEvent(ormar.Model):
     message: str = ormar.String(max_length=100, nullable=True)
     host: str = ormar.String(max_length=50, nullable=False)
     table_name: str = ormar.String(max_length=50, nullable=False)
-    done_verified: bool = ormar.Boolean(default=False)
     event_beg_date: datetime = ormar.DateTime(nullable=True)
     event_end_date: datetime = ormar.DateTime(nullable=True)
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
@@ -249,12 +248,15 @@ class Mission(ormar.Model):
     name: str = ormar.String(max_length=100, nullable=False)
     description: str = ormar.String(max_length=256)
 
-    is_emergency: bool = ormar.Boolean(default=False, nullable=True)
-    is_cancel: bool = ormar.Boolean(default=False, nullable=True)
-    is_overtime: bool = ormar.Boolean(default=False, nullable=True)
-    is_autocanceled: bool = ormar.Boolean(default=False, nullable=True)
+    is_done: bool = ormar.Boolean(default=False, nullable=True)
+    is_done_cure: bool = ormar.Boolean(default=False, nullable=True)
+    is_done_shift: bool = ormar.Boolean(default=False, nullable=True)  # if mission complete due to shifting
+    is_done_cancel: bool = ormar.Boolean(default=False, nullable=True)
+    is_done_finish: bool = ormar.Boolean(default=False, nullable=True)
+
     is_lonely: bool = ormar.Boolean(default=False, nullable=True)  # if no worker could be assigned
-    is_shifted: bool = ormar.Boolean(default=False, nullable=True)  # if mission complete due to shifting
+    is_overtime: bool = ormar.Boolean(default=False, nullable=True)
+    is_emergency: bool = ormar.Boolean(default=False, nullable=True)
 
     notify_send_date: datetime = ormar.DateTime(nullable=True)
     notify_recv_date: datetime = ormar.DateTime(nullable=True)
@@ -315,15 +317,6 @@ class Mission(ormar.Model):
     @property_field
     def is_closed(self) -> bool:
         return self.repair_end_date is not None
-
-    @property_field
-    async def is_done_events(self) -> bool:
-        events = await MissionEvent.objects.filter(mission=self.id).all()
-
-        if len([x for x in events if x.done_verified]) == len(events):
-            return True
-        else:
-            return False
 
 
 class AuditLogHeader(ormar.Model):

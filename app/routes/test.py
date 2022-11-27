@@ -59,14 +59,20 @@ async def create_fake_mission(workshop_name: str):
 
     pick_device_id = None
     for device in all_device_ids:
-        if await Mission.objects.filter(
-            device=device, repair_end_date__isnull=True, is_cancel=False
-        ).exists():
+        if (
+            await Mission.objects
+            .filter(
+                is_done=False,
+                device=device,
+                repair_end_date__isnull=True
+            )
+            .exists()
+        ):
             continue
         else:
             pick_device_id = device
             break
-            
+
     if pick_device_id is None:
         raise HTTPException(status_code=404, detail="no device is available")
 
@@ -109,12 +115,10 @@ async def mark_mission_as_done(mission_id: int):
 
     for e in mission.missionevents:
         await e.update(
-            done_verified=True, 
             event_end_date=get_ntz_now(),
         )
 
 
-
 @router.post("/swap/day", status_code=200, tags=["test"])
-async def mark_day_start_time(time:str):
+async def mark_day_start_time(time: str):
     pass

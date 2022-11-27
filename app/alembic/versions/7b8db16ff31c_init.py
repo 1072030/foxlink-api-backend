@@ -1,8 +1,8 @@
 """init
 
-Revision ID: d838c4f74e14
+Revision ID: 7b8db16ff31c
 Revises: 
-Create Date: 2022-11-27 00:49:48.397813
+Create Date: 2022-11-27 19:11:58.618052
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd838c4f74e14'
+revision = '7b8db16ff31c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -111,12 +111,14 @@ def upgrade() -> None:
     sa.Column('worker', sa.String(length=100), nullable=True),
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('description', sa.String(length=256), nullable=False),
-    sa.Column('is_emergency', sa.Boolean(), nullable=True),
-    sa.Column('is_cancel', sa.Boolean(), nullable=True),
-    sa.Column('is_overtime', sa.Boolean(), nullable=True),
-    sa.Column('is_autocanceled', sa.Boolean(), nullable=True),
+    sa.Column('is_done', sa.Boolean(), nullable=True),
+    sa.Column('is_done_cure', sa.Boolean(), nullable=True),
+    sa.Column('is_done_shift', sa.Boolean(), nullable=True),
+    sa.Column('is_done_cancel', sa.Boolean(), nullable=True),
+    sa.Column('is_done_finish', sa.Boolean(), nullable=True),
     sa.Column('is_lonely', sa.Boolean(), nullable=True),
-    sa.Column('is_shifted', sa.Boolean(), nullable=True),
+    sa.Column('is_overtime', sa.Boolean(), nullable=True),
+    sa.Column('is_emergency', sa.Boolean(), nullable=True),
     sa.Column('notify_send_date', sa.DateTime(), nullable=True),
     sa.Column('notify_recv_date', sa.DateTime(), nullable=True),
     sa.Column('accept_recv_date', sa.DateTime(), nullable=True),
@@ -157,7 +159,6 @@ def upgrade() -> None:
     sa.Column('message', sa.String(length=100), nullable=True),
     sa.Column('host', sa.String(length=50), nullable=False),
     sa.Column('table_name', sa.String(length=50), nullable=False),
-    sa.Column('done_verified', sa.Boolean(), nullable=True),
     sa.Column('event_beg_date', sa.DateTime(), nullable=True),
     sa.Column('event_end_date', sa.DateTime(), nullable=True),
     sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),

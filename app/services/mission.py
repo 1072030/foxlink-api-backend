@@ -100,8 +100,11 @@ async def start_mission_by_id(mission_id: int, worker: User):
     if worker.badge != mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
 
-    if mission.is_closed or mission.is_cancel:
-        raise HTTPException(400, "this mission is already closed or canceled")
+    if mission.is_done:
+        raise HTTPException(400, "this mission is already closed.")
+
+    # if mission.is_closed or mission.is_done_cancel:
+    #     raise HTTPException(400, "this mission is already closed or canceled")
 
     if mission.worker == worker and mission.is_started:
         raise HTTPException(200, 'you have already started the mission')
@@ -224,14 +227,15 @@ async def reject_mission_by_id(mission_id: int, worker: User):
             retain=True,
         )
 
-    worker_reject_amount_today = await (User.objects
-                                        .select_related("missions")
-                                        .filter(
-                                            user=worker,
-                                            created_date__gte=get_ntz_now(),
-                                        )
-                                        .count()
-                                        )
+    worker_reject_amount_today = await (
+        User.objects
+        .select_related("missions")
+        .filter(
+            user=worker,
+            created_date__gte=get_ntz_now(),
+        )
+        .count()
+    )
 
     if worker_reject_amount_today >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
 
@@ -259,13 +263,18 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if mission.worker != worker:
         raise HTTPException(400, "you are not this mission's assignee")
 
-    if mission.is_shifted:
+    if mission.is_done_shift:
         raise HTTPException(200, "you're no longer this missions assignee due to shifting.")
+
+    if mission.is_done:
+        raise HTTPException(200, "the mission has closed.")
 
     now_time = get_ntz_now()
 
     await mission.update(
-        repair_end_date=now_time, is_cancel=False,
+        is_done=True,
+        is_done_finish=True,
+        repair_end_date=now_time,
     )
 
     # set each assignee's finish_event_date
@@ -305,19 +314,22 @@ async def cancel_mission_by_id(mission_id: int):
             "the mission you request to cancel is not found"
         )
 
-    if mission.is_cancel:
+    if mission.is_done_cancel:
         raise HTTPException(
             400,
             "this mission is already canceled"
         )
 
-    if mission.is_closed:
+    if mission.is_done:
         raise HTTPException(
             400,
-            "this mission is already finished"
+            "this mission is already closed"
         )
 
-    await mission.update(is_cancel=True)
+    await mission.update(
+        is_done=True,
+        is_done_cancel=True
+    )
 
     await mission.worker.update(
         finish_event_date=get_ntz_now()
@@ -404,7 +416,7 @@ async def assign_mission(mission_id: int, badge: str):
             ],
             "is_started": mission.is_started,
             "is_closed": mission.is_closed,
-            "is_cancel": mission.is_cancel,
+            "is_done": mission.is_done,
             "created_date": mission.created_date,
             "updated_date": mission.updated_date,
         },

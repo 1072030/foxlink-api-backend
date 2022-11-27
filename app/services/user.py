@@ -159,7 +159,7 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
                     and_(repair_beg_date__isnull=True, repair_end_date__isnull=True),
                 ),
                 assignees__badge=badge,
-                is_cancel=False,
+                is_done=False,
             )
         ).order_by("-id").first()
         return mission
@@ -179,8 +179,8 @@ async def is_user_working_on_mission(badge: str) -> bool:
     # if worker has already working on other mission, skip
     if (
         await Mission.objects.filter(
+            # left: user still working on a mission, right: user is not accept a mission yet.
             and_(
-                # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
                     and_(
                         repair_beg_date__isnull=False, repair_end_date__isnull=True,
@@ -188,8 +188,8 @@ async def is_user_working_on_mission(badge: str) -> bool:
                     and_(repair_beg_date__isnull=True,
                          repair_end_date__isnull=True),
                 ),
-                worker__badge=badge,
-                is_cancel=False,
+                is_done=False,
+                worker__badge=badge
             )
         ).count()
         > 0

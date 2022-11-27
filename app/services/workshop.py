@@ -47,7 +47,8 @@ async def get_all_devices_status(workshop_name: str, is_rescue=False):
     for d in devices:
         related_missions = (
             await Mission.objects.filter(
-                device=d, is_cancel=False, repair_end_date__isnull=True
+                device=d,
+                is_done=False
             )
             .select_related(["assignees"])
             .order_by("-created_date")

@@ -258,11 +258,15 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
 async def get_emergency_missions(workshop_id: int) -> List[MissionDto]:
     """取得當下緊急任務列表"""
     missions = (
-        await Mission.objects.filter(
-            is_emergency=True, repair_end_date__isnull=True, is_cancel=False, device__workshop__id=workshop_id
-        )
+        await Mission.objects
         .select_related(["assignees", "device", "device__workshop"])
         .exclude_fields(["device__workshop__map", "device__workshop__related_devices", "device__workshop__image"])
+        .filter(
+            is_done=False,
+            is_emergency=True,
+            repair_end_date__isnull=True,
+            device__workshop__id=workshop_id
+        )
         .order_by(["created_date"])
         .all()
     )

@@ -155,7 +155,7 @@ async def mission_shift_routine():
     working_missions = (
         await Mission.objects
         .filter(
-            is_cancel=False,
+            is_done=False,
             repair_end_date__isnull=True,
 
         )
@@ -190,7 +190,8 @@ async def mission_shift_routine():
 
             # cancel mission
             await mission.update(
-                is_cancel=True,
+                is_done=True,
+                is_done_shift=True,
                 description='換班任務，自動結案'
             )
 
@@ -209,7 +210,6 @@ async def mission_shift_routine():
                     table_name=e.table_name,
                     category=e.category,
                     message=e.message,
-                    done_verified=e.done_verified,
                     event_beg_date=e.event_beg_date,
                     event_end_date=e.event_end_date
                 )
@@ -236,22 +236,22 @@ async def auto_close_missions():
             ["events", "worker"]
         )
         .filter(
-            repair_beg_date__isnull=True,
-            is_cancel=False
+            is_done=False,
+            repair_beg_date__isnull=True
         )
         .all()
     )
 
     for mission in pending_start_missions:
         for event in mission.events:
-            if (event.done_verified == True):
+            if (event.event_end_date):
                 continue
             else:
                 break
         else:
             await mission.update(
-                is_cancel=True,
-                is_autocanceled=True
+                is_done=True,
+                is_done_cure=True
             )
             if mission.worker:
                 mqtt_client.publish(
@@ -589,14 +589,14 @@ async def mission_dispatch():
 @transaction
 @show_duration
 async def check_mission_working_duration_overtime():
-    """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級"""
+    """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級但是不取消任務"""
     working_missions = (
         await Mission.objects
         .select_related(['worker'])
         .filter(
-            worker__isnull=False,
+            is_done=False,
             is_overtime=False,
-            is_cancel=False,
+            worker__isnull=False,
             repair_beg_date__isnull=False,
             repair_end_date__isnull=True,
         )
@@ -645,22 +645,25 @@ async def check_mission_working_duration_overtime():
 @transaction
 @show_duration
 async def check_mission_assign_duration_overtime():
-    """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級"""
+    """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級並且取消任務"""
 
     assign_mission_check = (
         await Mission.objects
         .select_related("worker")
         .filter(
-            is_cancel=False,
+            is_done=False,
             worker__isnull=False,
             notify_send_date__isnull=False,
             repair_start_date__isnull=True,
+
         )
         .all()
     )
 
     for mission in assign_mission_check:
         if mission.assign_duration.total_seconds() >= CHECK_MISSION_ASSIGN_DURATION:
+            # TODO: missing notify supervisor
+
             mqtt_client.publish(
                 f"foxlink/users/{mission.worker.badge}/missions/stop-notify",
                 {
@@ -692,7 +695,7 @@ async def update_complete_events(event: MissionEvent):
     if e is None:
         return False
     if e.end_time is not None:
-        await event.update(event_end_date=e.end_time, done_verified=True)
+        await event.update(event_end_date=e.end_time)
         return True
     return False
 
@@ -743,9 +746,15 @@ async def sync_events_from_foxlink(host: str, table_name: str, since: str = ""):
             continue
 
         # find if this device is already in a mission
-        mission = await Mission.objects.filter(
-            device=device.id, repair_end_date__isnull=True, is_cancel=False
-        ).get_or_none()
+        mission = (
+            await Mission.objects
+            .filter(
+                is_done=False,
+                device=device.id,
+                repair_end_date__isnull=True,
+            )
+            .get_or_none()
+        )
 
         if mission is None:
             mission = Mission(

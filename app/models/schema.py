@@ -12,6 +12,8 @@ from app.core.database import (
 )
 
 # * User
+
+
 class WorkerAttendance(BaseModel):
     date: date
     login_datetime: datetime
@@ -86,7 +88,6 @@ class UserNameDto(BaseModel):
 class MissionEventOut(BaseModel):
     category: int
     message: str
-    done_verified: bool
     event_beg_date: datetime
     event_end_date: Optional[datetime]
 
@@ -95,7 +96,6 @@ class MissionEventOut(BaseModel):
         return cls(
             category=e.category,
             message=e.message,
-            done_verified=e.done_verified,
             event_beg_date=e.event_beg_date,
             event_end_date=e.event_end_date,
         )
@@ -110,7 +110,7 @@ class MissionDto(BaseModel):
     events: List[MissionEventOut]
     is_started: bool
     is_closed: bool
-    is_cancel: bool
+    is_done: bool
     is_emergency: bool
     created_date: datetime
     updated_date: datetime
@@ -132,10 +132,10 @@ class MissionDto(BaseModel):
             description=m.description,
             is_started=m.is_started,
             is_closed=m.is_closed,
-            is_cancel=m.is_cancel,
+            is_done=m.is_done,
             is_emergency=m.is_emergency,
-            worker= UserNameDto(
-                badge=m.worker.badge, 
+            worker=UserNameDto(
+                badge=m.worker.badge,
                 username=m.worker.username
             ) if m.worker else None,
             events=[MissionEventOut.from_missionevent(e) for e in m.events],
@@ -269,9 +269,11 @@ class DeviceStatus(BaseModel):
     y_axis: float
     status: DeviceStatusEnum
 
+
 class WhitelistRecommendDevice(BaseModel):
     day: Dict[str, int]
     night: Dict[str, int]
+
 
 class DeviceDispatchableWorker(BaseModel):
     badge: str
