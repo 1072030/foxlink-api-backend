@@ -7,12 +7,13 @@ from app.log import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 
+
 class MQTT_Client:
 
     def __init__(self):
         self.mqtt_client: client.Client = None
 
-    async def connect(self, broker:str, port:int, client_id:str):
+    async def connect(self, broker: str, port: int, client_id: str):
         """連線到MQTT broker
         Args:
         - broker: MQTT broker URI
@@ -33,14 +34,14 @@ class MQTT_Client:
             logger.error("cannot connect to mqtt broker after retries")
             return
 
-        self.mqtt_client.loop_start()  
-    
+        self.mqtt_client.loop_start()
+
     async def disconnect(self):
         """關閉MQTT連線"""
         if self.mqtt_client is not None:
             self.mqtt_client.disconnect()
-    
-    def publish(self,topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
+
+    def publish(self, topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
         """發送訊息到MQTT broker
         Args:
         - topic: 訊息主題
@@ -57,7 +58,7 @@ class MQTT_Client:
         return result[0] == 0
 
     ####### TOOLS ########
-    def serializer(self,obj):
+    def serializer(self, obj):
         if isinstance(obj, (datetime.date, datetime.datetime)):
             return obj.isoformat()
 
@@ -68,5 +69,4 @@ class MQTT_Client:
             logger.error("Failed to connect to MQTT, returnee code: ", rc)
 
 
-        
 mqtt_client = MQTT_Client()

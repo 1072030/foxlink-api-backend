@@ -8,7 +8,7 @@
       "name": "Python: Server",
       "type": "python",
       "request": "launch",
-      "module": "app.main",
+      "module": "app.server",
       "justMyCode": false
     },
     {

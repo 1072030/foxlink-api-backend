@@ -6,6 +6,7 @@ from app.mqtt import mqtt_client
 from app.services.auth import authenticate_user, create_access_token, get_current_user, set_device_UUID
 from datetime import datetime, timedelta,timezone
 from app.core.database import (
+    api_db,
     User,
     AuditLogHeader,
     AuditActionEnum,
@@ -13,10 +14,12 @@ from app.core.database import (
     Mission,
     UserLevel,
     WorkerStatusEnum,
+    transaction
 )
 from app.core.database import get_ntz_now
 from app.services.user import check_user_begin_shift
 import logging
+import traceback
 
 
 class Token(BaseModel):
@@ -29,9 +32,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60*12
 router = APIRouter(prefix="/auth",tags=["auth"])
 
 
+@transaction
 @router.post("/token",response_model=Token,responses={401: {"description": "Invalid username/password"}})
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    
+
     user = await authenticate_user(form_data.username, form_data.password)
     
     access_token = create_access_token(
@@ -83,7 +87,5 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         action=AuditActionEnum.USER_LOGIN.value,
         user=user,
     )
-
-    
 
     return {"access_token": access_token, "token_type": "bearer"}

@@ -145,7 +145,7 @@ services:
     # context: .
     # dockerfile: testdb.Dockerfile
     #### For each Scenario ####
-    image: mysql-test:small
+    image: mysql-test:large
     restart: unless-stopped
     tty: true
     labels:

@@ -30,7 +30,7 @@ from app.core.database import (
 )
 from app.models.schema import MissionDto
 from app.services.device import get_device_by_id
-from app.utils.utils import get_current_shift_time_interval,get_current_shift_details
+from app.utils.utils import get_current_shift_time_interval, get_current_shift_details
 
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto",)
@@ -59,7 +59,6 @@ async def get_users() -> List[User]:
 #             status_code=400, detail="cannot add user:" + str(e))
 
 
-
 async def get_user_by_badge(badge: str) -> Optional[User]:
     user = await User.objects.get_or_none(badge=badge)
     return user
@@ -79,7 +78,7 @@ async def check_user_begin_shift(user: User) -> Optional[bool]:
     """
     try:
         shift, start, end = await get_current_shift_details()
-        return (user.shift.id == shift.value  and  not start < user.shift_beg_date < end)
+        return (user.shift.id == shift.value and not start < user.shift_beg_date < end)
     except Exception as e:
         print(e)
         return None
@@ -133,7 +132,7 @@ async def move_user_to_position(badge: str, device_id: str):
         )
 
         await user.update(
-            at_device=device, 
+            at_device=device,
             finish_event_date=get_ntz_now()
         )
 
@@ -157,7 +156,7 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
                 # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
                     and_(repair_beg_date__isnull=False, repair_end_date__isnull=True),
-                    and_(repair_beg_date__isnull=True,repair_end_date__isnull=True),
+                    and_(repair_beg_date__isnull=True, repair_end_date__isnull=True),
                 ),
                 assignees__badge=badge,
                 is_cancel=False,
@@ -380,20 +379,6 @@ async def check_user_connected(badge: str) -> Tuple[bool, Optional[str]]:
                 return False, None
 
 
-async def get_user_shift_type(badge: str) -> ShiftType:
-    """取得員工的班別"""
-
-    user = await get_user_by_badge(badge)
-
-    if user is None:
-        raise HTTPException(404, 'the user is not found')
-
-    if not await User.objects.filter(user=user).exists():
-        raise HTTPException(404, 'no shift existed for this user')
-
-    return user.shift
-
-
 async def is_worker_in_whitelist(badge: str) -> bool:
     return await WhitelistDevice.objects.select_related(['workers']).filter(workers__badge=badge).exists()
 
@@ -402,7 +387,7 @@ async def is_worker_in_device_whitelist(badge: str, device_id: str) -> bool:
     return await WhitelistDevice.objects.select_related(['workers']).filter(workers__badge=badge, device=device_id).exists()
 
 
-async def get_worker_status(worker:User) -> Optional[WorkerStatusDto]:
+async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     if worker is None:
         return None
 

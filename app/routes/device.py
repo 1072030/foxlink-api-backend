@@ -6,7 +6,10 @@ from app.models.schema import (
     DeviceOut,
     WhitelistRecommendDevice
 )
-from app.services.auth import get_manager_active_user, get_current_user
+from app.services.auth import (
+    get_manager_active_user,
+    get_current_user
+)
 from app.core.database import (
     # CategoryPRI,
     Device,
@@ -17,7 +20,11 @@ from app.core.database import (
     UserLevel,
     WhitelistDevice
 )
-from app.services.device import add_worker_to_device_whitelist, get_workers_from_whitelist_devices, show_recommend_whitelist_devices
+from app.services.device import (
+    add_worker_to_device_whitelist,
+    get_workers_from_whitelist_devices,
+    show_recommend_whitelist_devices
+)
 
 router = APIRouter(prefix="/device")
 
@@ -65,11 +72,11 @@ async def get_all_devices(
 @router.get("/whitelist", tags=['whitelist device'])
 async def get_whitelist_devices(workshop_name: str):
     whitelist_devices = (await WhitelistDevice.objects
-        .select_related(['device', 'device__workshop', 'workers'])
-        .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
-        .filter(device__workshop__name=workshop_name).all()
-    )
-    
+                         .select_related(['device', 'device__workshop', 'workers'])
+                         .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
+                         .filter(device__workshop__name=workshop_name).all()
+                         )
+
     resp = {}
     for w in whitelist_devices:
         badges = []
@@ -80,6 +87,7 @@ async def get_whitelist_devices(workshop_name: str):
             resp[w.device.id] = badges
     return resp
 
+
 @router.get("/whitelist/recommend", tags=['whitelist device'], response_model=WhitelistRecommendDevice)
 async def get_recommend_day_and_night_whitelist_devices(workshop_name: str):
     day_data, night_data = await show_recommend_whitelist_devices(workshop_name)
@@ -88,13 +96,16 @@ async def get_recommend_day_and_night_whitelist_devices(workshop_name: str):
         'night': night_data
     }
 
+
 @router.get("/{device_id}/whitelist", tags=['whitelist device'])
 async def get_workers_from_a_whitelist_device(device_id: str):
     return await get_workers_from_whitelist_devices(device_id)
 
+
 @router.post("/{device_id}/whitelist", tags=['whitelist device'])
 async def add_worker_to_whitelist_device(device_id: str, badge: str):
     await add_worker_to_device_whitelist(badge, device_id)
+
 
 @router.delete("/{device_id}/whitelist", tags=['whitelist device'])
 async def remove_worker_from_whitelist_device(device_id: str, badge: str):
@@ -108,6 +119,7 @@ async def remove_worker_from_whitelist_device(device_id: str, badge: str):
         raise HTTPException(404, 'the user is not in whitelist')
 
     await whitelist_device.workers.remove(user)
+
 
 @router.get("/{device_id}/workers", tags=["device"], response_model=List[DeviceDispatchableWorker], description="Get dispatchable workers of devices.\n shift_type=0: day shift\n shift_type=1: night shift")
 async def get_device_dispatchable_workers(device_id: str, shift_type: bool):

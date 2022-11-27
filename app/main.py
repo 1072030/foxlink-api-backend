@@ -23,7 +23,7 @@ from app.mqtt import mqtt_client
 from app.log import LOGGER_NAME
 from fastapi.middleware.cors import CORSMiddleware
 from app.foxlink.db import foxlink_dbs
-from app.daemon.daemon import _daemons
+
 
 
 # dictConfig(LogConfig().dict())
@@ -31,7 +31,7 @@ logger = logging.getLogger(LOGGER_NAME)
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 
-daemons =  []
+
 
 # Adding CORS middleware
 origins = [
@@ -74,7 +74,6 @@ async def startup():
         api_db.connect(),
         foxlink_dbs.connect()
     ])
-    logger.info("Foxlink API Server startup complete.")
 
     # check table exists
     if(await Shift.objects.count()==0):
@@ -89,18 +88,8 @@ async def startup():
             ]
         )
 
-
-    # start background daemons
-    for args in _daemons:
-        daemons.append(
-            await asyncio.create_subprocess_exec(
-                sys.executable,'-m', *args,
-            )
-        )
     logger.info("Foxlink API Server startup complete.")
     
-
-
 @app.on_event("shutdown")
 async def shutdown():
     # disconnect databases
@@ -110,15 +99,3 @@ async def shutdown():
         foxlink_dbs.disconnect()
     ])
     logger.info("Foxlink API Server shutdown complete.")
-
-    
-    # stop background daemons
-    await asyncio.gather(*[
-        asyncio.wait_for(d.wait(), timeout=10)
-        for d in daemons 
-        if d.terminate() or True
-    ])
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8080,reload=True,workers=1)

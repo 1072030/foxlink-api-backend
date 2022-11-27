@@ -12,6 +12,7 @@ from app.core.database import (
     WorkerStatusEnum,
     AuditLogHeader,
     api_db,
+    transaction
 )
 from app.services.user import (
     # get_user_all_level_subordinates_by_badge,
@@ -121,12 +122,11 @@ async def change_password(
     )
 
 
-@api_db.transaction()
+@transaction
 @router.post("/get-off-work", tags=["users"])
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
-    
     user.logout_date = get_ntz_now()
 
     if(not user.level == UserLevel.admin.value):

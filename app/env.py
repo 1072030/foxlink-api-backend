@@ -24,9 +24,10 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
         if dtype is List[int] or dtype is List[str]:
             return literal_eval(val)
         elif dtype is bool:
-            return dtype(int(val)) # type: ignore
+            return dtype(int(val))  # type: ignore
         else:
             return dtype(val)  # type: ignore
+
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -76,9 +77,7 @@ DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
 
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
-OVERTIME_MISSION_NOTIFY_PERIOD = get_env(
-    "OVERTIME_MISSION_NOTIFY_PERIOD", List[int], [20, 10, 10]
-)
+OVERTIME_MISSION_NOTIFY_PERIOD = get_env("OVERTIME_MISSION_NOTIFY_PERIOD", List[int], [20, 10, 10])
 
 # 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
 MOVE_TO_RESCUE_STATION_TIME = get_env(
@@ -92,7 +91,13 @@ WHITELIST_MINIMUM_OCCUR_COUNT = get_env("WHITELIST_MINIMUM_OCCUR_COUNT", int, 35
 DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
 
 # 員工被指派沒有反應時間
-CHECK_MISSION_ASSIGN_DURATION = get_env("CHECK_MISSION_ASSIGN_DURATION" , int , 10*60)
+CHECK_MISSION_ASSIGN_DURATION = get_env("CHECK_MISSION_ASSIGN_DURATION", int, 10 * 60)
+
+# 例行程序參數設定
+RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
+
+# 時區
+TZ = pytz.timezone("Asia/Taipei")
 
 if os.environ.get("USE_ALEMBIC") is None:
     if PY_ENV not in ["production", "dev"]:
@@ -117,8 +122,3 @@ if os.environ.get("USE_ALEMBIC") is None:
 
     logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
     logger.warn(f"OVERTIME_MISSION_NOTIFY_PERIOD: {OVERTIME_MISSION_NOTIFY_PERIOD}")
-
-# 例行程序參數設定
-RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
-# Time zone
-TZ = pytz.timezone("Asia/Taipei")

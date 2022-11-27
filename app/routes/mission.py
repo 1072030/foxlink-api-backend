@@ -109,11 +109,14 @@ async def get_self_mission(
         "repair_beg_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
     }
-    params = {k: v for k, v in params.items() if v is not None}
+
+    params = {
+        k: v for k, v in params.items() if v is not None
+    }
 
     missions = (
         await Mission.objects.select_related(
-            [ "events", "device__workshop"]
+            ["events", "device__workshop"]
         )
         .exclude_fields(
             [
@@ -134,7 +137,6 @@ async def get_self_mission(
             missions = [mission for mission in missions if not mission.worker]
 
     return [MissionDto.from_mission(x) for x in missions]
-
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
@@ -159,16 +161,15 @@ async def assign_mission_to_user(
     if (await is_user_working_on_mission(user_name)) == True:
         raise HTTPException(400, "the user is working on other mission")
 
-    async with api_db.transaction():
-        await assign_mission(mission_id, user_name)
-        
-        await AuditLogHeader.objects.create(
-            table_name="missions",
-            record_pk=mission_id,
-            action=AuditActionEnum.MISSION_ASSIGNED.value,
-            user=user_name,
-            description=f"From Web API (Reqeust by {user.badge})",
-        )
+    await assign_mission(mission_id, user_name)
+
+    await AuditLogHeader.objects.create(
+        table_name="missions",
+        record_pk=mission_id,
+        action=AuditActionEnum.MISSION_ASSIGNED.value,
+        user=user_name,
+        description=f"From Web API (Reqeust by {user.badge})",
+    )
 
 
 @router.post("/{mission_id}/cancel", tags=["missions"])
@@ -202,6 +203,7 @@ async def reject_a_mission(
     mission_id: int, user: User = Depends(get_current_user)
 ):
     await reject_mission_by_id(mission_id, user)
+
 
 @router.post("/{mission_id}/finish", tags=["missions"])
 async def finish_mission(
