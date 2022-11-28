@@ -133,7 +133,7 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 #                         if get_ntz_now() - worker.check_alive_time > timedelta(
 #                             minutes=MAX_NOT_ALIVE_TIME
 #                         ):
-#                             mqtt_client.publish(
+#                             (
 #                                 f"foxlink/users/{worker.superior.badge}/worker-unusual-offline",
 #                                 {
 #                                     "worker_id": worker.badge,
@@ -180,7 +180,7 @@ async def mission_shift_routine():
         if current_shift != worker_shift:
 
             # send mission finish message
-            mqtt_client.publish(
+            await mqtt_client.publish(
                 f"foxlink/users/{mission.worker.badge}/missions/finish",
                 {
                     "mission_id": mission.id,
@@ -255,7 +255,7 @@ async def auto_close_missions():
                 is_done_cure=True
             )
             if mission.worker:
-                mqtt_client.publish(
+                await mqtt_client.publish(
                     f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                     {
                         "mission_id": mission.id,
@@ -531,7 +531,7 @@ async def mission_dispatch():
             if not mission.is_lonely:
                 await mission.update(is_lonely=True)
 
-                mqtt_client.publish(
+                await mqtt_client.publish(
                     f"foxlink/{workshop.name}/no-available-worker",
                     MissionDto.from_mission(mission).dict(),
                     qos=2,
@@ -594,7 +594,7 @@ async def check_mission_working_duration_overtime():
                 if mission.worker.superior is None:
                     break
 
-                mqtt_client.publish(
+                await mqtt_client.publish(
                     f"foxlink/users/{mission.worker.superior.badge}/mission-overtime",
                     {
                         "mission_id": mission.id,
@@ -639,7 +639,7 @@ async def check_mission_assign_duration_overtime():
         if mission.assign_duration.total_seconds() >= CHECK_MISSION_ASSIGN_DURATION:
             # TODO: missing notify supervisor
 
-            mqtt_client.publish(
+            await mqtt_client.publish(
                 f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                 {
                     "mission_id": mission.id,
@@ -858,7 +858,7 @@ async def main(interval: int):
     # connect to service
     await asyncio.gather(*[
         api_db.connect(),
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4())),
+        mqtt_client.connect(),
         foxlink_dbs.connect()
     ])
     logger.info("Connections Created.")

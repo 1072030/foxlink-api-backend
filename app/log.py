@@ -12,14 +12,11 @@ reset = '\x1b[0m'
 LOGGER_NAME: str = "uvicorn"
 # LOG_FORMAT: str = f"{grey}@%(asctime)s{reset}[{{color_level}}%(levelname)s{reset}]: {reset}%(message)s{reset}"
 LOG_FORMAT: str = f"{bold_blue}@%(name)s{reset}[{{color_level}}%(levelname)s{reset}]: {reset}%(message)s{reset}"
-LOG_LEVEL: str = "WARNING"
-
-
+LOG_LEVEL: str = "INFO"
 
 
 class CustomFormatter(logging.Formatter):
     """Logging colored formatter, adapted from https://stackoverflow.com/a/56944256/3638629"""
-
 
     def __init__(self, fmt):
         super().__init__()
@@ -34,7 +31,7 @@ class CustomFormatter(logging.Formatter):
             logging.WARNING: self.fmt.format(
                 color_level=yellow,
             ),
-            logging.ERROR:self.fmt.format(
+            logging.ERROR: self.fmt.format(
                 color_level=red,
             ),
             logging.CRITICAL: self.fmt.format(
@@ -47,13 +44,14 @@ class CustomFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
+
 baseHandler = logging.StreamHandler()
 baseHandler.setFormatter(CustomFormatter(LOG_FORMAT))
 
-logging.basicConfig(level=LOG_LEVEL,handlers=[baseHandler])
+logging.basicConfig(level=LOG_LEVEL, handlers=[baseHandler])
 
 # class LogConfig(BaseModel):
-    # pass
+# pass
 #     """Logging configuration to be set for the server"""
 
 #     # Logging config

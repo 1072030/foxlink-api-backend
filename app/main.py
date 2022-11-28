@@ -25,12 +25,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.foxlink.db import foxlink_dbs
 
 
-
 # dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
-
 
 
 # Adding CORS middleware
@@ -67,17 +65,18 @@ app.include_router(test.router)
 if PY_ENV == 'dev':
     app.include_router(test.router)
 
+
 @app.on_event("startup")
 async def startup():
     # connect to databases
     await asyncio.gather(*[
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, str(uuid.uuid4())),
+        mqtt_client.connect(),
         api_db.connect(),
         foxlink_dbs.connect()
     ])
 
     # check table exists
-    if(await Shift.objects.count()==0):
+    if (await Shift.objects.count() == 0):
         await Shift.objects.bulk_create(
             [
                 Shift(
@@ -90,7 +89,8 @@ async def startup():
         )
 
     logger.info("Foxlink API Server startup complete.")
-    
+
+
 @app.on_event("shutdown")
 async def shutdown():
     # disconnect databases

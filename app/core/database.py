@@ -171,13 +171,13 @@ class User(ormar.Model):
     change_pwd: bool = ormar.Boolean(server_default="0", nullable=True)
     current_UUID: str = ormar.String(max_length=100, nullable=True)
     start_position: str = ormar.ForeignKey(
-        DeviceRef, ondelete="SET NULL", nullable=True,related_name="begin_users"
+        DeviceRef, ondelete="SET NULL", nullable=True, related_name="begin_users"
     )
     ####################
     status: str = ormar.String(
         max_length=15, default=WorkerStatusEnum.leave, choices=list(WorkerStatusEnum))
     at_device: DeviceRef = ormar.ForeignKey(
-        DeviceRef, ondelete="SET NULL", nullable=True,related_name="nearby_users"
+        DeviceRef, ondelete="SET NULL", nullable=True, related_name="nearby_users"
     )
     ####################
     shift_accept_count: int = ormar.Integer(default=0, nullable=True)

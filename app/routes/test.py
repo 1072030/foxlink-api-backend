@@ -131,7 +131,7 @@ async def mark_day_start_time(time: str):
 async def get_user_attendances(UUID: str, total_count: int, duration: int):
     publish_mqtt_count = total_count
     while (publish_mqtt_count >= 0):
-        mqtt_client.publish(
+        await mqtt_client.publish(
             f"foxlink/test/{UUID}/mqtt-check",
             {
                 "numbers of mqtt": publish_mqtt_count,

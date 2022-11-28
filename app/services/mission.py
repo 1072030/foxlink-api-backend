@@ -208,7 +208,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
     mission.repair_beg_date = None
     mission.repair_end_date = None
     if mission_reject_count >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
-        mqtt_client.publish(
+        await mqtt_client.publish(
             f"foxlink/{mission.device.workshop.name}/mission/rejected",
             {
                 "id": mission.id,
@@ -224,7 +224,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
 
     if worker.shift_reject_count >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
 
-        mqtt_client.publish(
+        await mqtt_client.publish(
             f"foxlink/users/{worker.superior.badge}/subordinate-rejected",
             {
                 "subordinate_id": worker.badge,
@@ -396,7 +396,7 @@ async def assign_mission(mission_id: int, badge: str):
     )
 
     if mission.device.is_rescue == False:
-        mqtt_client.publish(
+        await mqtt_client.publish(
             f"foxlink/users/{worker.current_UUID}/missions",
             {
                 "type": "new",
@@ -454,7 +454,7 @@ async def request_assistance(mission_id: int, validate_user: User):
 
     for worker in mission.assignees:
         try:
-            mqtt_client.publish(
+            await mqtt_client.publish(
                 f"foxlink/users/{worker.current_UUID}/missions",
                 {
                     "type": "new",
@@ -496,9 +496,9 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         is_lonely=False,
         description=f"請前往救援站 {rescue_position}"
     )
-    
+
     await worker.update(status=WorkerStatusEnum.notice.value)
-    mqtt_client.publish(
+    await mqtt_client.publish(
         f"foxlink/users/{worker.current_UUID}/move-rescue-station",
         {
             "type": "rescue",
