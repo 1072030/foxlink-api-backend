@@ -423,7 +423,7 @@ async def assign_mission(mission_id: int, badge: str):
         )
 
 
-async def request_assistance(mission_id: int, validate_user: User):
+async def request_assistance(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
@@ -434,7 +434,7 @@ async def request_assistance(mission_id: int, validate_user: User):
             400, "you can't mark to-rescue-station mission as emergency"
         )
 
-    if not validate_user.badge == mission.worker.badge:
+    if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.is_emergency:
@@ -448,40 +448,40 @@ async def request_assistance(mission_id: int, validate_user: User):
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_EMERGENCY.value,
         table_name='missions',
-        user=validate_user,
+        user=worker,
         record_pk=str(mission.id)
     )
 
-    for worker in mission.assignees:
-        try:
-            await mqtt_client.publish(
-                f"foxlink/users/{worker.current_UUID}/missions",
-                {
-                    "type": "new",
-                    "mission_id": mission.id,
-                    "worker_now_position": worker.at_device,
-                    "create_date": mission.created_date,
-                    "device": {
-                        "device_id": mission.device.id,
-                        "device_name": mission.device.device_name,
-                        "device_cname": mission.device.device_cname,
-                        "workshop": mission.device.workshop,
-                        "project": mission.device.project,
-                        "process": mission.device.process,
-                        "line": mission.device.line,
-                    },
-                    "name": mission.name,
-                    "description": mission.description,
-                    "events": [
-                        MissionEventOut.from_missionevent(e).dict()
-                        for e in mission.events
-                    ]
+    try:
+        await mqtt_client.publish(
+            f"foxlink/users/{worker.current_UUID}/missions",
+            {
+                "type": "new",
+                "mission_id": mission.id,
+                "worker_now_position": worker.at_device,
+                "create_date": mission.created_date,
+                "device": {
+                    "device_id": mission.device.id,
+                    "device_name": mission.device.device_name,
+                    "device_cname": mission.device.device_cname,
+                    "workshop": mission.device.workshop,
+                    "project": mission.device.project,
+                    "process": mission.device.process,
+                    "line": mission.device.line,
                 },
-                qos=2
-            )
-        except Exception as e:
-            logger.error(
-                f"failed to send emergency message to {worker.superior.badge}, Exception: {repr(e)}")
+                "name": mission.name,
+                "description": mission.description,
+                "events": [
+                    MissionEventOut.from_missionevent(e).dict()
+                    for e in mission.events
+                ]
+            },
+            qos=2
+        )
+    except Exception as e:
+        logger.error(
+            f"failed to send emergency message to {worker.superior.badge}, Exception: {repr(e)}"
+        )
 
 
 async def set_mission_by_rescue_position(worker: User, rescue_position: str):

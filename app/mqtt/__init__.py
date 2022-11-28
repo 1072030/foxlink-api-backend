@@ -7,6 +7,7 @@ import datetime
 from paho.mqtt import client
 from app.env import MQTT_BROKER, MQTT_PORT
 from app.log import logging
+from asyncio.exceptions import TimeoutError
 
 logger = logging.getLogger("mqtt-client")
 
@@ -28,29 +29,30 @@ class MQTT_Client:
         - port: MQTT broker port
         - client_id: MQTT client ID
         """
-        self.mqtt_client.loop_stop()
-        self.mqtt_client.connect_async(self.broker, port=self.port,)
+        self.mqtt_client.connect_async(self.broker, port=self.port, keepalive=30)
         self.mqtt_client.loop_start()
-        try:
-            await asyncio.wait_for(self.check_status(True), timeout=10)
-        except TimeoutError as e:
-            logger.error(f'Connection timeout! Failed to connect to Broker:{self.broker}:{self.port}')
-            raise TimeoutError("cannot connect to mqtt")
+        await self.wait_status(True)
 
     async def check_status(self, desire):
         while not self.status() == desire:
             await asyncio.sleep(1)
 
+    async def wait_status(self, status, times=10, timeout=3):
+        action = "connect" if status else "disconnect"
+        for _ in range(times):
+            try:
+                await asyncio.wait_for(self.check_status(True), timeout=timeout)
+                break
+            except TimeoutError as e:
+                logger.error(f'Connection timeout! Failed to {action} to Broker(@{self.broker}:{self.port})')
+        else:
+            raise TimeoutError(f"Cannot {action} to Broker(@{self.broker}:{self.port})")
+
     async def disconnect(self):
         """關閉MQTT連線"""
         if self.mqtt_client is not None:
             self.mqtt_client.disconnect()
-
-        try:
-            await asyncio.wait_for(self.check_status(False), timeout=10)
-        except TimeoutError as e:
-            logger.error(f'Connection timeout! Failed to disconnect from Broker:{self.broker}:{self.port}')
-            raise TimeoutError("cannot disconnect from mqtt")
+        await self.wait_status(False)
 
     async def publish(self, topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
         """發送訊息到MQTT broker
@@ -60,8 +62,7 @@ class MQTT_Client:
         - qos: 訊息優先度
         - retain: 是否保留訊息
         """
-        if not self.connected:
-            await self.connect()
+        await self.wait_status(True)
 
         json_str = json.dumps(payload, default=self.serializer)
 
@@ -77,7 +78,7 @@ class MQTT_Client:
 
     def on_connect(self, c, user_data, flags, rc):
         if (rc == 0):
-            logger.info(f"Connection successful: @{self.broker}:{self.port}")
+            logger.info(f"Connection successful: Broker(@{self.broker}:{self.port})")
             self.connected = True
         elif (rc == 1):
             logger.warn("Connection refused - incorrect protocol version")
