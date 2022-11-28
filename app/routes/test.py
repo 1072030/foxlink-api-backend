@@ -43,7 +43,6 @@ CRASH_MESSAGES = [
 ]
 
 
-@api_db.transaction()
 @router.post("/missions", status_code=201, tags=["test"])
 async def create_fake_mission(workshop_name: str):
     w = (

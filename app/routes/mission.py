@@ -10,7 +10,8 @@ from app.core.database import (
     api_db,
 )
 from app.services.mission import (
-    accept_mission,
+    accept_mission_by_id,
+    assign_mission,
     cancel_mission_by_id,
     get_mission_by_id,
     request_assistance,
@@ -19,7 +20,6 @@ from app.services.mission import (
     finish_mission_by_id,
     reject_mission_by_id,
     delete_mission_by_id,
-    assign_mission,
 )
 from app.services.auth import (
     get_current_user,
@@ -195,7 +195,7 @@ async def start_mission(mission_id: int, user: User = Depends(get_current_user))
 async def accept_mission_by_worker(
     mission_id: int, user: User = Depends(get_current_user)
 ):
-    await accept_mission(mission_id, user)
+    await accept_mission_by_id(mission_id, user)
 
 
 @router.get("/{mission_id}/reject", tags=["missions"])
@@ -219,7 +219,6 @@ async def mark_mission_emergency(
     await request_assistance(mission_id, user)
 
 
-@api_db.transaction()
 @router.patch("/{mission_id}", tags=["missions"])
 async def update_mission(
     mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)
@@ -234,7 +233,6 @@ async def update_mission(
     )
 
 
-@api_db.transaction()
 @router.delete("/{mission_id}", tags=["missions"])
 async def delete_mission(
     mission_id: int, user: User = Depends(get_manager_active_user)

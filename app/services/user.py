@@ -118,22 +118,17 @@ async def move_user_to_position(badge: str, device_id: str):
         )
 
     try:
-        original_at_device = (
-            user.at_device.id
-            if user.at_device is not None
-            else "None"
-        )
-
-        log = await AuditLogHeader.objects.create(
-            table_name="worker_status",
-            record_pk=device_id,
-            action=AuditActionEnum.USER_MOVE_POSITION.value,
-            user=user,
-        )
 
         await user.update(
             at_device=device,
             finish_event_date=get_ntz_now()
+        )
+
+        await AuditLogHeader.objects.create(
+            table_name="worker_status",
+            record_pk=device_id,
+            action=AuditActionEnum.USER_MOVE_POSITION.value,
+            user=user,
         )
 
     except Exception as e:
@@ -143,9 +138,9 @@ async def move_user_to_position(badge: str, device_id: str):
 
 
 async def get_user_working_mission(badge: str) -> Optional[Mission]:
-    the_user = await User.objects.filter(badge=badge).get_or_none()
+    worker = await User.objects.filter(badge=badge).get_or_none()
 
-    if the_user is None:
+    if worker is None:
         raise HTTPException(
             status_code=404, detail="the user with this id is not found"
         )
@@ -169,30 +164,32 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
 
 async def is_user_working_on_mission(badge: str) -> bool:
 
-    the_user = await User.objects.filter(badge=badge).get_or_none()
+    worker = await User.objects.filter(badge=badge).get_or_none()
 
-    if the_user is None:
+    if worker is None:
         raise HTTPException(
             status_code=404, detail="the user with this id is not found"
         )
 
     # if worker has already working on other mission, skip
+    # left: user still working on a mission, right: user is not accept a mission yet.
     if (
-        await Mission.objects.filter(
-            # left: user still working on a mission, right: user is not accept a mission yet.
-            and_(
-                or_(
-                    and_(
-                        repair_beg_date__isnull=False, repair_end_date__isnull=True,
-                    ),
-                    and_(repair_beg_date__isnull=True,
-                         repair_end_date__isnull=True),
+        await Mission.objects
+        .filter(
+            or_(
+                and_(
+                    repair_beg_date__isnull=False,
+                    repair_end_date__isnull=True,
                 ),
-                is_done=False,
-                worker__badge=badge
-            )
-        ).count()
-        > 0
+                and_(
+                    repair_beg_date__isnull=True,
+                    repair_end_date__isnull=True
+                ),
+            ),
+            is_done=False,
+            worker=worker,
+        )
+        .count() > 0
     ):
         return True
 

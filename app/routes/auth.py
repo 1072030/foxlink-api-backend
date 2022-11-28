@@ -6,6 +6,7 @@ from app.mqtt import mqtt_client
 from app.services.auth import authenticate_user, create_access_token, get_current_user, set_device_UUID
 from datetime import datetime, timedelta, timezone
 from app.core.database import (
+    transaction,
     api_db,
     User,
     AuditLogHeader,
@@ -13,8 +14,7 @@ from app.core.database import (
     Device,
     Mission,
     UserLevel,
-    WorkerStatusEnum,
-    transaction
+    WorkerStatusEnum
 )
 from app.core.database import get_ntz_now
 from app.services.user import check_user_begin_shift
@@ -49,19 +49,32 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     user.status = WorkerStatusEnum.idle.value
 
-    if await check_user_begin_shift(user) and user.level == UserLevel.maintainer.value:
+    if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
 
         # reset user parameters
         user.shift_beg_date = get_ntz_now()
         user.finish_event_date = get_ntz_now()
+        user.shift_reject_count = 0
+        user.shift_accept_count = 0
+
+        rescue_station = (
+            await Device.objects
+            .filter(
+                workshop=user.workshop, is_rescue=True
+            )
+            .first()
+        )
+
+        user.at_device = rescue_station
 
         # TODO: Weird Check, this section is required due to design flaws?
         rescue_missions = (
-            await Mission.objects.select_related(["device"])
+            await Mission.objects
+            .select_related(["device"])
             .filter(
+                worker=user,
                 is_done=False,
                 device__is_rescue=True,
-                worker=user
             )
             .all()
         )
@@ -72,15 +85,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 is_done_cancel=True
             )
         #######################################################
-
-        rescue_station = (await Device.objects
-                          .filter(
-                              workshop=user.workshop, is_rescue=True
-                          )
-                          .first()
-                          )
-
-        user.at_device = rescue_station
 
     await user.update()
 

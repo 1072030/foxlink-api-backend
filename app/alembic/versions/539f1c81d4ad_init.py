@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 7b8db16ff31c
+Revision ID: 539f1c81d4ad
 Revises: 
-Create Date: 2022-11-27 19:11:58.618052
+Create Date: 2022-11-28 12:00:07.846494
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '7b8db16ff31c'
+revision = '539f1c81d4ad'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -66,7 +66,8 @@ def upgrade() -> None:
     sa.Column('change_pwd', sa.Boolean(), server_default='0', nullable=True),
     sa.Column('status', sa.String(length=15), nullable=True),
     sa.Column('at_device', sa.String(length=100), nullable=True),
-    sa.Column('dispatch_count', sa.Integer(), nullable=True),
+    sa.Column('shift_accept_count', sa.Integer(), nullable=True),
+    sa.Column('shift_reject_count', sa.Integer(), nullable=True),
     sa.Column('check_alive_time', sa.DateTime(timezone=True), nullable=True),
     sa.Column('shift_beg_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finish_event_date', sa.DateTime(timezone=True), nullable=True),
@@ -107,10 +108,10 @@ def upgrade() -> None:
     op.create_index(op.f('ix_audit_log_headers_table_name'), 'audit_log_headers', ['table_name'], unique=False)
     op.create_table('missions',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('device', sa.String(length=100), nullable=True),
     sa.Column('worker', sa.String(length=100), nullable=True),
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('description', sa.String(length=256), nullable=False),
+    sa.Column('description', sa.String(length=256), nullable=True),
     sa.Column('is_done', sa.Boolean(), nullable=True),
     sa.Column('is_done_cure', sa.Boolean(), nullable=True),
     sa.Column('is_done_shift', sa.Boolean(), nullable=True),
@@ -127,7 +128,7 @@ def upgrade() -> None:
     sa.Column('created_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['device'], ['devices.id'], name='fk_missions_devices_id_device', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['worker'], ['users.badge'], name='fk_missions_users_badge_worker', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['worker'], ['users.badge'], name='fk_missions_users_badge_worker', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_missions_id'), 'missions', ['id'], unique=False)

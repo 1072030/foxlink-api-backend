@@ -288,7 +288,7 @@ async def move_idle_workers_to_rescue_device():
             shift=current_shift.value,
             level=UserLevel.maintainer.value,
             at_device__is_rescue=False,
-            status=WorkerStatusEnum.idle
+            status=WorkerStatusEnum.idle.value
         )
         .all()
     )
@@ -353,11 +353,14 @@ async def move_idle_workers_to_rescue_device():
         # create a go-to-rescue-station mission for the worker
         mission = await Mission.objects.create(
             name="前往救援站",
+            notify_recv_date=current_date,
+            accept_recv_date=current_date,
             repair_beg_date=current_date,
             device=selected_rescue_station,
-            description=f"請前往救援站 {selected_rescue_station}",
-            worker=worker
+            description=f"請前往救援站 {selected_rescue_station}"
         )
+
+        await assign_mission(mission.id, worker)
 
         mqtt_client.publish(
             f"foxlink/users/{worker.badge}/move-rescue-station",
@@ -391,6 +394,7 @@ async def mission_dispatch():
     pending_missions = (
         await Mission.objects
         .filter(
+            is_done=False,
             worker__isnull=True
         )
         .select_related(
@@ -539,7 +543,7 @@ async def mission_dispatch():
                 "idle_time": (
                     get_ntz_now() - worker.finish_event_date
                 ).total_seconds(),
-                "daily_count": worker.dispatch_count,
+                "daily_count": worker.shift_accept_count,
                 "level": worker.level,
             }
 
@@ -582,9 +586,8 @@ async def mission_dispatch():
                 user=selected_worker,
             )
 
+
 ######### mission overtime  ########
-
-
 # half-done
 @transaction
 @show_duration
@@ -606,6 +609,7 @@ async def check_mission_working_duration_overtime():
     thresholds: List[int] = [0]
     for minutes in OVERTIME_MISSION_NOTIFY_PERIOD:
         thresholds.append(thresholds[-1] + minutes)
+    thresholds.pop(0)
 
     for mission in working_missions:
         for thresh in thresholds[::-1]:
@@ -654,8 +658,7 @@ async def check_mission_assign_duration_overtime():
             is_done=False,
             worker__isnull=False,
             notify_send_date__isnull=False,
-            repair_start_date__isnull=True,
-
+            repair_beg_date__isnull=True
         )
         .all()
     )
@@ -668,7 +671,7 @@ async def check_mission_assign_duration_overtime():
                 f"foxlink/users/{mission.worker.badge}/missions/stop-notify",
                 {
                     "mission_id": mission.id,
-                    "mission_state": "stop-notify" if not mission.worker.notify_recv_date else "return-home-page",
+                    "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                     "description": "over-time-no-action"
                 },
                 qos=2,
@@ -677,11 +680,12 @@ async def check_mission_assign_duration_overtime():
             await reject_mission_by_id(mission.id, mission.worker)
 
             await AuditLogHeader.objects.create(
-                action=AuditActionEnum.MISSION_ACCEPTED_OVERTIME.value,
+                action=AuditActionEnum.MISSION_ACCEPT_OVERTIME.value,
                 table_name="missions",
-                record_pk=str(mission.record_pk),
-                user=mission.user,
+                record_pk=str(mission.id),
+                user=mission.worker,
             )
+            break
 
 
 ######### events completed  ########
@@ -894,14 +898,15 @@ async def main(interval: int):
             start = time.perf_counter()
             await update_complete_events_handler()
 
-            # await auto_close_missions()
+            await auto_close_missions()
 
-            # await mission_shift_routine()
+            await mission_shift_routine()
 
-            # await move_idle_workers_to_rescue_device()
+            await move_idle_workers_to_rescue_device()
 
-            # await check_mission_working_duration_overtime()
-            # await check_mission_assign_duration_overtime()
+            await check_mission_working_duration_overtime()
+
+            await check_mission_assign_duration_overtime()
 
             await sync_events_from_foxlink_handler()
 

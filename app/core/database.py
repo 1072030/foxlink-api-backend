@@ -47,22 +47,23 @@ def get_ntz_min():
     return datetime.fromisoformat("1990-01-01 00:00:00")
 
 
+# transaction = api_db.transaction()
 def transaction(func):
     async def wrapper(*args, **_args):
         # print("in transaction wrapper",args,_args)
-        transaction = await api_db.transaction(isolation="serializable")
+        _transaction = (api_db.transaction(isolation="serializable"))
         result = None
         try:
+            await _transaction.start()
             result = await func(*args, **_args)
         except Exception as e:
-            print(e)
-            traceback.print_exc()
-            await transaction.rollback()
+            # traceback.print_exc()
+            print(f"error in transaction: {e}")
+            await _transaction.rollback()
             raise e
         else:
-            await transaction.commit()
+            await _transaction.commit()
             return result
-
     return wrapper
 
 
@@ -125,6 +126,7 @@ class AuditActionEnum(Enum):
     DATA_IMPORT_FAILED = "DATA_IMPORT_FAILED"
     DATA_IMPORT_SUCCEEDED = "DATA_IMPORT_SUCCEEDED"
 
+    MISSION_ACCEPT_OVERTIME = "MISSION_ACCEPT_OVERTIME"
     NOTIFY_MISSION_NO_WORKER = "NOTIFY_MISSION_NO_WORKER"
 
 
@@ -169,7 +171,10 @@ class User(ormar.Model):
     ####################
     status: str = ormar.String(max_length=15, default=WorkerStatusEnum.leave, choices=list(WorkerStatusEnum))
     at_device: DeviceRef = ormar.ForeignKey(DeviceRef, ondelete="SET NULL", nullable=True)
-    dispatch_count: int = ormar.Integer(default=0, nullable=True)
+    ####################
+    shift_accept_count: int = ormar.Integer(default=0, nullable=True)
+    shift_reject_count: int = ormar.Integer(default=0, nullable=True)
+    ####################
     check_alive_time: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     shift_beg_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
     finish_event_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
@@ -242,11 +247,11 @@ class Mission(ormar.Model):
         tablename = "missions"
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    worker: User = ormar.ForeignKey(User, ondelete="CASCADE", related_name="accepted_mission")
-    rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_mission")
     name: str = ormar.String(max_length=100, nullable=False)
-    description: str = ormar.String(max_length=256)
+    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
+    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="accepted_missions")
+    rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_missions")
+    description: str = ormar.String(max_length=256, nullable=True)
 
     is_done: bool = ormar.Boolean(default=False, nullable=True)
     is_done_cure: bool = ormar.Boolean(default=False, nullable=True)
@@ -271,7 +276,7 @@ class Mission(ormar.Model):
 
     @property_field
     def mission_duration(self) -> timedelta:
-        if self.repair_end_date is not None:
+        if self.repair_end_date:
             return self.repair_end_date - self.created_date
         else:
             return get_ntz_now() - self.created_date
@@ -289,8 +294,8 @@ class Mission(ormar.Model):
     @property_field
     def assign_duration(self) -> Optional[timedelta]:
         if self.notify_send_date is not None:
-            if self.repair_start_date is not None:
-                return self.repair_start_date - self.notify_send_date
+            if self.repair_beg_date is not None:
+                return self.repair_beg_date - self.notify_send_date
             else:
                 return get_ntz_now() - self.notify_send_date
         else:
