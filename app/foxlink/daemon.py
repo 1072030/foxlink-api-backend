@@ -21,7 +21,8 @@ from app.foxlink.db import foxlink_dbs
 from app.services.mission import (
     assign_mission,
     get_mission_by_id,
-    reject_mission_by_id
+    reject_mission_by_id,
+    set_mission_by_rescue_position
 )
 from app.services.user import (
 
@@ -255,10 +256,11 @@ async def auto_close_missions():
             )
             if mission.worker:
                 mqtt_client.publish(
-                    f"foxlink/users/{mission.worker.badge}/missions/stop-notify",
+                    f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                     {
                         "mission_id": mission.id,
-                        "mission_state": "finish"
+                        "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
+                        "description": "finish"
                     },
                     qos=2,
                 )
@@ -300,7 +302,8 @@ async def move_idle_workers_to_rescue_device():
             .filter(workshop=workshop.id, is_rescue=True)
             .all()
         )
-        workshop_rescue_entity_dict[workshop.id] = (workshop, workshop_rescue_devices)
+        workshop_rescue_entity_dict[workshop.id] = (
+            workshop, workshop_rescue_devices)
 
     # request return to specific rescue device of the workshop
     for worker in workers:
@@ -349,39 +352,7 @@ async def move_idle_workers_to_rescue_device():
 
         # select the best rescue station based on the the user's current device location
         selected_rescue_station = dispatch.move_to_rescue(rescue_distances)
-
-        # create a go-to-rescue-station mission for the worker
-        mission = await Mission.objects.create(
-            name="前往救援站",
-            notify_recv_date=current_date,
-            accept_recv_date=current_date,
-            repair_beg_date=current_date,
-            device=selected_rescue_station,
-            description=f"請前往救援站 {selected_rescue_station}"
-        )
-
-        await assign_mission(mission.id, worker)
-
-        mqtt_client.publish(
-            f"foxlink/users/{worker.badge}/move-rescue-station",
-            {
-                "type": "rescue",
-                "mission_id": mission.id,
-                "name": mission.name,
-                "description": mission.description,
-                "rescue_station": selected_rescue_station,
-            },
-            qos=2,
-            retain=True,
-        )
-
-        await AuditLogHeader.objects.create(
-            action=AuditActionEnum.MISSION_ASSIGNED.value,
-            user=worker.badge,
-            table_name="missions",
-            record_pk=str(mission.id),
-            description="前往消防站",
-        )
+        await set_mission_by_rescue_position(worker, selected_rescue_station)
 
 
 # done
@@ -484,7 +455,8 @@ async def mission_dispatch():
 
         distance_matrix: List[List[float]] = workshop.map  # 距離矩陣
 
-        mission_device_idx = find_idx_in_factory_map(workshop, mission.device.id)  # 該任務的裝置在矩陣中的位置
+        mission_device_idx = find_idx_in_factory_map(
+            workshop, mission.device.id)  # 該任務的裝置在矩陣中的位置
 
         valid_workers: List[User] = None
 
@@ -668,7 +640,7 @@ async def check_mission_assign_duration_overtime():
             # TODO: missing notify supervisor
 
             mqtt_client.publish(
-                f"foxlink/users/{mission.worker.badge}/missions/stop-notify",
+                f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                 {
                     "mission_id": mission.id,
                     "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
@@ -786,7 +758,8 @@ async def sync_events_from_foxlink(host: str, table_name: str, since: str = ""):
 async def sync_events_from_foxlink_handler():
     db_table_pairs = await foxlink_dbs.get_all_db_tables()
     proximity_mission = await MissionEvent.objects.order_by(MissionEvent.event_beg_date.desc()).get_or_none()
-    since = proximity_mission.event_beg_date if type(proximity_mission) != type(None) else ""
+    since = proximity_mission.event_beg_date if type(
+        proximity_mission) != type(None) else ""
 
     await asyncio.gather(*[
         sync_events_from_foxlink(

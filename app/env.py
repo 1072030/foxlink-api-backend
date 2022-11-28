@@ -33,11 +33,24 @@ logger = logging.getLogger(LOGGER_NAME)
 TIMEZONE_OFFSET = 8
 WEEK_START = 1  # the week should start on Sunday or Monday or even else.
 
+<<<<<<< HEAD
 DATABASE_HOST = get_env("DATABASE_HOST", str)
 DATABASE_PORT = get_env("DATABASE_PORT", int)
 DATABASE_USER = get_env("DATABASE_USER", str)
 DATABASE_PASSWORD = get_env("DATABASE_PASSWORD", str)
 DATABASE_NAME = get_env("DATABASE_NAME", str)
+=======
+PROJECT_ENV = get_env("PROJECT_ENV", str, "")
+logger.info(f"Initilize Environments from: {PROJECT_ENV}")
+if PROJECT_ENV != "":
+    load_dotenv(PROJECT_ENV)
+
+DATABASE_HOST = get_env("DATABASE_HOST", str,"127.0.0.1")
+DATABASE_PORT = get_env("DATABASE_PORT", int, 3306)
+DATABASE_USER = get_env("DATABASE_USER", str,"root")
+DATABASE_PASSWORD = get_env("DATABASE_PASSWORD", str,"AqqhQ993VNto")
+DATABASE_NAME = get_env("DATABASE_NAME", str,"testing_api")
+>>>>>>> added v9 components into refactor backend.
 
 PY_ENV = get_env("PY_ENV", str, "production")
 
@@ -103,13 +116,13 @@ if os.environ.get("USE_ALEMBIC") is None:
             "For security, JWT_SECRET is highly recommend to be set in production environment!!"
         )
 
-    if len(FOXLINK_EVENT_DB_HOSTS) == 0:
-        logger.error("FOXLINK_EVENT_DB_HOSTS env should not be empty!")
-        exit(1)
+    # if len(FOXLINK_EVENT_DB_HOSTS) == 0:
+    #     logger.error("FOXLINK_EVENT_DB_HOSTS env should not be empty!")
+    #     exit(1)
 
-    if MQTT_BROKER is None:
-        logger.error("MQTT_BROKER is not set")
-        exit(1)
+    # if MQTT_BROKER is None:
+    #     logger.error("MQTT_BROKER is not set")
+    #     exit(1)
 
     if DISABLE_FOXLINK_DISPATCH is True:
         logger.warn("DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")

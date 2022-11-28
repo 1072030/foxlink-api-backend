@@ -136,7 +136,8 @@ class MainMeta(ormar.ModelMeta):
 class Shift(ormar.Model):
     class Meta(MainMeta):
         pass
-    id: int = ormar.Integer(primary_key=True, index=True, autoincrement=False, choices=list(ShiftType), nullable=False)
+    id: int = ormar.Integer(primary_key=True, index=True,
+                            autoincrement=False, choices=list(ShiftType), nullable=False)
     shift_beg_time = ormar.Time(timezone=True, nullable=False)
     shift_end_time = ormar.Time(timezone=True, nullable=False)
 
@@ -161,21 +162,33 @@ class User(ormar.Model):
     badge: str = ormar.String(primary_key=True, max_length=100, index=True)
     username: str = ormar.String(max_length=50, nullable=False)
     password_hash: str = ormar.String(max_length=100, nullable=True)
-    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, ondelete="SET NULL", nullable=True)
-    superior: UserRef = ormar.ForeignKey(UserRef, on_delete="SET NULL", nullable=True)
+    workshop: FactoryMap = ormar.ForeignKey(
+        FactoryMap, ondelete="SET NULL", nullable=True)
+    superior: UserRef = ormar.ForeignKey(
+        UserRef, on_delete="SET NULL", nullable=True)
     level: int = ormar.SmallInteger(choices=list(UserLevel), nullable=False)
     shift: Shift = ormar.ForeignKey(Shift, on_delete="SET NULL", nullable=True)
     change_pwd: bool = ormar.Boolean(server_default="0", nullable=True)
+    current_UUID: str = ormar.String(max_length=100, nullable=True)
+    start_position: str = ormar.ForeignKey(
+        DeviceRef, ondelete="SET NULL", nullable=True,related_name="begin_users"
+    )
     ####################
-    status: str = ormar.String(max_length=15, default=WorkerStatusEnum.leave, choices=list(WorkerStatusEnum))
-    at_device: DeviceRef = ormar.ForeignKey(DeviceRef, ondelete="SET NULL", nullable=True)
+    status: str = ormar.String(
+        max_length=15, default=WorkerStatusEnum.leave, choices=list(WorkerStatusEnum))
+    at_device: DeviceRef = ormar.ForeignKey(
+        DeviceRef, ondelete="SET NULL", nullable=True,related_name="nearby_users"
+    )
     ####################
     shift_accept_count: int = ormar.Integer(default=0, nullable=True)
     shift_reject_count: int = ormar.Integer(default=0, nullable=True)
     ####################
-    check_alive_time: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
-    shift_beg_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
-    finish_event_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
+    check_alive_time: datetime = ormar.DateTime(
+        default=get_ntz_now, timezone=True)
+    shift_beg_date: datetime = ormar.DateTime(
+        default=get_ntz_min, timezone=True)
+    finish_event_date: datetime = ormar.DateTime(
+        default=get_ntz_min, timezone=True)
     ####################
     login_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
     logout_date: datetime = ormar.DateTime(default=get_ntz_min, timezone=True)
@@ -208,7 +221,8 @@ class UserDeviceLevel(ormar.Model):
         constraints = [ormar.UniqueColumns("device", "user")]
 
     id: int = ormar.Integer(primary_key=True, index=True)
-    user: User = ormar.ForeignKey(User, index=True, ondelete="CASCADE", related_name="device_levels")
+    user: User = ormar.ForeignKey(
+        User, index=True, ondelete="CASCADE", related_name="device_levels")
     device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
@@ -217,7 +231,8 @@ class UserDeviceLevel(ormar.Model):
 class MissionEvent(ormar.Model):
     class Meta(MainMeta):
         tablename = "mission_events"
-        constraints = [ormar.UniqueColumns("event_id", "table_name", "mission")]
+        constraints = [ormar.UniqueColumns(
+            "event_id", "table_name", "mission")]
 
     id: int = ormar.Integer(primary_key=True)
 
@@ -247,17 +262,21 @@ class Mission(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
     device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="accepted_missions")
-    rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_missions")
+    worker: User = ormar.ForeignKey(
+        User, ondelete="SET NULL", related_name="accepted_missions")
+    rejections: Optional[List[User]] = ormar.ManyToMany(
+        User, related_name="rejected_missions")
     description: str = ormar.String(max_length=256, nullable=True)
 
     is_done: bool = ormar.Boolean(default=False, nullable=True)
     is_done_cure: bool = ormar.Boolean(default=False, nullable=True)
-    is_done_shift: bool = ormar.Boolean(default=False, nullable=True)  # if mission complete due to shifting
+    # if mission complete due to shifting
+    is_done_shift: bool = ormar.Boolean(default=False, nullable=True)
     is_done_cancel: bool = ormar.Boolean(default=False, nullable=True)
     is_done_finish: bool = ormar.Boolean(default=False, nullable=True)
 
-    is_lonely: bool = ormar.Boolean(default=False, nullable=True)  # if no worker could be assigned
+    # if no worker could be assigned
+    is_lonely: bool = ormar.Boolean(default=False, nullable=True)
     is_overtime: bool = ormar.Boolean(default=False, nullable=True)
     is_emergency: bool = ormar.Boolean(default=False, nullable=True)
 
@@ -344,8 +363,10 @@ class WhitelistDevice(ormar.Model):
         tablename = "whitelist_devices"
 
     id: int = ormar.Integer(primary_key=True)
-    device: Device = ormar.ForeignKey(Device, unique=True, ondelete='CASCADE', nullable=False)
-    workers: List[User] = ormar.ManyToMany(User, related_name="whitelist_devices")
+    device: Device = ormar.ForeignKey(
+        Device, unique=True, ondelete='CASCADE', nullable=False)
+    workers: List[User] = ormar.ManyToMany(
+        User, related_name="whitelist_devices")
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 

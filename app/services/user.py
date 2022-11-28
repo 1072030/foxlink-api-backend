@@ -29,6 +29,7 @@ from app.core.database import (
     api_db,
 )
 from app.models.schema import MissionDto
+from app.mqtt import MQTT_Client
 from app.services.device import get_device_by_id
 from app.utils.utils import get_current_shift_time_interval, get_current_shift_details
 
@@ -150,8 +151,10 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
             and_(
                 # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
-                    and_(repair_beg_date__isnull=False, repair_end_date__isnull=True),
-                    and_(repair_beg_date__isnull=True, repair_end_date__isnull=True),
+                    and_(repair_beg_date__isnull=False,
+                         repair_end_date__isnull=True),
+                    and_(repair_beg_date__isnull=True,
+                         repair_end_date__isnull=True),
                 ),
                 assignees__badge=badge,
                 is_done=False,
@@ -176,6 +179,7 @@ async def is_user_working_on_mission(badge: str) -> bool:
     if (
         await Mission.objects
         .filter(
+            and_(
             or_(
                 and_(
                     repair_beg_date__isnull=False,
@@ -186,8 +190,9 @@ async def is_user_working_on_mission(badge: str) -> bool:
                     repair_end_date__isnull=True
                 ),
             ),
-            is_done=False,
+            is_done_cure=False,
             worker=worker,
+            )
         )
         .count() > 0
     ):
@@ -258,7 +263,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
     total_accepted_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)
-        FROM auditlogheaders
+        FROM audit_log_headers
         WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
         AND user='{badge}'
         AND MONTH(`created_date` + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
@@ -267,7 +272,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
 
     total_accepted_count_this_week = await api_db.fetch_all(
         f"""
-        SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
+        SELECT COUNT(DISTINCT record_pk) FROM audit_log_headers
         WHERE `action` = '{AuditActionEnum.MISSION_ACCEPTED.value}'
         AND user='{badge}'
         AND YEARWEEK(`created_date` + HOUR({TIMEZONE_OFFSET}), {WEEK_START}) = YEARWEEK(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}), {WEEK_START})
@@ -277,7 +282,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
     total_rejected_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)
-        FROM auditlogheaders
+        FROM audit_log_headers
         WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
         AND user='{badge}'
         AND MONTH(`created_date` + HOUR({TIMEZONE_OFFSET})) = MONTH(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}))
@@ -286,7 +291,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
 
     total_rejected_count_this_week = await api_db.fetch_all(
         f"""
-        SELECT COUNT(DISTINCT record_pk) FROM auditlogheaders
+        SELECT COUNT(DISTINCT record_pk) FROM audit_log_headers
         WHERE `action` = '{AuditActionEnum.MISSION_REJECTED.value}'
         AND user='{badge}'
         AND YEARWEEK(`created_date` + HOUR({TIMEZONE_OFFSET}), {WEEK_START}) = YEARWEEK(UTC_TIMESTAMP() + HOUR({TIMEZONE_OFFSET}), {WEEK_START})
@@ -310,10 +315,10 @@ async def get_worker_attendances(badge: str) -> List[WorkerAttendance]:
     user_login_days_this_month = await api_db.fetch_all(
         f"""
         SELECT DATE(ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(loginrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, loginrecord.description
-        FROM auditlogheaders loginrecord,
+        FROM audit_log_headers loginrecord,
         (
             SELECT action, MIN(created_date) min_login_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
-            FROM auditlogheaders
+            FROM audit_log_headers
             WHERE `action` = '{AuditActionEnum.USER_LOGIN.value}' AND user='{badge}'
             GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
         ) min_login
@@ -324,10 +329,10 @@ async def get_worker_attendances(badge: str) -> List[WorkerAttendance]:
     user_logout_days_this_month = await api_db.fetch_all(
         f"""
         SELECT DATE(ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00')) `day`, ADDTIME(logoutrecord.created_date, '{TIMEZONE_OFFSET}:00') as `time`, logoutrecord.description
-        FROM auditlogheaders logoutrecord,
+        FROM audit_log_headers logoutrecord,
         (
             SELECT action, MAX(created_date) max_logout_date , DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
-            FROM auditlogheaders
+            FROM audit_log_headers
             WHERE `action` = '{AuditActionEnum.USER_LOGOUT.value}' AND user='{badge}'
             GROUP BY DAY(ADDTIME(created_date, '{TIMEZONE_OFFSET}:00'))
         ) max_logout
@@ -394,7 +399,7 @@ async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
         f"""
         SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 
         INNER JOIN missions m ON m.id = mu.mission
-        INNER JOIN auditlogheaders a ON a.record_pk = m.id 
+        INNER JOIN audit_log_headers a ON a.record_pk = m.id 
         WHERE mu.user = :badge AND a.action = 'MISSION_STARTED' AND (a.created_date BETWEEN :shift_start AND :shift_end);
         """,
         {'badge': worker.badge, 'shift_start': shift_start, 'shift_end': shift_end},

@@ -1,9 +1,11 @@
 import logging
 from jose.constants import ALGORITHMS
-from jose.exceptions import  ExpiredSignatureError
+from jose.exceptions import ExpiredSignatureError
 from app.core.database import (
+    WorkerStatusEnum,
     get_ntz_now,
     User,
+    Mission
 )
 from datetime import datetime, timedelta
 from typing import Optional
@@ -51,53 +53,48 @@ async def authenticate_user(badge: str, password: str):
         raise HTTPException(
             status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="the password is incorrect."
         )
-    
+
     return user
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-
-    credentials_exception = HTTPException(
-        status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         badge: str = payload.get("sub")
-        # current_UUID: str = payload.get("UUID")
+        decode_UUID: str = payload.get("UUID")
+
         if badge is None:
-            raise credentials_exception
+            raise HTTPException(403, 'Could not validate credentials')
     except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-            detail="Signature has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        payload = jwt.decode(token, JWT_SECRET,  algorithms=['HS256'], options={
+                             "verify_exp": False, "verify_signature": False})
+        badge: str = payload.get("sub")
+        decode_UUID: str = payload.get("UUID")
+        user = await get_user_by_badge(badge)
+
+        if decode_UUID == user.current_UUID:
+            await user.update(current_UUID="0")
+
+        raise HTTPException(403, 'Signature has expired')
+
     except:
-        raise credentials_exception
+        raise HTTPException(403, 'Could not validate credentials')
 
     user = await get_user_by_badge(badge)
 
     if user is None:
-        raise credentials_exception
+        raise HTTPException(403, 'Could not validate credentials')
 
-    # if user.current_UUID != current_UUID:
-    #     raise HTTPException(
-    #         status_code=HTTPStatus.HTTP_403_FORBIDDEN,
-    #         detail="log on other device, should log out.",
-    #         headers={"WWW-Authenticate": "Bearer"},
-    #     )
+    if user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
+        raise HTTPException(403, 'log on another device. Should log out')
 
     return user
 
 
 async def get_admin_active_user(active_user: User = Depends(get_current_user)):
     if not active_user.level == UserLevel.admin.value:
-        raise HTTPException(
-            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
-        )
+        raise HTTPException(401, 'You are not admin')
+
     return active_user
 
 
@@ -112,8 +109,15 @@ async def get_manager_active_user(
     return manager_user
 
 
+async def check_user_status_by_badge(user: User):
+    if user.status is WorkerStatusEnum.notice.value:
+        mission = await Mission.objects.select_related(['worker']).get_or_none()
+        if mission.notify_recv_date is None:
+            return WorkerStatusEnum.idle.value
+    return user.status
+
+
 async def set_device_UUID(
     user: User, UUID: str
 ):
-    return None
-    # await user.update(current_UUID=UUID)
+    await user.update(current_UUID=UUID)

@@ -178,8 +178,8 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
     query = await api_db.fetch_all(
         f"""
         SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
-        FROM `auditlogheaders`
-        INNER JOIN users u ON u.badge = auditlogheaders.`user`
+        FROM `audit_log_headers`
+        INNER JOIN users u ON u.badge = audit_log_headers.`user`
         WHERE 
             action='MISSION_ACCEPTED'
             AND (created_date BETWEEN :start_date AND :end_date)
@@ -206,8 +206,8 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
     query = await api_db.fetch_all(
         f"""
         SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
-        FROM `auditlogheaders`
-        INNER JOIN users u ON u.badge = auditlogheaders.`user`
+        FROM `audit_log_headers`
+        INNER JOIN users u ON u.badge = audit_log_headers.`user`
         WHERE 
             action='MISSION_REJECTED'
             AND (created_date BETWEEN :start_date AND :end_date)
@@ -240,7 +240,7 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
 
     result = await api_db.fetch_all(
         f"""
-        SELECT count(DISTINCT user) FROM `auditlogheaders` a
+        SELECT count(DISTINCT user) FROM `audit_log_headers` a
         INNER JOIN users u ON a.user = u.badge
         WHERE 
             action='USER_LOGIN'

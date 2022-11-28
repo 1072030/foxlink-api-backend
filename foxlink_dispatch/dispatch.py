@@ -6,7 +6,7 @@
 # self.     : 物件屬性，可被取得。
 # re_       : 回傳給 server 使用，非 df_ 的 回傳值。
 # error     : 回傳出現異常的欄位
-#%% 需安裝
+# %% 需安裝
 import random
 from typing import Optional, Any
 import pandas as pd
@@ -14,7 +14,9 @@ from tqdm import tqdm
 import re
 from scipy.spatial import distance
 
-#%%
+# %%
+
+
 class Foxlink_dispatch:
     def __init__(self):
         """可控參數(parm)"""
@@ -48,12 +50,14 @@ class Foxlink_dispatch:
         # 用 dataframe 儲存
         # 排序規則(當前)：refuse_count、process、priority、create_time,event_count"
         # process_order = CategoricalDtype([3,1,2], ordered=True) # 製程排序；目前 M3 比較重要
-        self.df_mission_rank = self.df_mission_list.sort_values(by = ["refuse_count","create_date","process","event_count"],
-                                                                ascending = [False,True,False,True]
+        self.df_mission_rank = self.df_mission_list.sort_values(by=["refuse_count", "create_date", "process", "event_count"],
+                                                                ascending=[
+                                                                    False, True, False, True]
                                                                 # key = []
                                                                 )
         # self.re_mission_1st = self.df_mission_rank["missionID"][0]
-        return self.df_mission_rank["missionID"].drop_duplicates(keep='first') # 回傳第一順位的待辦事項的 missionID 給 server；並排除相同missionID
+        # 回傳第一順位的待辦事項的 missionID 給 server；並排除相同missionID
+        return self.df_mission_rank["missionID"].drop_duplicates(keep='first')
 
     """由 server 回傳 mission_1st 的可用候選員工資訊"""
 
@@ -92,14 +96,15 @@ class Foxlink_dispatch:
         # 單一人員的位置；人員所屬車間移動距離矩陣
         self.df_rescue_dis = pd.DataFrame(
             distances,  # server 回傳該人員在所對應的"車間移動距離矩陣"中，抓取當前位置對應至"各消防站的距離"
-            columns=["rescueID", "distance"],  # 消防站位置 ID  # float；員工"當前位置"移動至"各消防站"的距離
+            # 消防站位置 ID  # float；員工"當前位置"移動至"各消防站"的距離
+            columns=["rescueID", "distance"],
         ).set_index("rescueID")
 
         self.re_rescue_point = self.df_rescue_dis.idxmin().sample(n=1)[0]
         return self.re_rescue_point  # 找到最小距離的 rescueID 回傳給 server
 
 
-#%%
+# %%
 """
 Custom Error；新增防呆報錯項目
 """
@@ -144,7 +149,7 @@ class Error_Axis(DispatchException):  # 座標
         super().__init__(msg, detail)
 
 
-#%%
+# %%
 """
 相關 Excel資料表(.xlsx)匯入，需要先進行轉換，再匯入 server
 """
@@ -155,11 +160,12 @@ class data_convert:
         return
 
     def natural_sort(self, l):  # 自然排序
-        convert = lambda text: int(text) if text.isdigit() else text.lower()
-        alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
+        def convert(text): return int(text) if text.isdigit() else text.lower()
+        def alphanum_key(key): return [convert(c)
+                                       for c in re.split("([0-9]+)", key)]
         return sorted(l, key=alphanum_key)
 
-    #%%
+    # %%
     """
     車間員工資訊表
     """
@@ -280,7 +286,8 @@ class data_convert:
             "找出各欄位參數資訊"
             parm = {
                 "worker": list(
-                    zip(self.df_worker_info["員工工號"], self.df_worker_info["員工名字"])
+                    zip(self.df_worker_info["員工工號"],
+                        self.df_worker_info["員工名字"])
                 ),
                 "workshop": sorted(
                     list(set(self.df_factory_worker_info_convert["workshop"]))
@@ -326,11 +333,12 @@ class data_convert:
         except Exception as e:
             raise DispatchException(msg="Unexpected exception", detail=repr(e))
 
-    #%%
+    # %%
     """
     專案 Device 事件簿
     """
     # 一次處理一個 Device 事件簿 excel表； e.g. D5X device事件簿.xlsx
+
     def fn_proj_eventbooks(
         self, filename: str, raw_excel: bytes
     ):  # 輸入資料路徑與名稱；須注意資料名稱格式
@@ -343,7 +351,8 @@ class data_convert:
             self.df_proj_eventbooks = pd.read_excel(
                 raw_excel, sheet_name=None
             )  # 讀 excel 資料
-            _devices_ = list(self.df_proj_eventbooks.keys())  # 根據"工作表"名稱抓取 Device 名稱
+            _devices_ = list(self.df_proj_eventbooks.keys()
+                             )  # 根據"工作表"名稱抓取 Device 名稱
             for j in tqdm(_devices_):  # 依照 device 進行區分
                 _events_ = self.df_proj_eventbooks[j]  # 事件簿device資訊
                 if ~_events_.columns.isin(
@@ -357,7 +366,8 @@ class data_convert:
                         msg=f"在{filename} 的 Worksheet: {j} 中有「尚未填寫」的部分喔~", detail=value
                     )
                 if _events_["Category"].isnull().values.any():  # 檢查欄位是不是有空值
-                    self.df_error_list = _events_[_events_["Category"].isnull().values]
+                    self.df_error_list = _events_[
+                        _events_["Category"].isnull().values]
                     raise Error_None(
                         msg=f"在{filename} 的 Worksheet: {j} 中的內容值可能不對喔~",
                         detail=self.df_error_list,
@@ -393,13 +403,14 @@ class data_convert:
         except Exception as e:
             raise DispatchException(msg="Device 事件簿出現非預期的錯誤！", detail=repr(e))
 
-    #%%
+    # %%
     """
     車間 Layout 座標表
     server 必須要製作機台 id 才可以進行轉換!
     生成車間移動距離表
     """
     # 因當前車間機台有明顯劃分的"製程段"段區域，移動距離矩陣資料可套用至此類型之車間Layout座標表
+
     def fn_factorymap(self, frame: pd.DataFrame):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
         def manhattan_dis(From, To):  # 曼哈頓距離
             return sum(abs(val1 - val2) for val1, val2 in zip(From, To))
@@ -424,10 +435,12 @@ class data_convert:
                     msg='車間layout座標表中有"尚未填寫"的部分喔~', detail=self.df_error_list
                 )
             if (
-                self.df_device_xy[["id", "x_axis", "y_axis"]].isnull().values.any()
+                self.df_device_xy[["id", "x_axis", "y_axis"]
+                                  ].isnull().values.any()
             ):  # done # 確認資料表"id","x_axis","y_axis"欄位有無空值；才可算移動距離
                 self.df_error_list = self.df_device_xy[
-                    self.df_device_xy[["id", "x_axis", "y_axis"]].isnull().values
+                    self.df_device_xy[["id", "x_axis",
+                                       "y_axis"]].isnull().values
                 ]
                 raise Error_None(
                     msg='車間layout座標表中有"尚未填寫"的部分喔~', detail=self.df_error_list
@@ -493,8 +506,10 @@ class data_convert:
                                 self.df_device_xy["process"] == From_device["process"]
                             ]["y_axis"]
                             .between(
-                                min(From_device["y_axis"], To_device["y_axis"]),
-                                max(From_device["y_axis"], To_device["y_axis"]),
+                                min(From_device["y_axis"],
+                                    To_device["y_axis"]),
+                                max(From_device["y_axis"],
+                                    To_device["y_axis"]),
                                 inclusive="neither",
                             )
                             .any()
@@ -566,7 +581,8 @@ class data_convert:
             "對稱補植；對稱矩陣"
             for i in range(len(self.df_movingMatrix)):
                 for j in range(i, len(self.df_movingMatrix)):
-                    self.df_movingMatrix.iloc[j, i] = self.df_movingMatrix.iloc[i, j]
+                    self.df_movingMatrix.iloc[j,
+                                              i] = self.df_movingMatrix.iloc[i, j]
 
             print("轉換完成")
             # 回傳計算完的機台間移動距離矩陣表
@@ -579,11 +595,12 @@ class data_convert:
         except Exception as e:
             raise DispatchException(msg="處理計算機台間移動距離矩陣表時發生錯誤：", detail=repr(e))
 
-    #%%
+    # %%
     """
     建立各資料之參數(parameter)表
     """
     # 參考資料(typing hinting)：https://stackoverflow.com/questions/38727520/how-do-i-add-default-parameters-to-functions-when-using-type-hinting
+
     def fn_parm_update(self, parm_files: bytes):
         columns = [
             "worker",
@@ -601,7 +618,8 @@ class data_convert:
         # 參考資料(移除各col 的 nan， 數值往上移): https://stackoverflow.com/questions/33530601/pandas-force-nan-to-bottom-of-each-column-at-each-index
         self.df_parm = pd.concat(
             [
-                self.df_parm[col].dropna().drop_duplicates().reset_index(drop=True)
+                self.df_parm[col].dropna(
+                ).drop_duplicates().reset_index(drop=True)
                 for col in self.df_parm.columns
             ],
             axis=1,
@@ -619,7 +637,8 @@ class data_convert:
         df_w = df_w[df_w["job"] == 1]  # 一般員工
         df_w = df_w[df_w["level"] > 0]  # 排除經驗0
         df_m = self.df_device_xy  # 讀取 Layout 座標表
-        df_m_depot = df_m[df_m["project"] == "rescue"].reset_index(drop=True)  # 消防站位置
+        df_m_depot = df_m[df_m["project"] ==
+                          "rescue"].reset_index(drop=True)  # 消防站位置
         df_m_device = df_m[df_m["project"] != "rescue"].reset_index(
             drop=True
         )  # device位置
@@ -635,7 +654,7 @@ class data_convert:
             self.df_factory_worker_info_parm["shift"].dropna()
         ):  # fn_factory_worker_info 中 parameter 的 shift 種類數
             df_w_shift = df_w[df_w["shift"] == s].groupby(
-                ["worker_id", "worker_name"]
+                ["worker_id"]
             )  # 選班次
             workers = []
             start_positions = []
@@ -678,11 +697,11 @@ class data_convert:
         # print(set(test_workerinfo["parameter"]["shift"].dropna()))
 
 
-#%%
+# %%
 """測試派工系統"""
 # test_dispatch = Foxlink_dispatch() # 建立物件
 
-#%%
+# %%
 """測試資料匯入"""
 # test_data_import = data_convert()  # 建立物件
 
@@ -714,4 +733,4 @@ class data_convert:
 #     ]
 # )  # 更新參數表
 # test_parm.to_excel("test_data/程式碼參數(及時更新)_TEST用.xlsx",index = 0)
-#%%
+# %%

@@ -17,6 +17,7 @@ from app.core.database import (
     WorkerStatusEnum
 )
 from app.core.database import get_ntz_now
+from app.services.mission import set_mission_by_rescue_position
 from app.services.user import check_user_begin_shift
 import logging
 import traceback
@@ -38,17 +39,29 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     user = await authenticate_user(form_data.username, form_data.password)
 
+    if user.status == WorkerStatusEnum.working.value:
+        raise HTTPException(
+            403, f'the worker on device : {user.current_UUID} is working now.')
+
+    await set_device_UUID(user, form_data.client_id)
     access_token = create_access_token(
         data={
             "sub": user.badge,
+            "UUID": form_data.client_id
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
     user.login_date = get_ntz_now()
 
-    user.status = WorkerStatusEnum.idle.value
-
+    await AuditLogHeader.objects.create(
+        table_name="users",
+        record_pk=user.badge,
+        action=AuditActionEnum.USER_LOGIN.value,
+        user=user,
+    )
+    
+    await user.update(status=WorkerStatusEnum.idle.value)
     if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
 
         # reset user parameters
@@ -86,13 +99,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             )
         #######################################################
 
-    await user.update()
+        await user.update()
 
-    await AuditLogHeader.objects.create(
-        table_name="users",
-        record_pk=user.badge,
-        action=AuditActionEnum.USER_LOGIN.value,
-        user=user,
-    )
+        if user.start_position is not None:
+            await set_mission_by_rescue_position(user, user.start_position)
 
     return {"access_token": access_token, "token_type": "bearer"}

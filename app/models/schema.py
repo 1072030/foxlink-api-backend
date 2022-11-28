@@ -49,7 +49,12 @@ class UserOut(UserBase):
     change_pwd: bool
 
 
-class UserOutWithWorkTimeAndSummary(UserOut):
+class UserOutWithWorkTimeAndSummary(BaseModel):
+    badge: str
+    username: str
+    level: int
+    workshop: Optional[str]
+    change_pwd: bool
     at_device: str
     work_time: int
     summary: Optional[WorkerSummary]

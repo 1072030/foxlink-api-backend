@@ -90,6 +90,15 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
         await assign_mission(id, dto.worker)
 
 
+async def click_mission_by_id(mission_id: int, worker: User):
+    mission = await get_mission_by_id(mission_id)
+
+    if mission is None:
+        raise HTTPException(
+            404, "the mission you request to start is not found")
+    await mission.update(notify_recv_date=get_ntz_now())
+
+
 @transaction
 async def start_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
@@ -107,6 +116,12 @@ async def start_mission_by_id(mission_id: int, worker: User):
     # if mission.is_closed or mission.is_done_cancel:
     #     raise HTTPException(400, "this mission is already closed or canceled")
 
+    if mission.device.is_rescue:
+        await mission.update(repair_end_date=get_ntz_now())
+        await move_user_to_position(worker.badge, mission.device.id)
+        await worker.update(status=WorkerStatusEnum.idle.value)
+        return
+
     if mission.worker == worker and mission.is_started:
         raise HTTPException(200, 'you have already started the mission')
 
@@ -118,18 +133,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     await mission.update(repair_beg_date=get_ntz_now())
 
-    if mission.device.is_rescue:
-        mqtt_client.publish(
-            f"foxlink/users/{worker.badge}/missions/finish",
-            {
-                "mission_id": mission.id,
-                "mission_state": "finish"
-            },
-            qos=2,
-        )
-        return
-    else:
-        worker.status = WorkerStatusEnum.working.value
+    worker.status = WorkerStatusEnum.working.value
 
     await worker.update()
 
@@ -167,8 +171,7 @@ async def accept_mission_by_id(mission_id: int, worker: User):
             )
 
     await mission.update(
-        accept_recv_date=get_ntz_now(),
-        notify_recv_date=get_ntz_now()
+        accept_recv_date=get_ntz_now()
     )
 
     await worker.update(
@@ -259,10 +262,14 @@ async def finish_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.is_done_shift:
-        raise HTTPException(200, "you're no longer this missions assignee due to shifting.")
+        raise HTTPException(
+            200, "you're no longer this missions assignee due to shifting.")
 
     if mission.is_done:
         raise HTTPException(200, "the mission has closed.")
+
+    if mission.repair_beg_date is None:
+        raise HTTPException(400, "You need to start mission first")
 
     now_time = get_ntz_now()
 
@@ -387,39 +394,32 @@ async def assign_mission(mission_id: int, badge: str):
         status=WorkerStatusEnum.notice.value,
     )
 
-    mqtt_client.publish(
-        f"foxlink/users/{worker.badge}/missions",
-        {
-            "type": "new",
-            "mission_id": mission.id,
-            "device": {
-                "device_id": mission.device.id,
-                "device_name": mission.device.device_name,
-                "device_cname": mission.device.device_cname,
-                "workshop": mission.device.workshop,
-                "project": mission.device.project,
-                "process": mission.device.process,
-                "line": mission.device.line,
+    if mission.device.is_rescue == False:
+        mqtt_client.publish(
+            f"foxlink/users/{worker.current_UUID}/missions",
+            {
+                "type": "new",
+                "mission_id": mission.id,
+                "worker_now_position": worker.at_device,
+                "create_date": mission.created_date,
+                "device": {
+                    "device_id": mission.device.id,
+                    "device_name": mission.device.device_name,
+                    "device_cname": mission.device.device_cname,
+                    "workshop": mission.device.workshop,
+                    "project": mission.device.project,
+                    "process": mission.device.process,
+                    "line": mission.device.line,
+                },
+                "name": mission.name,
+                "description": mission.description,
+                "events": [
+                    MissionEventOut.from_missionevent(e).dict()
+                    for e in mission.events
+                ]
             },
-            "name": mission.name,
-            "description": mission.description,
-            "assingees": [{
-                "badge": worker.badge,
-                "username": worker.username
-            }],
-            "events": [
-                MissionEventOut.from_missionevent(e).dict()
-                for e in mission.events
-            ],
-            "is_started": mission.is_started,
-            "is_closed": mission.is_closed,
-            "is_done": mission.is_done,
-            "created_date": mission.created_date,
-            "updated_date": mission.updated_date,
-        },
-        qos=2,
-        retain=True,
-    )
+            qos=2
+        )
 
 
 async def request_assistance(mission_id: int, validate_user: User):
@@ -454,29 +454,66 @@ async def request_assistance(mission_id: int, validate_user: User):
     for worker in mission.assignees:
         try:
             mqtt_client.publish(
-                f"foxlink/users/{worker.superior.badge}/missions",
+                f"foxlink/users/{worker.current_UUID}/missions",
                 {
-                    "type": "emergency",
+                    "type": "new",
                     "mission_id": mission.id,
-                    "name": mission.name,
-                    "description": mission.description,
-                    "worker": {
-                        "badge": worker.badge,
-                        "username": worker.username,
-                    },
+                    "worker_now_position": worker.at_device,
+                    "create_date": mission.created_date,
                     "device": {
+                        "device_id": mission.device.id,
+                        "device_name": mission.device.device_name,
+                        "device_cname": mission.device.device_cname,
+                        "workshop": mission.device.workshop,
                         "project": mission.device.project,
                         "process": mission.device.process,
                         "line": mission.device.line,
-                        "name": mission.device.device_name,
                     },
+                    "name": mission.name,
+                    "description": mission.description,
                     "events": [
                         MissionEventOut.from_missionevent(e).dict()
-                        for e in mission.missionevents
-                    ],
+                        for e in mission.events
+                    ]
                 },
-                qos=2,
+                qos=2
             )
         except Exception as e:
             logger.error(
                 f"failed to send emergency message to {worker.superior.badge}, Exception: {repr(e)}")
+
+
+async def set_mission_by_rescue_position(worker: User, rescue_position: str):
+    mission = await Mission.objects.create(
+        name="前往救援站",
+        worker=worker.badge,
+        notify_send_date=get_ntz_now(),
+        notify_recv_date=get_ntz_now(),
+        accept_recv_date=get_ntz_now(),
+        repair_beg_date=get_ntz_now(),
+        device=rescue_position,
+        is_lonely=False,
+        description=f"請前往救援站 {rescue_position}"
+    )
+    
+    await worker.update(status=WorkerStatusEnum.notice.value)
+    mqtt_client.publish(
+        f"foxlink/users/{worker.current_UUID}/move-rescue-station",
+        {
+            "type": "rescue",
+            "mission_id": mission.id,
+            "name": mission.name,
+            "description": mission.description,
+            "worker_now_position": worker.at_device,
+            "rescue_station": rescue_position,
+        },
+        qos=2,
+    )
+
+    await AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_ASSIGNED.value,
+        user=worker.badge,
+        table_name="missions",
+        record_pk=str(mission.id),
+        description="前往消防站",
+    )

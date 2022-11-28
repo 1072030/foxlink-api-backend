@@ -13,6 +13,7 @@ from app.services.mission import (
     accept_mission_by_id,
     assign_mission,
     cancel_mission_by_id,
+    click_mission_by_id,
     get_mission_by_id,
     request_assistance,
     update_mission_by_id,
@@ -196,6 +197,11 @@ async def accept_mission_by_worker(
     mission_id: int, user: User = Depends(get_current_user)
 ):
     await accept_mission_by_id(mission_id, user)
+
+
+@router.get("/{mission_id}/click", tags=["missions"])
+async def click_mission(mission_id: int, user: User = Depends(get_current_user)):
+    await click_mission_by_id(mission_id, user)
 
 
 @router.get("/{mission_id}/reject", tags=["missions"])

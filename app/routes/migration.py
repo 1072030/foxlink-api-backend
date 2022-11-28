@@ -1,9 +1,11 @@
+import logging
 from app.models.schema import ImportDevicesOut
-from app.services.auth import get_admin_active_user, get_manager_active_user
+from app.services.auth import get_manager_active_user
 from app.services.migration import (
     import_devices,
     # import_workshop_events,
     import_factory_worker_infos,
+    set_worker_position,
 )
 from fastapi import APIRouter, Depends, File, Response, UploadFile, Form
 from app.core.database import AuditActionEnum, User, AuditLogHeader
@@ -31,6 +33,7 @@ async def import_devices_from_excel(
             user=user,
         )
         return ImportDevicesOut(device_ids=device_ids, parameter=params.to_csv())
+    
     except Exception as e:
         await AuditLogHeader.objects.create(
             table_name="devices",
@@ -42,18 +45,18 @@ async def import_devices_from_excel(
 
 
 @router.post("/factory-worker-infos", tags=["migration"], status_code=201,
-    responses={
-        201: {
-            "content": {"image/csv": {}},
-            "description": "Return parameters in csv format",
-        },
-        400: {
-            "description": "There's is an error in your document."
-        },
-        415: {
-            "description": "The file you uploaded is not in correct format.", 
-        },
-    }
+             responses={
+    201: {
+        "content": {"image/csv": {}},
+        "description": "Return parameters in csv format",
+    },
+    400: {
+        "description": "There's is an error in your document."
+    },
+    415: {
+        "description": "The file you uploaded is not in correct format.",
+    },
+}
 )
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
@@ -92,38 +95,15 @@ async def import_factory_worker_infos_from_excel(
     400: {"description": "There's is an error in your document."},
     415: {"description": "The file you uploaded is not in correct format.", },
 })
-async def set_worker_start_position(
-    workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
-    factory_worker_file: UploadFile = File(...),
-    device_xy_file: UploadFile = File(...),
-    user: User = Depends(get_manager_active_user),
-):
-    if factory_worker_file.filename.split(".")[1] != "xlsx" or device_xy_file.filename.split(".")[1] != "xlsx":
+async def set_worker_start_position(device_xy_file: UploadFile = File(...), woker_info_file: UploadFile = File(...), user: User = Depends(get_manager_active_user)):
+    if device_xy_file.filename.split(".")[1] != "xlsx" or woker_info_file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
-
     try:
-        await import_devices(device_xy_file)
-        await AuditLogHeader.objects.create(
-            table_name="devices",
-            action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
-            user=user,
-        )
-    except Exception as e:
-        await AuditLogHeader.objects.create(
-            table_name="devices",
-            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
-            user=user,
-            description="Import devices layout failed",
-        )
-        raise HTTPException(status_code=400, detail=repr(e))
+        start_pos = await set_worker_position(
+            device_xy_file, woker_info_file)
+        logging.warning(type(start_pos))
 
-    try:
-        await import_factory_worker_infos(workshop_name, factory_worker_file)
-        await AuditLogHeader.objects.create(
-            table_name="users",
-            action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
-            user=user,
-        )
+
     except Exception as e:
         await AuditLogHeader.objects.create(
             table_name="users",
@@ -131,5 +111,3 @@ async def set_worker_start_position(
             user=user,
         )
         raise e
-
-    worker_start_position = data_convert.fn_worker_start_position()

@@ -23,6 +23,7 @@ from app.services.user import (
     get_worker_attendances,
 )
 from app.services.auth import (
+    check_user_status_by_badge,
     set_device_UUID,
     get_current_user,
     get_manager_active_user,
@@ -74,11 +75,7 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
     if user.workshop is None:
         workshop_name = "無"
     else:
-        workshop_name = (
-            await FactoryMap.objects.filter(id=user.workshop.id)
-            .fields(["id", "name"])
-            .get()
-        ).name
+        workshop_name = user.workshop.name
 
     at_device = "無"
 
@@ -95,17 +92,25 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
     summary = await get_user_summary(user.badge)
 
     return UserOutWithWorkTimeAndSummary(
+        badge=user.badge,
+        username=user.username,
+        level=user.level,
+        workshop=workshop_name,
+        change_pwd=user.change_pwd,
+        work_time=total_mins,
         at_device=at_device,
         summary=summary,
-        workshop=workshop_name,
-        work_time=total_mins,
-        **user.dict()
     )
 
 
 @router.get("/worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
 async def get_user_attendances(user: User = Depends(get_current_user)):
     return await get_worker_attendances(user.badge)
+
+
+@router.get("/check-user-status", response_model=str, tags=["users"])
+async def check_user_staus(user: User = Depends(get_current_user)):
+    return await check_user_status_by_badge(user)
 
 
 @router.post("/change-password", tags=["users"])
@@ -127,9 +132,12 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
-    user.logout_date = get_ntz_now()
+    if user.status != WorkerStatusEnum.idle.value:
+        raise HTTPException(404, 'You are not allow to logout except idle.')
 
-    if(not user.level == UserLevel.admin.value):
+    user.logout_date = get_ntz_now()
+    user.current_UUID = "0"
+    if (not user.level == UserLevel.admin.value):
         user.status = WorkerStatusEnum.leave.value
 
     await user.update()

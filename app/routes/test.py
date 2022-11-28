@@ -1,3 +1,6 @@
+from time import sleep
+from app.mqtt import mqtt_client
+
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta
 from ormar import NoMatch
@@ -54,7 +57,8 @@ async def create_fake_mission(workshop_name: str):
     if w is None:
         raise HTTPException(status_code=404, detail="workshop is not found")
 
-    all_device_ids = [x for x in w.related_devices if not x.startswith('rescue')]
+    all_device_ids = [
+        x for x in w.related_devices if not x.startswith('rescue')]
 
     pick_device_id = None
     for device in all_device_ids:
@@ -121,3 +125,22 @@ async def mark_mission_as_done(mission_id: int):
 @router.post("/swap/day", status_code=200, tags=["test"])
 async def mark_day_start_time(time: str):
     pass
+
+
+@router.get("/user-mqtt-check", status_code=200, tags=["test"])
+async def get_user_attendances(UUID: str, total_count: int, duration: int):
+    publish_mqtt_count = total_count
+    while (publish_mqtt_count >= 0):
+        mqtt_client.publish(
+            f"foxlink/test/{UUID}/mqtt-check",
+            {
+                "numbers of mqtt": publish_mqtt_count,
+                "status": "success"
+            },
+            qos=2,
+        )
+        sleep(duration)
+        publish_mqtt_count -= 1
+        if publish_mqtt_count == 0:
+            break
+    return

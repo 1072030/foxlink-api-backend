@@ -62,6 +62,7 @@ app.include_router(statistics.router)
 app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(workshop.router)
+app.include_router(test.router)
 
 if PY_ENV == 'dev':
     app.include_router(test.router)

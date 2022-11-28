@@ -60,10 +60,12 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
         # create/update devices
         for index, row in frame.iterrows():
             is_rescue: bool = row["project"] == "rescue"
-            line: int = int(row["line"]) if not math.isnan(row["line"]) else None
+            line: int = int(row["line"]) if not math.isnan(
+                row["line"]) else None
             workshop: str = row["workshop"]
             project: str = row["project"]
-            process: str = row["process"] if type(row["process"]) is str else None
+            process: str = row["process"] if type(
+                row["process"]) is str else None
             device_name: str = row["device_name"]
             x_axis: float = float(row["x_axis"])
             y_axis: float = float(row["y_axis"])
@@ -188,7 +190,8 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
 
 async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> pd.DataFrame:
-    data = data_converter.fn_factorymap(frame.loc[frame["workshop"] == workshop])
+    data = data_converter.fn_factorymap(
+        frame.loc[frame["workshop"] == workshop])
     matrix: List[List[float]] = []
 
     for index, row in data["result"].iterrows():
@@ -208,7 +211,8 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
     raw_excel: bytes = await excel_file.read()
 
     try:
-        data = data_converter.fn_factory_worker_info(excel_file.filename, raw_excel)
+        data = data_converter.fn_factory_worker_info(
+            excel_file.filename, raw_excel)
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
@@ -307,7 +311,8 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
     # remove workers not within the provided table
     await User.objects.exclude(
         or_(
-            badge__in=[user.badge for user in (create_worker_bulk + update_worker_bulk)],
+            badge__in=[user.badge for user in (
+                create_worker_bulk + update_worker_bulk)],
             level__gt=UserLevel.maintainer.value
         )
     ).delete(each=True)
@@ -341,7 +346,8 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         user: str = row["worker_id"]
         device_id: str = assemble_device_id(project, "%", device_name)
         split_device_id = device_id.split('%')
-        assert len(split_device_id) == 2, "the format isn't correct, need adjustments."
+        assert len(
+            split_device_id) == 2, "the format isn't correct, need adjustments."
 
         match_devices: List[Device] = await Device.objects.filter(
             id__istartswith=split_device_id[0],
@@ -385,5 +391,29 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         sample = update_user_device_levels_bulk[0]
         await UserDeviceLevel.objects.bulk_update(
             objects=update_user_device_levels_bulk,
-            columns=list(sample.dict(exclude={"user", "device"}, exclude_defaults=True))
+            columns=list(sample.dict(
+                exclude={"user", "device"}, exclude_defaults=True))
         )
+
+
+@transaction
+async def set_worker_position(
+    device_xy_file: UploadFile,
+    woker_info_file: UploadFile
+):
+    raw_excel_worker_info: bytes = await woker_info_file.read()
+    raw_excel_device_xy: bytes = await device_xy_file.read()
+    frame_device_xy: pd.DataFrame = pd.read_excel(
+        raw_excel_device_xy, sheet_name=0)
+    wokrer_info = data_converter.fn_factory_worker_info(
+        woker_info_file.filename, raw_excel_worker_info)
+    moving_matrix = data_converter.fn_factorymap(frame_device_xy)
+    initial_pos = data_converter.fn_worker_start_position()
+    for index, row in initial_pos.iterrows():
+        user = await User.objects.filter(badge=row["worker_name"]).get_or_none()
+        if user is None:
+            continue
+        await User.objects.filter(badge=row["worker_name"]).update(
+            start_position=row["start_position"]
+        )
+    return initial_pos

@@ -12,6 +12,7 @@ from alembic import context
 
 from app.core.database import metadata as db_meta
 from app.env import DATABASE_HOST,DATABASE_NAME,DATABASE_PASSWORD,DATABASE_PORT,DATABASE_USER
+print(f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
