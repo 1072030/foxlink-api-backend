@@ -25,7 +25,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-api_db = databases.Database(DATABASE_URI, max_size=50)
+api_db = databases.Database(DATABASE_URI, max_size=5)
 
 metadata = MetaData()
 
@@ -47,10 +47,8 @@ def get_ntz_min():
     return datetime.fromisoformat("1990-01-01 00:00:00")
 
 
-# transaction = api_db.transaction()
 def transaction(func):
     async def wrapper(*args, **_args):
-        # print("in transaction wrapper",args,_args)
         _transaction = (api_db.transaction(isolation="serializable"))
         result = None
         try:

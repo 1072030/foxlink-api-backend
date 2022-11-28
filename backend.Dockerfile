@@ -14,8 +14,20 @@ RUN apt-get update
 # install curl
 RUN apt-get install curl -y
 
+#
+RUN apt install -y htop
+
+#
+RUN apt install -y bmon
+
 # install cv2 dependencies
 RUN apt-get install ffmpeg libsm6 libxext6 -y
+
+#
+RUN apt-get install libmariadb-dev -y
+
+#
+RUN apt-get install gcc -y
 
 # copy dependencies
 COPY requirements.txt /app/

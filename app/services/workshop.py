@@ -8,7 +8,7 @@ from PIL import ImageDraw, ImageFont
 from typing import List
 from app.models.schema import DeviceStatus, DeviceStatusEnum
 
-font = ImageFont.truetype("./data/NotoSansTC-Regular.otf", 14)
+font = ImageFont.truetype("./assets/NotoSansTC-Regular.otf", 14)
 
 
 async def get_factory_map_by_id(factory_map_id: int):

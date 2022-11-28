@@ -2,7 +2,6 @@ import logging
 import os
 import pytz
 from typing import List, TypeVar, Optional, Type
-from dotenv import load_dotenv
 from app.log import LOGGER_NAME
 from ast import literal_eval
 
@@ -33,11 +32,6 @@ logger = logging.getLogger(LOGGER_NAME)
 
 TIMEZONE_OFFSET = 8
 WEEK_START = 1  # the week should start on Sunday or Monday or even else.
-
-PROJECT_ENV = get_env("PROJECT_ENV", str, "")
-logger.info(f"Initilize Environments from: {PROJECT_ENV}")
-if PROJECT_ENV != "":
-    load_dotenv(PROJECT_ENV)
 
 DATABASE_HOST = get_env("DATABASE_HOST", str)
 DATABASE_PORT = get_env("DATABASE_PORT", int)

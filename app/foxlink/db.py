@@ -15,6 +15,7 @@ from app.env import (
 
 class FoxlinkDatabasePool:
     def __init__(self):
+        print(f"mysql+aiomysql://{FOXLINK_EVENT_DB_USER}:{FOXLINK_EVENT_DB_PWD}@{FOXLINK_EVENT_DB_HOSTS[0]}/{FOXLINK_EVENT_DB_NAME}")
         self.event_dbs: Dict[str,Database] = {
             host: Database(
                 f"mysql+aiomysql://{FOXLINK_EVENT_DB_USER}:{FOXLINK_EVENT_DB_PWD}@{host}/{FOXLINK_EVENT_DB_NAME}",

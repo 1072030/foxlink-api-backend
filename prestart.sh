@@ -1,5 +1,4 @@
 #! /usr/bin/env bash
-
-echo "API Server will wait 10 secound for the api_db to be ready"
+echo "The API server will wait for 10 secound to let the database ready."
 sleep 10;
 alembic upgrade head;

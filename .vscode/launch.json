@@ -16,7 +16,7 @@
       "name": "Python: Server",
       "type": "python",
       "request": "launch",
-      "module": "app.server",
+      "module": "app.server_uvicorn",
       "justMyCode": false
     },
     {

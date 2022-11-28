@@ -34,7 +34,7 @@ importlib-resources==5.10.0
 Mako==1.2.0
 MarkupSafe==2.1.1
 multidict==6.0.2
-mysql-connector==2.2.9
+mysql-connector-python==8.0.31
 mysqlclient==2.1.1
 numpy==1.22.4
 opencv-python==4.6.0.66
