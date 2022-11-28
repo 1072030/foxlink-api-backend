@@ -41,6 +41,7 @@ from app.models.schema import (
     MissionDto,
     WorkerAttendance,
     WorkerStatusDto,
+    WorkerStatus
 )
 
 router = APIRouter(prefix="/users")
@@ -179,5 +180,9 @@ async def get_user_mission_history(user: User = Depends(get_current_user)):
 @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
 async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
     return await get_users_overview(workshop_name)
+
+@router.get("/{badge}/status", tags=["users"], response_model=Optional[WorkerStatus])
+async def get_user_status(badge: str, user: User = Depends(get_current_user)):
+    return WorkerStatus(status=user.status)
 
 # ============ Teddy End ============

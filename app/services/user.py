@@ -12,6 +12,7 @@ from app.models.schema import (
     UserOverviewOut,
     WorkerAttendance,
     WorkerStatusDto,
+    WorkerStatus,
     WorkerSummary,
 )
 from passlib.context import CryptContext
@@ -306,6 +307,7 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
                 night_overview.append(overview)
 
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
+
 # ============ Teddy End ============
 
 async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
