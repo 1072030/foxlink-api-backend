@@ -44,7 +44,83 @@ services:
     ports:
       - 27001:3306
     volumes:
+<<<<<<< HEAD
       - mysql-storage:/var/lib/mysql
+=======
+      - mysql-data:/var/lib/mysql
+    networks:
+      - backend
+
+  incubator:
+    restart: unless-stopped
+    # image: incubator:latest
+    build:
+      context: .
+      dockerfile: incubator.Dockerfile
+    # stdin_open: true
+    tty: true
+    environment:
+      # PY_ENV: production
+      PROJECT_ENV: env/od.env
+
+      DAY_SHIFT_BEGIN: "00:01"
+      DAY_SHIFT_END: "23:59"
+
+      DATABASE_HOST: mysql-test
+      DATABASE_PORT: 3306
+      DATABASE_USER: root
+      DATABASE_PASSWORD: AqqhQ993VNto
+      DATABASE_NAME: testing_api
+      # DATABASE_NAME: foxlink
+
+      FOXLINK_EVENT_DB_HOSTS: "['mysql-test']"
+      FOXLINK_EVENT_DB_USER: root
+      FOXLINK_EVENT_DB_PWD: AqqhQ993VNto
+      FOXLINK_EVENT_DB_NAME: testing_foxlink
+      FOXLINK_EVENT_DB_TABLE: foxlinkevents
+
+      FOXLINK_DEVICE_DB_HOST: '140.118.157.9:27001'
+      FOXLINK_DEVICE_DB_USER: root
+      FOXLINK_DEVICE_DB_PWD: AqqhQ993VNto
+      FOXLINK_DEVICE_DB_NAME: sfc
+
+      MQTT_BROKER: emqx
+      MQTT_PORT: 1883
+
+      JWT_SECRET: secret
+    ports:
+      - 8080:8080
+    networks:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/code/
+
+  # watchtower:
+  #   image: containrrr/watchtower
+  #   command: --interval 30
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - ./watchtower-config.json:/config.json
+
+  mysql-test:
+    #### Initialize ###
+    # build:
+    # context: .
+    # dockerfile: testdb.Dockerfile
+    #### For each Scenario ####
+    image: mysql-test:large
+    restart: unless-stopped
+    tty: true
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    environment:
+      MYSQL_DATABASE: foxlink
+      MYSQL_ROOT_PASSWORD: AqqhQ993VNto
+    ports:
+      - 27001:3306
+>>>>>>> v10-teddy
     networks:
       - backend
 

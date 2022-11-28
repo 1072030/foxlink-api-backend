@@ -159,7 +159,9 @@ class WorkerStatusDto(BaseModel):
     total_dispatches: int
     mission_duration: Optional[float]
     repair_duration: Optional[float]
-
+    
+class WorkerStatus(BaseModel):
+    status: str
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]

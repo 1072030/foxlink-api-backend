@@ -59,7 +59,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
     raw_data_in_day = await api_db.fetch_all(f"""
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
-        INNER JOIN factorymaps f on f.id = d.workshop
+        INNER JOIN factory_maps f on f.id = d.workshop
         WHERE (m.created_date BETWEEN :day_start AND :day_end) AND d.is_rescue = 0 AND f.name = :workshop_name
         GROUP BY device
         ORDER BY count DESC;
@@ -73,7 +73,7 @@ async def show_recommend_whitelist_devices(workshop_name: str):
     raw_data_in_night = await api_db.fetch_all(f"""
         SELECT device, COUNT(*) as count FROM missions m
         INNER JOIN devices d on d.id = m.device
-        INNER JOIN factorymaps f on f.id = d.workshop
+        INNER JOIN factory_maps f on f.id = d.workshop
         WHERE (m.created_date BETWEEN :night_start AND :night_end) AND d.is_rescue = 0 AND f.name = :workshop_name
         GROUP BY device
         ORDER BY count DESC;

@@ -212,7 +212,7 @@ async def get_project_names_by_project(
         raise HTTPException(404, "the workshop is not found")
 
     project_names: List[Mapping[str, str]] = await api_db.fetch_all(
-        "SELECT DISTINCT d.project FROM devices d INNER JOIN factorymaps f ON d.workshop = :workshop_id WHERE d.project != 'rescue';",
+        "SELECT DISTINCT d.project FROM devices d INNER JOIN factory_maps f ON d.workshop = :workshop_id WHERE d.project != 'rescue';",
         {"workshop_id": w.id},
     )
 

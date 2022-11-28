@@ -12,6 +12,7 @@ from app.models.schema import (
     UserOverviewOut,
     WorkerAttendance,
     WorkerStatusDto,
+    WorkerStatus,
     WorkerSummary,
 )
 from passlib.context import CryptContext
@@ -87,7 +88,7 @@ async def check_user_begin_shift(user: User) -> Optional[bool]:
 
 async def get_worker_mission_history(badge: str) -> List[MissionDto]:
     missions = (
-        await Mission.objects.filter(assignees__badge=badge)
+        await Mission.objects.filter(worker__badge=badge)
         .select_related(["device", "device__workshop"])
         .exclude_fields(
             [
@@ -156,7 +157,7 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
                     and_(repair_beg_date__isnull=True,
                          repair_end_date__isnull=True),
                 ),
-                assignees__badge=badge,
+                worker__badge=badge,
                 is_done=False,
             )
         ).order_by("-id").first()
@@ -200,30 +201,94 @@ async def is_user_working_on_mission(badge: str) -> bool:
 
     return False
 
+# ============ features re-add by Teddy ============
+async def get_worker_mission_history(username: str) -> List[MissionDto]:
+    missions = (
+        await Mission.objects.filter(worker__badge=username)
+        .select_related(["device", "device__workshop"])
+        .exclude_fields(
+            [
+                "device__workshop__map",
+                "device__workshop__related_devices",
+                "device__workshop__image",
+            ]
+        )
+        .order_by("-created_date")
+        .limit(10)
+        .all()
+    )
+    return [MissionDto.from_mission(x) for x in missions]
+
+async def get_subordinates_users_by_badge(current_badge: str):
+    the_user = await User.objects.filter(badge=current_badge).get_or_none()
+
+    if the_user is None:
+        raise HTTPException(404, "the user with this id is not found")
+
+    async def get_subsordinates_list(current_badge: str) -> List[str]:
+        result = await api_db.fetch_all("""
+        SELECT DISTINCT badge FROM users u 
+        WHERE u.superior = :superior
+        """, {'superior': current_badge})
+
+        return [row[0] for row in result]
+
+    all_subsordinates = await get_subsordinates_list(current_badge)
+
+    while True:
+        temp = []
+        for subsordinates_badge in all_subsordinates:
+            t2 = await get_subsordinates_list(subsordinates_badge)
+
+            for x in t2:
+                if x not in temp and x not in all_subsordinates:
+                    temp.append(x)
+        if len(temp) == 0:
+            break
+        all_subsordinates.extend(temp)
+    
+    workers = (
+        await User.objects
+        .select_related(["at_device"])
+        .exclude_fields(['workshop__related_devices', 'workshop__image', 'workshop__map'])
+        .filter(badge__in=all_subsordinates)
+        .all()
+    )
+    return workers
+
+async def get_user_all_level_subordinates_by_badge(badge: str):
+    subsordinates = await get_subordinates_users_by_badge(badge)
+    promises = [get_worker_status(name) for name in subsordinates]
+    resp: List[WorkerStatusDto] = []
+    resp = await asyncio.gather(*promises)
+    
+    return resp
 
 async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
-    users = await User.objects.select_related("location").filter(location__name=workshop_name).all()
+    users = await User.objects.select_related("workshop").filter(workshop__name=workshop_name).all()
 
     day_overview: List[UserOverviewOut] = []
     night_overview: List[UserOverviewOut] = []
-    shift_types = [0, 1]
+    shift_types = [1, 2]
 
     for s in shift_types:
+        _shift_type = ShiftType(s)
         for u in users:
             overview = UserOverviewOut(
                 badge=u.badge,
                 username=u.username,
                 superior=u.superior.username,
                 level=u.level,
-                shift=s,
+                shift=_shift_type,
+                experiences=[]
             )
 
-            if u.location is not None:
-                overview.workshop = u.location.name
+            if u.workshop is not None:
+                overview.workshop = u.workshop.name
 
             device_levels = (
                 await UserDeviceLevel.objects.select_related(["superior", "device"])
-                .filter(user=u, shift=s)
+                .filter(user=u, shift=_shift_type)
                 .all()
             )
 
@@ -248,6 +313,7 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
 
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
 
+# ============ Teddy End ============
 
 async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
     worker = await User.objects.filter(badge=badge).get_or_none()
@@ -256,10 +322,6 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
         raise HTTPException(
             status_code=404, detail="the user with this id is not found"
         )
-
-    if worker.level != UserLevel.maintainer.value:
-        return None
-
     total_accepted_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)
@@ -392,9 +454,9 @@ async def is_worker_in_device_whitelist(badge: str, device_id: str) -> bool:
 async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     if worker is None:
         return None
-
-    shift_start, shift_end = get_current_shift_time_interval()
-
+    
+    shift, shift_start, shift_end = await get_current_shift_details()
+    
     total_start_count = await api_db.fetch_val(
         f"""
         SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 

@@ -46,7 +46,6 @@ class Stats(BaseModel):
     top_most_reject_mission_employees: List[WorkerMissionStats]
     top_most_accept_mission_employees: List[WorkerMissionStats]
     login_users_percentage_this_week: float
-    current_emergency_mission: List[MissionDto]
 
 
 @router.get("/", response_model=Stats, tags=["statistics"])
@@ -84,22 +83,22 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
         login_users_percentage_this_week=login_users_percentage,
         top_most_accept_mission_employees=top_mission_accept_employees,
         top_most_reject_mission_employees=top_mission_reject_employees,
-        current_emergency_mission=emergency_missions,
     )
 
 
 @router.get("/{workshop_name}/worker-status", response_model=List[WorkerStatusDto], tags=["statistics"])
 async def get_all_worker_status(workshop_name: str):
+    
     workers = (
         await User.objects
-        .exclude_fields(['location__related_devices', 'location__image', 'location__map'])
-        .filter(worker__level=UserLevel.maintainer.value, location__name=workshop_name)
+        .select_related(["at_device"])
+        .exclude_fields(['workshop__related_devices', 'workshop__image', 'workshop__map'])
+        .filter(level=UserLevel.maintainer.value, workshop__name=workshop_name)
         .all()
     )
-
     resp: List[WorkerStatusDto] = []
 
-    promises = [get_worker_status(worker.badge) for worker in workers]
+    promises = [get_worker_status(worker) for worker in workers]
 
     resp = await asyncio.gather(*promises)
 

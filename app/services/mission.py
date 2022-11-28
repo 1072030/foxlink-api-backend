@@ -64,7 +64,7 @@ async def get_missions_by_badge(badge: str):
                 "device__workshop__image",
             ]
         )
-        .filter(assignees__badge=badge)
+        .filter(worker__badge=badge)
         .order_by("-created_date")
         .all()
     )
@@ -333,9 +333,10 @@ async def cancel_mission_by_id(mission_id: int):
         is_done_cancel=True
     )
 
-    await mission.worker.update(
-        finish_event_date=get_ntz_now()
-    )
+    if mission.worker:
+        await mission.worker.update(
+            finish_event_date=get_ntz_now()
+        )
 
 
 @ transaction
