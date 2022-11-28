@@ -93,14 +93,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 async def get_admin_active_user(active_user: User = Depends(get_current_user)):
     if not active_user.level == UserLevel.admin.value:
-<<<<<<< HEAD
-        raise HTTPException(401, 'You are not admin')
-
-=======
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="Permission Denied"
         )
->>>>>>> v10-teddy
     return active_user
 
 
