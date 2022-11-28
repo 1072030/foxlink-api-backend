@@ -135,5 +135,5 @@ dmypy.json
 # excel temp files
 ~*.xlsx
 
-.env
+# .env
 logs/
