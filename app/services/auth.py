@@ -96,7 +96,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def get_admin_active_user(active_user: User = Depends(get_current_user)):
     if not active_user.level == UserLevel.admin.value:
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="You're not admin!"
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="Permission Denied"
         )
     return active_user
 
@@ -104,10 +104,10 @@ async def get_admin_active_user(active_user: User = Depends(get_current_user)):
 async def get_manager_active_user(
     manager_user: User = Depends(get_current_user),
 ):
-    if manager_user.level <= 1:
+    if manager_user.level <= UserLevel.maintainer.value:
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED,
-            detail="You're not manager or admin!",
+            status_code=HTTPStatus.HTTP_403_FORBIDDEN,
+            detail="Permission Denied",
         )
     return manager_user
 

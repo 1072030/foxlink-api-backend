@@ -50,7 +50,7 @@ async def get_all_devices_status(workshop_name: str, is_rescue=False):
                 device=d,
                 is_done=False
             )
-            .select_related(["assignees"])
+            .select_related(["worker"])
             .order_by("-created_date")
             .all()
         )
@@ -66,7 +66,7 @@ async def get_all_devices_status(workshop_name: str, is_rescue=False):
             device_status.status = DeviceStatusEnum.working
         else:
             m = related_missions[0]
-            if len(m.assignees) > 0:
+            if m.worker:
                 if m.worker.status == WorkerStatusEnum.leave.value:
                     device_status.status = DeviceStatusEnum.halt
                 else:

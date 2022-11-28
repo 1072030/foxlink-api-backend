@@ -105,7 +105,7 @@ async def create_fake_mission(workshop_name: str):
 async def mark_mission_as_done(mission_id: int):
     mission = (
         await Mission.objects.filter(id=mission_id)
-        .select_related(["missionevents"])
+        .select_related(["mission_events"])
         .get_or_none()
     )
 

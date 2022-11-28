@@ -88,7 +88,7 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
         f"""
         SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
             SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_beg_date, event_end_date) as duration, m.created_date
-            FROM missionevents
+            FROM mission_events
             INNER JOIN missions m ON m.id = mission
             INNER JOIN devices d ON d.id = m.device 
             WHERE 
@@ -117,7 +117,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
     abnormal_devices: List[AbnormalDeviceInfo] = await api_db.fetch_all(
         f"""
         SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_beg_date, event_end_date)) as duration
-        FROM missionevents
+        FROM mission_events
         INNER JOIN missions m ON m.id = mission
         INNER JOIN devices d ON d.id = m.device 
         WHERE 
@@ -143,7 +143,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
             """
             SELECT t1.badge, t1.username, min(t1.duration) as duration FROM (
                 SELECT u.badge, u.username, TIMESTAMPDIFF(SECOND, me.event_beg_date, me.event_end_date) as duration
-                FROM missionevents me
+                FROM mission_events me
                 LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
                 INNER JOIN missions m ON m.id = me.mission
                 INNER JOIN users u ON u.badge = mu.user
@@ -171,18 +171,18 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
     """取得當月最常接受任務的員工"""
 
     utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
-        "m.created_date", "created_date")
+        "m.created_date", "audit_log_headers.created_date")
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
-        "m.created_date", "created_date")
+        "m.created_date", "audit_log_headers.created_date")
 
     query = await api_db.fetch_all(
         f"""
         SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
-        FROM `auditlogheaders`
-        INNER JOIN users u ON u.badge = auditlogheaders.`user`
+        FROM `audit_log_headers`
+        INNER JOIN users u ON u.badge = audit_log_headers.`user`
         WHERE 
             action='MISSION_ACCEPTED'
-            AND (created_date BETWEEN :start_date AND :end_date)
+            AND (audit_log_headers.created_date BETWEEN :start_date AND :end_date)
             AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
         GROUP BY u.badge
@@ -199,18 +199,18 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
 async def get_top_most_reject_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常拒絕任務的員工"""
     utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
-        "m.created_date", "created_date")
+        "m.created_date", "audit_log_headers.created_date")
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
-        "m.created_date", "created_date")
+        "m.created_date", "audit_log_headers.created_date")
 
     query = await api_db.fetch_all(
         f"""
         SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
-        FROM `auditlogheaders`
-        INNER JOIN users u ON u.badge = auditlogheaders.`user`
+        FROM `audit_log_headers`
+        INNER JOIN users u ON u.badge = audit_log_headers.`user`
         WHERE 
             action='MISSION_REJECTED'
-            AND (created_date BETWEEN :start_date AND :end_date)
+            AND (audit_log_headers.created_date BETWEEN :start_date AND :end_date)
             AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
         GROUP BY u.badge
@@ -234,18 +234,18 @@ async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_
         return 0.0
 
     utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
-        "m.created_date", "created_date")
+        "m.created_date", "a.created_date")
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
-        "m.created_date", "created_date")
+        "m.created_date", "a.created_date")
 
     result = await api_db.fetch_all(
         f"""
-        SELECT count(DISTINCT user) FROM `auditlogheaders` a
+        SELECT count(DISTINCT user) FROM `audit_log_headers` a
         INNER JOIN users u ON a.user = u.badge
         WHERE 
             action='USER_LOGIN'
             AND u.level = 1
-            AND (created_date BETWEEN :start_date AND :end_date)
+            AND (a.created_date BETWEEN :start_date AND :end_date)
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
             AND u.workshop = :workshop_id;
         """,
@@ -259,7 +259,7 @@ async def get_emergency_missions(workshop_id: int) -> List[MissionDto]:
     """取得當下緊急任務列表"""
     missions = (
         await Mission.objects
-        .select_related(["assignees", "device", "device__workshop"])
+        .select_related(["worker", "device", "device__workshop"])
         .exclude_fields(["device__workshop__map", "device__workshop__related_devices", "device__workshop__image"])
         .filter(
             is_done=False,

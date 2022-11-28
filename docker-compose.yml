@@ -89,10 +89,10 @@ services:
 
   incubator:
     restart: unless-stopped
-    image: incubator:latest
-    # build:
-    #   context: .
-    #   dockerfile: incubator.Dockerfile
+    # image: incubator:latest
+    build:
+      context: .
+      dockerfile: incubator.Dockerfile
     # stdin_open: true
     tty: true
     environment:
@@ -124,7 +124,8 @@ services:
       MQTT_PORT: 1883
 
       JWT_SECRET: secret
-
+    ports:
+      - 8080:8080
     networks:
       - backend
     extra_hosts:

@@ -38,6 +38,7 @@ async def get_missions_by_query(
     user: User = Depends(get_manager_active_user),
     worker: Optional[str] = None,
     workshop_name: Optional[str] = None,
+    is_worker_null: Optional[bool] = None,
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
@@ -48,9 +49,10 @@ async def get_missions_by_query(
     end_date: Optional[datetime.datetime] = None,
 ):
     params = {
+        "worker": None,
         "created_date__gte": start_date,
         "created_date__lte": end_date,
-        "assignees__badge": worker,
+        "worker__badge": worker,
         "is_done": is_done,
         "is_emergency": is_emergency,
         "device__is_rescue": is_rescue,
@@ -60,10 +62,12 @@ async def get_missions_by_query(
     }
 
     params = {k: v for k, v in params.items() if v is not None}
-
+    if is_worker_null:
+        params["worker"] = None
+        
     missions = (
         await Mission.objects.select_related(
-            ["events", "device__workshop"]
+            ["worker", "events", "device__workshop"]
         )
         .exclude_fields(
             [
@@ -125,7 +129,7 @@ async def get_self_mission(
                 "device__workshop__image",
             ]
         )
-        .filter(assignees__badge=user.badge, **params)  # type: ignore
+        .filter(worker__badge=user.badge, **params)  # type: ignore
         .order_by("-created_date")
         .all()
     )

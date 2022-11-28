@@ -11,6 +11,10 @@ RUN apt install -y bmon
 RUN apt-get install curl -y
 # 
 RUN apt-get install ffmpeg libsm6 libxext6 -y
+#
+RUN apt-get install libmariadb-dev -y
+#
+RUN apt-get install gcc -y
 # 
 COPY requirements.txt /code/
 # 
