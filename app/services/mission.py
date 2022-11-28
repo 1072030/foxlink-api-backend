@@ -207,6 +207,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
     mission.accept_recv_date = None
     mission.repair_beg_date = None
     mission.repair_end_date = None
+
     if mission_reject_count >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
         await mqtt_client.publish(
             f"foxlink/{mission.device.workshop.name}/mission/rejected",
@@ -343,7 +344,7 @@ async def cancel_mission_by_id(mission_id: int):
 async def assign_mission(mission_id: int, badge: str):
     user = await User.objects.get_or_none(badge=badge)
 
-    mission = await Mission.objects.select_related(["events"]).get_or_none(id=mission_id)
+    mission = await Mission.objects.select_related(["device", "events"]).get_or_none(id=mission_id)
 
     is_idle = (user.status == WorkerStatusEnum.idle.value)
 

@@ -232,7 +232,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         entity = await FactoryMap.objects.fields(["id", "name"]).filter(name=workshop).get_or_none()
         if (entity == None):
             raise HTTPException(
-                status_code=400, detail=f"unknown workshop name: {row['workshop']}"
+                status_code=400, detail=f"unknown workshop name: {workshop}"
             )
         workshop_entity_dict[workshop] = entity
 
@@ -240,7 +240,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         rescue = await Device.objects.filter(workshop=workshop_entity_dict[workshop], is_rescue=True).first()
         if (rescue == None):
             raise HTTPException(
-                status_code=400, detail=f"rescue device missing in workshop: {row['workshop']}"
+                status_code=400, detail=f"rescue device missing in workshop: {workshop}"
             )
         workshop_default_rescue[workshop] = rescue
 
@@ -334,13 +334,14 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
 
     # process user device levels
     device_worker_level_unique_frame = factory_worker_info[[
-        'workshop', 'process', 'project', 'device_name', 'worker_id'
+        'workshop', 'process', 'project', 'device_name', 'worker_id', 'level'
     ]].drop_duplicates()
     unknown_devices_in_table = []
 
     for _, row in device_worker_level_unique_frame.iterrows():
         workshop = row["workshop"]
         process: int = row["process"]
+        level: int = int(row["level"])
         project: str = row["project"]
         device_name: str = row["device_name"]
         user: str = row["worker_id"]
@@ -371,6 +372,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                             id=entity.id,
                             device=device.id,
                             user=user,
+                            level=level,
                             updated_date=get_ntz_now()
                         )
                     )
@@ -378,7 +380,8 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                     create_user_device_levels_bulk.append(
                         UserDeviceLevel(
                             device=device.id,
-                            user=user
+                            user=user,
+                            level=level
                         )
                     )
 
@@ -394,6 +397,8 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
             columns=list(sample.dict(
                 exclude={"user", "device"}, exclude_defaults=True))
         )
+
+    return params
 
 
 @transaction

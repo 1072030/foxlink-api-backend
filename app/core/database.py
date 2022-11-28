@@ -222,8 +222,12 @@ class UserDeviceLevel(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     user: User = ormar.ForeignKey(
-        User, index=True, ondelete="CASCADE", related_name="device_levels")
+        User, index=True,
+        ondelete="CASCADE",
+        related_name="device_levels"
+    )
     device: Device = ormar.ForeignKey(Device, index=True, ondelete="CASCADE")
+    level: int = ormar.SmallInteger(minimum=0, default=0)
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
