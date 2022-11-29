@@ -62,7 +62,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
 
     await user.update(status=WorkerStatusEnum.idle.value)
-    if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
+    ####
+    #### Modify this for Shung
+    ####
+    if True: #user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
 
         # reset user parameters
         user.shift_beg_date = get_ntz_now()
@@ -89,9 +92,5 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 is_done_cancel=True
             )
         #######################################################
-
-        if user.start_position is not None:
-            await user.update(at_device=user.start_position)
-            await set_mission_by_rescue_position(user, user.start_position)
 
     return {"access_token": access_token, "token_type": "bearer"}

@@ -407,6 +407,7 @@ async def assign_mission(mission_id: int, badge: str):
     )
 
     if mission.device.is_rescue == False:
+        await asyncio.sleep(5)
         await mqtt_client.publish(
             f"foxlink/users/{worker.current_UUID}/missions",
             {
@@ -428,7 +429,9 @@ async def assign_mission(mission_id: int, badge: str):
                 "events": [
                     MissionEventOut.from_missionevent(e).dict()
                     for e in mission.events
-                ]
+                ],
+                "notify_receive_date": mission.notify_recv_date,
+                "notify_send_date": mission.notify_send_date
             },
             qos=2
         )
@@ -465,6 +468,7 @@ async def request_assistance(mission_id: int, worker: User):
     )
 
     try:
+        await asyncio.sleep(5)
         await mqtt_client.publish(
             f"foxlink/users/{worker.current_UUID}/missions",
             {
@@ -486,7 +490,9 @@ async def request_assistance(mission_id: int, worker: User):
                 "events": [
                     MissionEventOut.from_missionevent(e).dict()
                     for e in mission.events
-                ]
+                ],
+                "notify_receive_date": mission.notify_recv_date,
+                "notify_send_date": mission.notify_send_date
             },
             qos=2
         )
@@ -509,8 +515,11 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         is_lonely=False,
         description=f"請前往救援站"
     )
-
+    
     await worker.update(status=WorkerStatusEnum.notice.value)
+    
+    await asyncio.sleep(5)
+
     await mqtt_client.publish(
         f"foxlink/users/{worker.current_UUID}/move-rescue-station",
         {
@@ -529,9 +538,11 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
             },
             "name": mission.name,
             "description": mission.description,
-            "events": ""
+            "events": [],
+            "notify_receive_date": mission.notify_recv_date,
+            "notify_send_date": mission.notify_send_date
         },
-        qos=2,
+        qos=2
     )
 
     await AuditLogHeader.objects.create(

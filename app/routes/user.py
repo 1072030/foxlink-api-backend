@@ -14,7 +14,9 @@ from app.core.database import (
     api_db,
     transaction
 )
+from app.services.mission import set_mission_by_rescue_position
 from app.services.user import (
+    check_user_begin_shift,
     get_user_summary,
     # create_user,
     get_password_hash,
@@ -111,9 +113,10 @@ async def get_user_attendances(user: User = Depends(get_current_user)):
     return await get_worker_attendances(user.badge)
 
 
-@router.get("/check-user-status", response_model=str, tags=["users"])
+@router.get("/check-user-status", response_model=Optional[WorkerStatus], tags=["users"])
 async def check_user_staus(user: User = Depends(get_current_user)):
-    return await check_user_status_by_badge(user)
+    status = await check_user_status_by_badge(user)
+    return WorkerStatus(status=status)
 
 
 @router.post("/change-password", tags=["users"])
@@ -128,7 +131,12 @@ async def change_password(
         password_hash=get_password_hash(dto.new_password),
         change_pwd=True
     )
-
+    
+@router.get("/set-user-start-position",tags=["users"])
+async def set_user_start_position(user:User=Depends(get_current_user)):
+    if user.start_position is not None:
+        await user.update(at_device=user.start_position)
+        await set_mission_by_rescue_position(user,user.start_position)
 
 @transaction
 @router.post("/get-off-work", tags=["users"])
@@ -188,8 +196,8 @@ async def get_all_users_overview(workshop_name: str, user: User = Depends(get_ma
     return await get_users_overview(workshop_name)
 
 
-@router.get("/{badge}/status", tags=["users"], response_model=Optional[WorkerStatus])
-async def get_user_status(badge: str, user: User = Depends(get_current_user)):
-    return WorkerStatus(status=user.status)
+# @router.get("/{badge}/status", tags=["users"], response_model=Optional[WorkerStatus])
+# async def get_user_status(badge: str, user: User = Depends(get_current_user)):
+#     return WorkerStatus(status=user.status)
 
 # ============ Teddy End ============

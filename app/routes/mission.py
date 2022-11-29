@@ -29,7 +29,7 @@ from app.services.auth import (
 from app.models.schema import MissionUpdate, MissionDto
 from fastapi.exceptions import HTTPException
 
-from app.services.user import is_user_working_on_mission
+from app.services.user import check_user_begin_shift, is_user_working_on_mission
 
 router = APIRouter(prefix="/missions")
 
@@ -65,7 +65,7 @@ async def get_missions_by_query(
     params = {k: v for k, v in params.items() if v is not None}
     if is_worker_null:
         params["worker"] = None
-        
+
     missions = (
         await Mission.objects.select_related(
             ["worker", "events", "device__workshop"]
@@ -175,6 +175,8 @@ async def assign_mission_to_user(
         user=user_name,
         description=f"From Web API (Reqeust by {user.badge})",
     )
+
+
 
 
 @router.post("/{mission_id}/cancel", tags=["missions"])
