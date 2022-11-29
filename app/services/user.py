@@ -119,24 +119,17 @@ async def move_user_to_position(badge: str, device_id: str):
             status_code=404, detail="the device with this id is not found"
         )
 
-    try:
+    await user.update(
+        at_device=device_id,
+        finish_event_date=get_ntz_now()
+    )
 
-        await user.update(
-            at_device=device,
-            finish_event_date=get_ntz_now()
-        )
-
-        await AuditLogHeader.objects.create(
-            table_name="worker_status",
-            record_pk=device_id,
-            action=AuditActionEnum.USER_MOVE_POSITION.value,
-            user=user,
-        )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail="cannot update user's position: " + repr(e)
-        )
+    await AuditLogHeader.objects.create(
+        table_name="worker_status",
+        record_pk=device_id,
+        action=AuditActionEnum.USER_MOVE_POSITION.value,
+        user=user,
+    )
 
 
 async def get_user_working_mission(badge: str) -> Optional[Mission]:
@@ -202,6 +195,8 @@ async def is_user_working_on_mission(badge: str) -> bool:
     return False
 
 # ============ features re-add by Teddy ============
+
+
 async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(worker__badge=username)
@@ -218,6 +213,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
         .all()
     )
     return [MissionDto.from_mission(x) for x in missions]
+
 
 async def get_subordinates_users_by_badge(current_badge: str):
     the_user = await User.objects.filter(badge=current_badge).get_or_none()
@@ -246,7 +242,7 @@ async def get_subordinates_users_by_badge(current_badge: str):
         if len(temp) == 0:
             break
         all_subsordinates.extend(temp)
-    
+
     workers = (
         await User.objects
         .select_related(["at_device"])
@@ -256,13 +252,15 @@ async def get_subordinates_users_by_badge(current_badge: str):
     )
     return workers
 
+
 async def get_user_all_level_subordinates_by_badge(badge: str):
     subsordinates = await get_subordinates_users_by_badge(badge)
     promises = [get_worker_status(name) for name in subsordinates]
     resp: List[WorkerStatusDto] = []
     resp = await asyncio.gather(*promises)
-    
+
     return resp
+
 
 async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
     users = await User.objects.select_related("workshop").filter(workshop__name=workshop_name).all()
@@ -314,6 +312,7 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
 
 # ============ Teddy End ============
+
 
 async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
     worker = await User.objects.filter(badge=badge).get_or_none()
@@ -454,9 +453,9 @@ async def is_worker_in_device_whitelist(badge: str, device_id: str) -> bool:
 async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     if worker is None:
         return None
-    
+
     shift, shift_start, shift_end = await get_current_shift_details()
-    
+
     total_start_count = await api_db.fetch_val(
         f"""
         SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 

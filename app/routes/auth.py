@@ -60,7 +60,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         action=AuditActionEnum.USER_LOGIN.value,
         user=user,
     )
-    
+
     await user.update(status=WorkerStatusEnum.idle.value)
     if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
 
@@ -69,17 +69,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         user.finish_event_date = get_ntz_now()
         user.shift_reject_count = 0
         user.shift_accept_count = 0
-
-        rescue_station = (
-            await Device.objects
-            .filter(
-                workshop=user.workshop, is_rescue=True
-            )
-            .first()
-        )
-
-        user.at_device = rescue_station
-
+        
+        await user.update()
         # TODO: Weird Check, this section is required due to design flaws?
         rescue_missions = (
             await Mission.objects
@@ -99,9 +90,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             )
         #######################################################
 
-        await user.update()
-
         if user.start_position is not None:
+            await user.update(at_device=user.start_position)
             await set_mission_by_rescue_position(user, user.start_position)
 
     return {"access_token": access_token, "token_type": "bearer"}

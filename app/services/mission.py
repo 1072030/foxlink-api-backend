@@ -118,8 +118,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     if mission.device.is_rescue:
         await mission.update(repair_end_date=get_ntz_now())
-        await move_user_to_position(worker.badge, mission.device.id)
-        await worker.update(status=WorkerStatusEnum.idle.value)
+        await worker.update(status=WorkerStatusEnum.idle.value, at_device=mission.device.id, finish_event_date=get_ntz_now())
         return
 
     if mission.worker == worker and mission.is_started:
@@ -495,7 +494,7 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         repair_beg_date=get_ntz_now(),
         device=rescue_position,
         is_lonely=False,
-        description=f"請前往救援站 {rescue_position}"
+        description=f"請前往救援站"
     )
 
     await worker.update(status=WorkerStatusEnum.notice.value)
@@ -504,10 +503,20 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         {
             "type": "rescue",
             "mission_id": mission.id,
+            "worker_now_position": worker.at_device,
+            "create_date": mission.created_date,
+            "device": {
+                "device_id": mission.device.id,
+                "device_name": mission.device.device_name,
+                "device_cname": mission.device.device_cname,
+                "workshop": mission.device.workshop,
+                "project": mission.device.project,
+                "process": mission.device.process,
+                "line": mission.device.line,
+            },
             "name": mission.name,
             "description": mission.description,
-            "worker_now_position": worker.at_device,
-            "rescue_station": rescue_position,
+            "events": ""
         },
         qos=2,
     )
