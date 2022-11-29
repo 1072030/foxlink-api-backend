@@ -157,7 +157,7 @@ async def is_user_working_on_mission(badge: str) -> bool:
                     repair_end_date__isnull=True
                 ),
             ),
-            is_done_cure=False,
+            is_done=False,
             worker=worker,
             )
         )

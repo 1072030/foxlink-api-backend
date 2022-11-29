@@ -158,14 +158,13 @@ async def mission_shift_routine():
         .filter(
             is_done=False,
             repair_end_date__isnull=True,
-
+            worker__isnull=False
         )
         .select_related(
             ["worker", "events", "device"]
         )
         .filter(
             device__is_rescue=False,
-            worker__isnull=False
         )
         .all()
     )
@@ -208,6 +207,7 @@ async def mission_shift_routine():
             for e in mission.events:
                 replicate_event = MissionEvent(
                     event_id=e.event_id,
+                    host=e.host,
                     table_name=e.table_name,
                     category=e.category,
                     message=e.message,
@@ -317,7 +317,7 @@ async def move_idle_workers_to_rescue_device():
             continue
 
         # check if worker took a long time to move to the rescue station.
-        if current_date - worker.finish_event_date < timedelta(seconds=WORKER_IDLE_OT_RESCUE_MINUTES):
+        if current_date - worker.finish_event_date < timedelta(minutes=WORKER_IDLE_OT_RESCUE_MINUTES):
             continue
 
         if len(rescue_stations) == 0:
@@ -870,17 +870,17 @@ async def main(interval: int):
             start = time.perf_counter()
             await update_complete_events_handler()
 
-            await auto_close_missions()
+            # await auto_close_missions()
 
             await mission_shift_routine()
 
-            await move_idle_workers_to_rescue_device()
+            # await move_idle_workers_to_rescue_device()
 
-            await check_mission_working_duration_overtime()
+            # await check_mission_working_duration_overtime()
 
-            await check_mission_assign_duration_overtime()
+            # await check_mission_assign_duration_overtime()
 
-            await sync_events_from_foxlink_handler()
+            # await sync_events_from_foxlink_handler()
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()

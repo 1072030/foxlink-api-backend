@@ -59,5 +59,5 @@ elif [[ $1 == "create" ]];
 then
     create
 else
-    echo "Unknown command"
+    echo "Unknown command..."
 fi
