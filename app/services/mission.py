@@ -17,7 +17,10 @@ from app.core.database import (
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt import mqtt_client
-from app.services.user import get_user_by_badge, is_user_working_on_mission, move_user_to_position
+from app.services.user import (
+    get_user_by_badge,
+    is_user_working_on_mission
+)
 from app.log import LOGGER_NAME
 from app.env import (
     WORKER_REJECT_AMOUNT_NOTIFY,
@@ -118,7 +121,11 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     if mission.device.is_rescue:
         await mission.update(repair_end_date=get_ntz_now())
-        await worker.update(status=WorkerStatusEnum.idle.value, at_device=mission.device.id, finish_event_date=get_ntz_now())
+        await worker.update(
+            status=WorkerStatusEnum.idle.value,
+            at_device=mission.device.id,
+            finish_event_date=get_ntz_now()
+        )
         return
 
     if mission.worker == worker and mission.is_started:
@@ -130,13 +137,15 @@ async def start_mission_by_id(mission_id: int, worker: User):
             400, "one of the worker hasn't accepted the mission yet!"
         )
 
-    await mission.update(repair_beg_date=get_ntz_now())
+    await mission.update(
+        repair_beg_date=get_ntz_now()
+    )
 
-    worker.status = WorkerStatusEnum.working.value
-
-    await worker.update()
-
-    await move_user_to_position(worker.badge, mission.device.id)
+    await worker.update(
+        status=WorkerStatusEnum.working.value,
+        at_device=mission.device.id,
+        finish_event_date=get_ntz_now()
+    )
 
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_STARTED.value,
@@ -504,20 +513,26 @@ async def request_assistance(mission_id: int, worker: User):
 
 @ transaction
 async def set_mission_by_rescue_position(worker: User, rescue_position: str):
-    mission = await Mission.objects.create(
-        name="前往救援站",
-        worker=worker.badge,
-        notify_send_date=get_ntz_now(),
-        notify_recv_date=get_ntz_now(),
-        accept_recv_date=get_ntz_now(),
-        repair_beg_date=get_ntz_now(),
-        device=rescue_position,
-        is_lonely=False,
-        description=f"請前往救援站"
+    mission = await (
+        Mission.objects
+        .create(
+            name="前往救援站",
+            worker=worker.badge,
+            notify_send_date=get_ntz_now(),
+            notify_recv_date=get_ntz_now(),
+            accept_recv_date=get_ntz_now(),
+            repair_beg_date=get_ntz_now(),
+            device=rescue_position,
+            is_lonely=False,
+            description=f"請前往救援站"
+        )
     )
-    
-    await worker.update(status=WorkerStatusEnum.notice.value)
-    
+
+    worker = await worker.update(
+        status=WorkerStatusEnum.notice.value,
+        at_device=rescue_position
+    )
+
     await asyncio.sleep(5)
 
     await mqtt_client.publish(

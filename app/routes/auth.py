@@ -41,9 +41,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     if user.status == WorkerStatusEnum.working.value:
         raise HTTPException(
-            403, f'the worker on device : {user.current_UUID} is working now.')
+            403, f'the worker on device : {user.current_UUID} is working now.'
+        )
 
     await set_device_UUID(user, form_data.client_id)
+
     access_token = create_access_token(
         data={
             "sub": user.badge,
@@ -52,7 +54,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    user.login_date = get_ntz_now()
+    await user.update(
+        login_date=get_ntz_now(),
+        status=WorkerStatusEnum.idle.value
+    )
 
     await AuditLogHeader.objects.create(
         table_name="users",
@@ -61,19 +66,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         user=user,
     )
 
-    await user.update(status=WorkerStatusEnum.idle.value)
-    ####
-    #### Modify this for Shung
-    ####
-    if True: #user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
-
+    if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
         # reset user parameters
-        user.shift_beg_date = get_ntz_now()
-        user.finish_event_date = get_ntz_now()
-        user.shift_reject_count = 0
-        user.shift_accept_count = 0
-        
-        await user.update()
+        await user.update(
+            shift_beg_date=get_ntz_now(),
+            finish_event_date=get_ntz_now(),
+            shift_reject_count=0,
+            shift_accept_count=0
+        )
+
         # TODO: Weird Check, this section is required due to design flaws?
         rescue_missions = (
             await Mission.objects
@@ -91,6 +92,5 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 is_done=True,
                 is_done_cancel=True
             )
-        #######################################################
 
     return {"access_token": access_token, "token_type": "bearer"}

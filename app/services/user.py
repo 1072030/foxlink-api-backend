@@ -105,33 +105,6 @@ async def get_worker_mission_history(badge: str) -> List[MissionDto]:
     return [MissionDto.from_mission(x) for x in missions]
 
 
-async def move_user_to_position(badge: str, device_id: str):
-    user = await get_user_by_badge(badge)
-    device = await get_device_by_id(device_id)
-
-    if user is None:
-        raise HTTPException(
-            status_code=404, detail="the user with this id is not found"
-        )
-
-    if device is None:
-        raise HTTPException(
-            status_code=404, detail="the device with this id is not found"
-        )
-
-    await user.update(
-        at_device=device_id,
-        finish_event_date=get_ntz_now()
-    )
-
-    await AuditLogHeader.objects.create(
-        table_name="worker_status",
-        record_pk=device_id,
-        action=AuditActionEnum.USER_MOVE_POSITION.value,
-        user=user,
-    )
-
-
 async def get_user_working_mission(badge: str) -> Optional[Mission]:
     worker = await User.objects.filter(badge=badge).get_or_none()
 

@@ -131,12 +131,14 @@ async def change_password(
         password_hash=get_password_hash(dto.new_password),
         change_pwd=True
     )
-    
-@router.get("/set-user-start-position",tags=["users"])
-async def set_user_start_position(user:User=Depends(get_current_user)):
+
+
+@router.get("/set-user-start-position", tags=["users"])
+async def set_user_start_position(user: User = Depends(get_current_user)):
     if user.start_position is not None:
         await user.update(at_device=user.start_position)
-        await set_mission_by_rescue_position(user,user.start_position)
+        await set_mission_by_rescue_position(user, user.start_position)
+
 
 @transaction
 @router.post("/get-off-work", tags=["users"])
@@ -179,8 +181,6 @@ async def delete_a_user_by_badge(
     return True
 
 
-# ============ features re-add by Teddy ============
-
 @router.get("/subordinates", tags=["users"], response_model=List[WorkerStatusDto])
 async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
     return await get_user_all_level_subordinates_by_badge(user.badge)
@@ -194,10 +194,3 @@ async def get_user_mission_history(user: User = Depends(get_current_user)):
 @router.get("/overview", tags=["users"], response_model=DayAndNightUserOverview)
 async def get_all_users_overview(workshop_name: str, user: User = Depends(get_manager_active_user)):
     return await get_users_overview(workshop_name)
-
-
-# @router.get("/{badge}/status", tags=["users"], response_model=Optional[WorkerStatus])
-# async def get_user_status(badge: str, user: User = Depends(get_current_user)):
-#     return WorkerStatus(status=user.status)
-
-# ============ Teddy End ============
