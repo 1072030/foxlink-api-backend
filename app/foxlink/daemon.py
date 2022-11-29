@@ -216,6 +216,12 @@ async def mission_shift_routine():
                 )
                 await replicate_mission.events.add(replicate_event)
 
+            # update worker status
+            await mission.worker.update(
+                status=WorkerStatusEnum.idle.value,
+                finish_event_date=get_ntz_now()
+            )
+
             # create audit log
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
@@ -870,17 +876,17 @@ async def main(interval: int):
             start = time.perf_counter()
             await update_complete_events_handler()
 
-            # await auto_close_missions()
+            await auto_close_missions()
 
             await mission_shift_routine()
 
-            # await move_idle_workers_to_rescue_device()
+            await move_idle_workers_to_rescue_device()
 
-            # await check_mission_working_duration_overtime()
+            await check_mission_working_duration_overtime()
 
-            # await check_mission_assign_duration_overtime()
+            await check_mission_assign_duration_overtime()
 
-            # await sync_events_from_foxlink_handler()
+            await sync_events_from_foxlink_handler()
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()

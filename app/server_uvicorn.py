@@ -40,4 +40,4 @@ if __name__ == "__main__":
     startup_daemons()
     signal.signal(signal.SIGINT, terminate_daemons)
     signal.signal(signal.SIGTERM, terminate_daemons)
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, workers=16)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, workers=8)
