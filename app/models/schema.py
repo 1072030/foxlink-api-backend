@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, Optional, List
 from pydantic import BaseModel
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 from app.core.database import (
     Device,
     Mission,
@@ -285,3 +285,9 @@ class WhitelistRecommendDevice(BaseModel):
 class DeviceDispatchableWorker(BaseModel):
     badge: str
     username: str
+
+
+class ShiftDto(BaseModel):
+    id: str
+    shift_beg_time: time
+    shift_end_time: time
