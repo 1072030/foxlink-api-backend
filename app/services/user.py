@@ -456,15 +456,7 @@ async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
 
     shift, shift_start, shift_end = await get_current_shift_details()
 
-    total_start_count = await api_db.fetch_val(
-        f"""
-        SELECT COUNT(DISTINCT mu.mission) FROM missions_users mu 
-        INNER JOIN missions m ON m.id = mu.mission
-        INNER JOIN audit_log_headers a ON a.record_pk = m.id 
-        WHERE mu.user = :badge AND a.action = 'MISSION_STARTED' AND (a.created_date BETWEEN :shift_start AND :shift_end);
-        """,
-        {'badge': worker.badge, 'shift_start': shift_start, 'shift_end': shift_end},
-    )
+    total_start_count = worker.shift_accept_count
 
     item = WorkerStatusDto(
         worker_id=worker.badge,
