@@ -114,7 +114,7 @@ async def get_user_attendances(user: User = Depends(get_current_user)):
 
 
 @router.get("/check-user-status", response_model=Optional[WorkerStatus], tags=["users"])
-async def check_user_staus(user: User = Depends(get_current_user)):
+async def check_user_status(user: User = Depends(get_current_user)):
     status = await check_user_status_by_badge(user)
     return WorkerStatus(status=status)
 

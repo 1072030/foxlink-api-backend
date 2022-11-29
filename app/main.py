@@ -77,19 +77,6 @@ async def startup():
         foxlink_dbs.connect()
     ])
 
-    # check table exists
-    if (await Shift.objects.count() == 0):
-        await Shift.objects.bulk_create(
-            [
-                Shift(
-                    id=shift_type.value,
-                    shift_beg_time=interval[0],
-                    shift_end_time=interval[1]
-                )
-                for shift_type, interval in ShiftInterval.items()
-            ]
-        )
-
     logger.info("Foxlink API Server startup complete.")
 
 

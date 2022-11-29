@@ -416,7 +416,6 @@ async def assign_mission(mission_id: int, badge: str):
     )
 
     if mission.device.is_rescue == False:
-        await asyncio.sleep(5)
         await mqtt_client.publish(
             f"foxlink/users/{worker.current_UUID}/missions",
             {
@@ -477,7 +476,6 @@ async def request_assistance(mission_id: int, worker: User):
     )
 
     try:
-        await asyncio.sleep(5)
         await mqtt_client.publish(
             f"foxlink/users/{worker.current_UUID}/missions",
             {
@@ -532,8 +530,6 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         status=WorkerStatusEnum.notice.value,
         at_device=rescue_position
     )
-
-    await asyncio.sleep(5)
 
     await mqtt_client.publish(
         f"foxlink/users/{worker.current_UUID}/move-rescue-station",
