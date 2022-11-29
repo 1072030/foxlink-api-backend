@@ -20,7 +20,7 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
             else:
                 return None  # type: ignore
     else:
-        if dtype is List[int] or dtype is List[str]:
+        if dtype in [List[int], List[str], List[float]]:
             return literal_eval(val)
         elif dtype is bool:
             return dtype(int(val))  # type: ignore
@@ -71,11 +71,11 @@ DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
 
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
-OVERTIME_MISSION_NOTIFY_PERIOD = get_env("OVERTIME_MISSION_NOTIFY_PERIOD", List[int], [20, 10, 10])
+MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES = get_env("MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES", List[float], [20, 10, 10])
 
 # 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
-MOVE_TO_RESCUE_STATION_TIME = get_env(
-    "MOVE_TO_RESCUE_STATION_TIME", int, 5
+WORKER_IDLE_OT_RESCUE_MINUTES = get_env(
+    "WORKER_IDLE_OT_RESCUE_MINUTES", int, 5
 )  # unit: minutes")
 
 # 白名單最低故障數建議閥值
@@ -85,7 +85,7 @@ WHITELIST_MINIMUM_OCCUR_COUNT = get_env("WHITELIST_MINIMUM_OCCUR_COUNT", int, 35
 DISABLE_FOXLINK_DISPATCH = get_env("DISABLE_FOXLINK_DISPATCH", bool, False)
 
 # 員工被指派沒有反應時間
-CHECK_MISSION_ASSIGN_DURATION = get_env("CHECK_MISSION_ASSIGN_DURATION", int, 10 * 60)
+MISSION_ASSIGN_OT_MINUTES = get_env("MISSION_ASSIGN_OT_MINUTES", float, 10)
 
 # 例行程序參數設定
 RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
@@ -115,4 +115,4 @@ if os.environ.get("USE_ALEMBIC") is None:
         logger.warn("DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")
 
     logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
-    logger.warn(f"OVERTIME_MISSION_NOTIFY_PERIOD: {OVERTIME_MISSION_NOTIFY_PERIOD}")
+    logger.warn(f"MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES: {MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES}")

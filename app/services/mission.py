@@ -120,7 +120,9 @@ async def start_mission_by_id(mission_id: int, worker: User):
     #     raise HTTPException(400, "this mission is already closed or canceled")
 
     if mission.device.is_rescue:
-        await mission.update(repair_end_date=get_ntz_now())
+        await mission.update(
+            repair_end_date=get_ntz_now()
+        )
         await worker.update(
             status=WorkerStatusEnum.idle.value,
             at_device=mission.device.id,

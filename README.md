@@ -164,7 +164,7 @@ MISSION_REJECT_AMOUT_NOTIFY | Minimum notify threshold that a mission is being r
 DAY_SHIFT_BEGIN             | Day shift begin time (UTC Time)                                                                                             | 07:40         | 07:40
 DAY_SHIFT_END               | Day shift end time (UTC Time)                                                                                               | 19:40         | 19:40
 MAX_NOT_ALIVE_TIME          | Maximun time that a worker's application is not alive (in minutes)                                                          | 5             | 5
-MOVE_TO_RESCUE_STATION_TIME | Maximun time that a worker can idle at a device. When time's out, worker will be notified to move to nearest rescue station | 5             | 5
+WORKER_IDLE_OT_RESCUE_MINUTES | Maximun time that a worker can idle at a device. When time's out, worker will be notified to move to nearest rescue station | 5             | 5
 
 # Related Infos
 - NTUST MQTT Broker: 140.118.157.9:27010

@@ -33,7 +33,7 @@ from app.services.user import (
 from app.utils.utils import get_current_shift_type
 from app.mqtt import mqtt_client
 from app.env import (
-    CHECK_MISSION_ASSIGN_DURATION,
+    MISSION_ASSIGN_OT_MINUTES,
     DISABLE_FOXLINK_DISPATCH,
     FOXLINK_EVENT_DB_HOSTS,
     FOXLINK_EVENT_DB_PWD,
@@ -43,9 +43,9 @@ from app.env import (
     MAX_NOT_ALIVE_TIME,
     EMQX_USERNAME,
     EMQX_PASSWORD,
-    MOVE_TO_RESCUE_STATION_TIME,
+    WORKER_IDLE_OT_RESCUE_MINUTES,
     MQTT_PORT,
-    OVERTIME_MISSION_NOTIFY_PERIOD,
+    MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES,
     RECENT_EVENT_PAST_DAYS,
 )
 from app.core.database import (
@@ -317,7 +317,7 @@ async def move_idle_workers_to_rescue_device():
             continue
 
         # check if worker took a long time to move to the rescue station.
-        if current_date - worker.finish_event_date < timedelta(minutes=MOVE_TO_RESCUE_STATION_TIME):
+        if current_date - worker.finish_event_date < timedelta(seconds=WORKER_IDLE_OT_RESCUE_MINUTES):
             continue
 
         if len(rescue_stations) == 0:
@@ -579,7 +579,7 @@ async def check_mission_working_duration_overtime():
     )
 
     thresholds: List[int] = [0]
-    for minutes in OVERTIME_MISSION_NOTIFY_PERIOD:
+    for minutes in MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES:
         thresholds.append(thresholds[-1] + minutes)
     thresholds.pop(0)
 
@@ -636,7 +636,7 @@ async def check_mission_assign_duration_overtime():
     )
 
     for mission in assign_mission_check:
-        if mission.assign_duration.total_seconds() >= CHECK_MISSION_ASSIGN_DURATION:
+        if mission.assign_duration.total_seconds() / 60 >= MISSION_ASSIGN_OT_MINUTES:
             # TODO: missing notify supervisor
 
             await mqtt_client.publish(
@@ -657,7 +657,6 @@ async def check_mission_assign_duration_overtime():
                 record_pk=str(mission.id),
                 user=mission.worker,
             )
-            break
 
 
 ######### events completed  ########
