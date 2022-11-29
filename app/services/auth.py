@@ -66,14 +66,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         if badge is None:
             raise HTTPException(403, 'Could not validate credentials')
     except ExpiredSignatureError:
-        payload = jwt.decode(token, JWT_SECRET,  algorithms=['HS256'], options={
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], options={
                              "verify_exp": False, "verify_signature": False})
         badge: str = payload.get("sub")
         decode_UUID: str = payload.get("UUID")
         user = await get_user_by_badge(badge)
 
         if decode_UUID == user.current_UUID:
-            await user.update(current_UUID="0")
+            user = await user.update(current_UUID="0")
 
         raise HTTPException(403, 'Signature has expired')
 

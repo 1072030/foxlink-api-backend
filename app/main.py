@@ -17,6 +17,7 @@ from app.routes import (
     log,
     device,
     workshop,
+    shift
 )
 from app.core.database import api_db, Shift, ShiftType, ShiftInterval
 from app.mqtt import mqtt_client
@@ -61,6 +62,7 @@ app.include_router(log.router)
 app.include_router(device.router)
 app.include_router(workshop.router)
 app.include_router(test.router)
+app.include_router(shift.router)
 
 if PY_ENV == 'dev':
     app.include_router(test.router)

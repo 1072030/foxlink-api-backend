@@ -170,7 +170,8 @@ async def accept_mission_by_id(mission_id: int, worker: User):
             )
 
     await mission.update(
-        accept_recv_date=get_ntz_now()
+        accept_recv_date=get_ntz_now(),
+        notify_recv_date=get_ntz_now()
     )
 
     await worker.update(
@@ -190,6 +191,12 @@ async def accept_mission_by_id(mission_id: int, worker: User):
 async def reject_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
+    worker = (
+        await User.objects
+        .select_related("accepted_missions")
+        .get_or_none(badge=worker.badge)
+    )
+
     if mission is None:
         raise HTTPException(
             404, "the mission you request to start is not found")
@@ -197,15 +204,35 @@ async def reject_mission_by_id(mission_id: int, worker: User):
     if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "the mission haven't assigned to you")
 
+    if mission.worker == None and worker in mission.rejections:
+        raise HTTPException(200, "this mission is already rejected.")
+
     if mission.is_started or mission.is_closed:
         raise HTTPException(200, "this mission is already started or closed")
 
     mission_reject_count = len(mission.rejections) + 1
-    mission.notify_send_date = None
-    mission.notify_recv_date = None
-    mission.accept_recv_date = None
-    mission.repair_beg_date = None
-    mission.repair_end_date = None
+
+    worker.shift_reject_count += 1
+
+    await mission.update(
+        notify_send_date=None,
+        notify_recv_date=None,
+        accept_recv_date=None,
+        repair_beg_date=None,
+        repair_end_date=None
+    )
+    await worker.rejected_missions.add(mission)
+
+    await worker.accepted_missions.remove(mission)
+
+    await worker.update(status=WorkerStatusEnum.idle.value)
+
+    await AuditLogHeader.objects.create(
+        table_name="missions",
+        action=AuditActionEnum.MISSION_REJECTED.value,
+        record_pk=str(mission.id),
+        user=worker,
+    )
 
     if mission_reject_count >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
         await mqtt_client.publish(
@@ -219,9 +246,6 @@ async def reject_mission_by_id(mission_id: int, worker: User):
             retain=True,
         )
 
-    worker.shift_reject_count += 1
-    worker.status = WorkerStatusEnum.idle.value
-
     if worker.shift_reject_count >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
 
         await mqtt_client.publish(
@@ -234,19 +258,6 @@ async def reject_mission_by_id(mission_id: int, worker: User):
             qos=2,
             retain=True,
         )
-
-    await mission.update()
-    await worker.update()
-
-    await worker.accepted_missions.remove(mission)
-    await mission.rejections.add(worker)
-
-    await AuditLogHeader.objects.create(
-        table_name="missions",
-        action=AuditActionEnum.MISSION_REJECTED.value,
-        record_pk=str(mission.id),
-        user=worker,
-    )
 
 
 @ transaction
@@ -423,6 +434,7 @@ async def assign_mission(mission_id: int, badge: str):
         )
 
 
+@ transaction
 async def request_assistance(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -484,6 +496,7 @@ async def request_assistance(mission_id: int, worker: User):
         )
 
 
+@ transaction
 async def set_mission_by_rescue_position(worker: User, rescue_position: str):
     mission = await Mission.objects.create(
         name="前往救援站",
