@@ -111,11 +111,16 @@ async def get_manager_active_user(
 
 
 async def check_user_status_by_badge(user: User):
+    userStatus = user.status
     if user.status is WorkerStatusEnum.notice.value:
-        mission = await Mission.objects.select_related(['worker']).get_or_none()
+        try:
+            mission = await Mission.objects.select_related(['worker']).get()
+        except:
+            raise HTTPException(404, "The user do not have mission now.")
+
         if mission.notify_recv_date is None:
-            return WorkerStatusEnum.idle.value
-    return user.status
+            userStatus = WorkerStatusEnum.idle.value
+    return userStatus
 
 
 async def set_device_UUID(
