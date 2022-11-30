@@ -91,6 +91,7 @@ def show_duration(func):
         end = time.perf_counter()
         logger.warning(f'[{func.__name__}] took {end - start:.2f} seconds.')
         return result
+    return wrapper
 
 
 # def timer(func):
