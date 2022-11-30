@@ -10,7 +10,7 @@ from databases import Database
 from typing import Any, Dict, List, Tuple, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
-from app.models.schema import MissionDto
+from app.models.schema import MissionDto, MissionEventOut
 from app.routes import user
 from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
@@ -147,6 +147,71 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 #                 except:
 #                     continue
 
+
+@transaction
+@show_duration
+async def send_mission_routine():
+    mission = await Mission.objects.select_related(
+        ["device", "missionevents"]
+    ).filter(repair_beg_date=None, repair_end_date=None, notify_recv_date=None,is_done=False).all()
+
+    for m in mission:
+        if m.worker is None:
+            continue
+        if m.device.is_rescue == False:
+            await mqtt_client.publish(
+                f"foxlink/users/{m.worker.current_UUID}/missions",
+                {
+                    "type": "new",
+                    "mission_id": m.id,
+                    "worker_now_position": m.worker.at_device,
+                    "create_date": m.created_date,
+                    "device": {
+                        "device_id": m.device.id,
+                        "device_name": m.device.device_name,
+                        "device_cname": m.device.device_cname,
+                        "workshop": m.device.workshop.name,
+                        "project": m.device.project,
+                        "process": m.device.process,
+                        "line": m.device.line,
+                    },
+                    "name": m.name,
+                    "description": m.description,
+                    "events": [
+                        MissionEventOut.from_missionevent(e).dict()
+                        for e in m.events
+                    ],
+                    "notify_receive_date": mission.notify_recv_date,
+                    "notify_send_date": mission.notify_send_date
+                },
+                qos=2
+            )
+
+        else:
+            await mqtt_client.publish(
+            f"foxlink/users/{m.worker.current_UUID}/move-rescue-station",
+            {
+                "type": "rescue",
+                "mission_id": m.id,
+                "worker_now_position": m.worker.at_device,
+                "create_date": m.created_date,
+                "device": {
+                    "device_id": m.device.id,
+                    "device_name": m.device.device_name,
+                    "device_cname": m.device.device_cname,
+                    "workshop": m.device.workshop.name,
+                    "project": m.device.project,
+                    "process": m.device.process,
+                    "line": m.device.line,
+                },
+                "name": m.name,
+                "description": m.description,
+                "events": [],
+                "notify_receive_date": m.notify_recv_date,
+                "notify_send_date": m.notify_send_date
+            },
+            qos=2
+        )            
 
 # done
 @transaction
@@ -890,7 +955,7 @@ async def main(interval: int):
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()
-
+                await send_mission_routine()
             end = time.perf_counter()
             logger.warning("[main_routine] took %.2f seconds", end - start)
 
