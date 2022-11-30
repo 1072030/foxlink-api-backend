@@ -477,7 +477,7 @@ async def mission_dispatch():
                     status=WorkerStatusEnum.idle.value,
                     badge__in=whitelist_users_entity_dict
                 )
-                .select_related(["device_levels"])
+                .select_related(["device_levels", "at_device"])
                 .filter(
                     device_levels__device=mission.device.id,
                     device_levels__level__gt=0
@@ -542,6 +542,7 @@ async def mission_dispatch():
                     MissionDto.from_mission(mission).dict(),
                     qos=2,
                 )
+
         else:
             # select best worker candidate
             dispatch.get_dispatch_info(cand_workers)
@@ -859,18 +860,49 @@ async def main(interval: int):
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGINT, shutdown_callback_handler)
     loop.add_signal_handler(signal.SIGTERM, shutdown_callback_handler)
-
     # connect to service
-    await asyncio.gather(*[
-        api_db.connect(),
-        mqtt_client.connect(),
-        foxlink_dbs.connect()
-    ])
-    logger.info("Connections Created.")
+    logger.info("Start to Create  Connections.")
+
+    # while True:
+    #     try:
+    #
+    #     except Exception as e:
+    #         logger.error(f"cannot connect the API database:{e}")
+    #         continue
+    #     else:
+    #         break
+    # while True:
+    #     try:
+    #         await mqtt_client.connect()
+    #     except Exception as e:
+    #         logger.error(f"cannot connect the MQTT server:{e}")
+    #         continue
+    #     else:
+    #         break
+    # while True:
+    #     try:
+    #
+    #     except Exception as e:
+    #         logger.error(f"cannot connect the FOXLINK database:{e}")
+    #         continue
+    #     else:
+    #         break
+
+    try:
+        await asyncio.gather(
+            api_db.connect(),
+            foxlink_dbs.connect(),
+            mqtt_client.connect()
+        )
+    except Exception as e:
+        logger.error(f"Cannot Connect to the databases and servers")
+        logger.error(f"{e}")
+        exit(0)
+
+    logger.info("All Connections Created.")
 
     # main loop
     while not _terminate:
-        await asyncio.sleep(interval)
         try:
             logger.warning('[main_routine] Foxlink daemon is running...')
             start = time.perf_counter()
@@ -904,14 +936,23 @@ async def main(interval: int):
             logger.error(f'Unknown excpetion in main_routine: {repr(e)}')
             traceback.print_exc()
 
-    await asyncio.sleep(2)
+        await asyncio.sleep(interval)
+
+    await asyncio.sleep(5)
+
     # shutdown
     logger.info("Termiante Databases/Connections...")
-    await asyncio.gather(*[
-        api_db.disconnect(),
-        mqtt_client.disconnect(),
-        foxlink_dbs.disconnect()
-    ])
+    try:
+        await asyncio.gather(*[
+            api_db.disconnect(),
+            mqtt_client.disconnect(),
+            foxlink_dbs.disconnect()
+        ])
+    except Exception as e:
+        logger.error(f"Cannot Connect to the databases and servers")
+        logger.error(f"{e}")
+        exit(0)
+
     logger.info("Daemon Terminated.")
 
 parser = argparse.ArgumentParser()

@@ -36,6 +36,7 @@ app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 origins = [
     "http://localhost",
     "http://localhost:8080",
+    "http://127.0.0.1:8086",
     "http://140.118.157.9:43114",
     "http://192.168.65.210:8083",
     "http://140.118.157.9:8086",
