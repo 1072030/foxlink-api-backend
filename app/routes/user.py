@@ -77,7 +77,6 @@ async def read_all_users(
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_user)):
     first_login_timestamp = user.login_date
-
     if user.workshop is None:
         workshop_name = "無"
     else:

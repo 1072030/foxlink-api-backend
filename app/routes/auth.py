@@ -53,11 +53,21 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    await user.update(
-        login_date=get_ntz_now(),
-        status=WorkerStatusEnum.idle.value
-    )
+    mission = await Mission.objects.filter(is_done=False, worker=user).get_or_none()
+    user.login_date = get_ntz_now()
 
+    if (mission == None):
+        user.status = WorkerStatusEnum.idle.value
+    elif (not mission.repair_beg_date == None):
+        user.status = WorkerStatusEnum.working.value
+    elif (not mission.accept_recv_date == None):
+        user.status = WorkerStatusEnum.moving.value
+    elif (not mission.notify_send_date == None):
+        user.status = WorkerStatusEnum.notice.value
+    else:
+        user.status = WorkerStatusEnum.idle.value
+        
+    await user.update()
     await AuditLogHeader.objects.create(
         table_name="users",
         record_pk=user.badge,

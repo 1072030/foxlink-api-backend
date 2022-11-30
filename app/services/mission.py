@@ -98,7 +98,7 @@ async def click_mission_by_id(mission_id: int, worker: User):
 
     if mission is None:
         raise HTTPException(404, "the mission you click not found.")
-    
+
     if mission.notify_recv_date is None:
         await mission.update(notify_recv_date=get_ntz_now())
 
@@ -253,6 +253,8 @@ async def reject_mission_by_id(mission_id: int, worker: User):
                 "id": mission.id,
                 "worker": worker.username,
                 "rejected_count": mission_reject_count,
+                "timestamp": get_ntz_now()
+
             },
             qos=2,
             retain=True,
@@ -266,6 +268,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
                 "subordinate_id": worker.badge,
                 "subordinate_name": worker.username,
                 "total_rejected_count": worker.shift_reject_count,
+                "timestamp": get_ntz_now()
             },
             qos=2,
             retain=True,
@@ -418,34 +421,37 @@ async def assign_mission(mission_id: int, badge: str):
         status=WorkerStatusEnum.notice.value,
     )
 
-    if mission.device.is_rescue == False:
-        await mqtt_client.publish(
-            f"foxlink/users/{worker.current_UUID}/missions",
-            {
-                "type": "new",
-                "mission_id": mission.id,
-                "worker_now_position": worker.at_device,
-                "create_date": mission.created_date,
-                "device": {
-                    "device_id": mission.device.id,
-                    "device_name": mission.device.device_name,
-                    "device_cname": mission.device.device_cname,
-                    "workshop": mission.device.workshop.name,
-                    "project": mission.device.project,
-                    "process": mission.device.process,
-                    "line": mission.device.line,
-                },
-                "name": mission.name,
-                "description": mission.description,
-                "events": [
-                    MissionEventOut.from_missionevent(e).dict()
-                    for e in mission.events
-                ],
-                "notify_receive_date": mission.notify_recv_date,
-                "notify_send_date": mission.notify_send_date
-            },
-            qos=2
-        )
+    # if mission.device.is_rescue == False:
+        # await mqtt_client.publish(
+        #     f"foxlink/users/{worker.current_UUID}/missions",
+        #     {
+        #         "type": "new",
+        #         "mission_id": mission.id,
+        #         "worker_now_position": worker.at_device,
+        #         "create_date": mission.created_date,
+        #         "device": {
+        #             "device_id": mission.device.id,
+        #             "device_name": mission.device.device_name,
+        #             "device_cname": mission.device.device_cname,
+        #             "workshop": mission.device.workshop.name,
+        #             "project": mission.device.project,
+        #             "process": mission.device.process,
+        #             "line": mission.device.line,
+        #         },
+        #         "name": mission.name,
+        #         "description": mission.description,
+        #         "events": [
+        #             MissionEventOut.from_missionevent(e).dict()
+        #             for e in mission.events
+        #         ],
+        #         "notify_receive_date": mission.notify_recv_date,
+        #         "notify_send_date": mission.notify_send_date,
+        #         "timestamp": get_ntz_now()
+
+        #     },
+        #     qos=2,
+        #     retain=True
+        # )
 
 
 @ transaction
@@ -502,9 +508,12 @@ async def request_assistance(mission_id: int, worker: User):
                     for e in mission.events
                 ],
                 "notify_receive_date": mission.notify_recv_date,
-                "notify_send_date": mission.notify_send_date
+                "notify_send_date": mission.notify_send_date,
+                "timestamp": get_ntz_now()
+
             },
-            qos=2
+            qos=2,
+            retain=True
         )
 
     except Exception as e:
@@ -522,7 +531,6 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
             name="前往救援站",
             worker=worker.badge,
             notify_send_date=get_ntz_now(),
-            notify_recv_date=get_ntz_now(),
             accept_recv_date=get_ntz_now(),
             repair_beg_date=get_ntz_now(),
             device=rescue_position,
@@ -555,9 +563,12 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
             "description": mission.description,
             "events": [],
             "notify_receive_date": mission.notify_recv_date,
-            "notify_send_date": mission.notify_send_date
+            "notify_send_date": mission.notify_send_date,
+            "timestamp": get_ntz_now()
+
         },
-        qos=2
+        qos=2,
+        retain=True
     )
 
     await AuditLogHeader.objects.create(
