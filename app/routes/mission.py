@@ -177,8 +177,6 @@ async def assign_mission_to_user(
     )
 
 
-
-
 @router.post("/{mission_id}/cancel", tags=["missions"])
 async def cancel_a_mission_by_id(
     mission_id: int, user: User = Depends(get_manager_active_user)
