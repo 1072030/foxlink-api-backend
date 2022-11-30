@@ -17,7 +17,6 @@ from app.core.database import (
     WorkerStatusEnum
 )
 from app.core.database import get_ntz_now
-from app.services.mission import set_mission_by_rescue_position
 from app.services.user import check_user_begin_shift
 import logging
 import traceback

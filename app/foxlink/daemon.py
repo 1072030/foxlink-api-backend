@@ -162,7 +162,7 @@ async def send_mission_routine(end, start, elapsed_time):
     
     mission = await Mission.objects.select_related(
         ["device"]
-    ).filter(repair_beg_date=None, repair_end_date=None, notify_recv_date=None,is_done=False).all()
+    ).filter(repair_beg_date__isnull=True, repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
 
     for m in mission:
         if m.worker is None:
@@ -254,7 +254,7 @@ async def mission_shift_routine():
 
             # send mission finish message
             await mqtt_client.publish(
-                f"foxlink/users/{mission.worker.badge}/missions/finish",
+                f"foxlink/users/{mission.worker.current_UUID}/missions/finish",
                 {
                     "mission_id": mission.id,
                     "mission_state": "ovetime-duty"

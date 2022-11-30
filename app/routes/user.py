@@ -42,6 +42,7 @@ from app.models.schema import (
     UserOutWithWorkTimeAndSummary,
     UserPatch,
     MissionDto,
+    UserStatus,
     WorkerAttendance,
     WorkerStatusDto,
     WorkerStatus
@@ -113,10 +114,10 @@ async def get_user_attendances(user: User = Depends(get_current_user)):
     return await get_worker_attendances(user.badge)
 
 
-@router.get("/check-user-status", response_model=Optional[WorkerStatus], tags=["users"])
+@router.get("/check-user-status", response_model=UserStatus, tags=["users"])
 async def check_user_status(user: User = Depends(get_current_user)):
     status = await check_user_status_by_badge(user)
-    return WorkerStatus(status=status)
+    return UserStatus(status=status)
 
 
 @router.post("/change-password", tags=["users"])
@@ -135,9 +136,12 @@ async def change_password(
 
 @router.get("/set-user-start-position", tags=["users"])
 async def set_user_start_position(user: User = Depends(get_current_user)):
-    if user.start_position is not None:
-        await user.update(at_device=user.start_position)
-        await set_mission_by_rescue_position(user, user.start_position)
+    try:
+        user = await User.objects.filter(status=WorkerStatusEnum.idle.value, level=UserLevel.maintainer.value, start_position__isnull=False).get()
+        if await check_user_begin_shift(user):
+            await set_mission_by_rescue_position(user, user.start_position)
+    except:
+        raise HTTPException(404, "The User don't need to set start position.")
 
 
 @transaction
