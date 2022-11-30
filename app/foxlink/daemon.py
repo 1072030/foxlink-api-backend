@@ -154,14 +154,14 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 @transaction
 @show_duration
-async def send_mission_routine():
+async def send_mission_routine(elapsed_time, end, start):
 
-    # elapsed_time += (end - start)
-    # if elapsed_time % 60 > 10:
-    #     logger.warning(elapsed_time)
+    elapsed_time += (end - start)
+    if elapsed_time % 60 > 5:
+        logger.warning(elapsed_time)
 
     mission = await Mission.objects.select_related(
-        ["device","worker"]
+        ["device", "worker","device__workshop"]
     ).filter(repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
     for m in mission:
 
@@ -181,7 +181,7 @@ async def send_mission_routine():
                         "device_id": m.device.id,
                         "device_name": m.device.device_name,
                         "device_cname": m.device.device_cname,
-                        "workshop": m.device.workshop.name,
+                        "workshop": m.device__workshop__name,
                         "project": m.device.project,
                         "process": m.device.process,
                         "line": m.device.line,
@@ -211,7 +211,7 @@ async def send_mission_routine():
                         "device_id": m.device.id,
                         "device_name": m.device.device_name,
                         "device_cname": m.device.device_cname,
-                        "workshop": m.device.workshop.name,
+                        "workshop": m.device__workshop__name,
                         "project": m.device.project,
                         "process": m.device.process,
                         "line": m.device.line,
@@ -463,6 +463,8 @@ async def mission_dispatch():
         .select_related(
             [
                 "device",
+                "worker",
+                "worker__at_device",
                 "device__workshop",
                 "rejections",
             ]
@@ -582,8 +584,9 @@ async def mission_dispatch():
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
                 )
-                .select_related(["device_levels"])
+                .select_related(["device_levels","at_device"])
                 .filter(
+                    at_device__isnull=False,
                     device_levels__device=mission.device.id,
                     device_levels__level__gt=0
                 )
@@ -1015,9 +1018,11 @@ async def main(interval: int):
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()
-                await send_mission_routine()
 
             end = time.perf_counter()
+            if not DISABLE_FOXLINK_DISPATCH:
+                await send_mission_routine(elapsed_time, end, start)
+
             logger.warning("[main_routine] took %.2f seconds", end - start)
 
         except InterfaceError as e:

@@ -270,8 +270,12 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         shift: int = int(row["shift"]) + 1
         level: int = int(row["job"])
         if level == 1:
-            start_position = initial_pos.loc[initial_pos["worker_name"]
-                                             == badge].iloc[0]["start_position"]
+            try:
+                start_position = initial_pos.loc[initial_pos["worker_name"]
+                                                == badge].iloc[0]["start_position"]            
+            except:
+                start_position= None
+
         else:
             start_position = None
         worker = None
