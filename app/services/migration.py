@@ -206,14 +206,20 @@ async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> 
 
 
 @transaction
-async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> pd.DataFrame:
+async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, device_file: UploadFile) -> pd.DataFrame:
 
-    raw_excel: bytes = await excel_file.read()
+    raw_excel: bytes = await worker_file.read()
+    raw_excel_device_xy: bytes = await device_file.read()
 
     try:
         data = data_converter.fn_factory_worker_info(
-            excel_file.filename, raw_excel)
-
+            worker_file.filename, raw_excel
+        )
+        frame_device_xy: pd.DataFrame = pd.read_excel(
+            raw_excel_device_xy, sheet_name=0
+        )
+        moving_matrix = data_converter.fn_factorymap(frame_device_xy)
+        initial_pos = data_converter.fn_worker_start_position()
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
 
@@ -235,7 +241,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 status_code=400, detail=f"unknown workshop name: {workshop}"
             )
         workshop_entity_dict[workshop] = entity
-
+        entity.map
         # build rescue station matching
         rescue = await Device.objects.filter(workshop=workshop_entity_dict[workshop], is_rescue=True).first()
         if (rescue == None):
@@ -263,7 +269,11 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
         superior: str = None
         shift: int = int(row["shift"]) + 1
         level: int = int(row["job"])
-
+        if level == 1:
+            start_position = initial_pos.loc[initial_pos["worker_name"]
+                                             == badge].iloc[0]["start_position"]
+        else:
+            start_position = None
         worker = None
 
         if not await User.objects.filter(badge=badge).exists():
@@ -277,6 +287,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 level=level,
                 shift=shift,
                 status=WorkerStatusEnum.leave.value,
+                start_position=start_position,
                 at_device=workshop_default_rescue[workshop.name],
                 finish_event_date=get_ntz_now(),
             )
@@ -289,6 +300,7 @@ async def import_factory_worker_infos(workshop: str, excel_file: UploadFile) -> 
                 username=username,
                 workshop=workshop,
                 superior=superior,
+                start_position=start_position,
                 level=level,
                 shift=shift,
             )
