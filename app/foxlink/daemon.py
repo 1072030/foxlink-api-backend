@@ -159,10 +159,10 @@ async def send_mission_routine(end, start, elapsed_time):
     elapsed_time += (end - start)
     if elapsed_time % 60 > 10:
         return
-    
+
     mission = await Mission.objects.select_related(
         ["device"]
-    ).filter(repair_beg_date__isnull=True, repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
+    ).filter(repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
 
     for m in mission:
         if m.worker is None:
@@ -190,7 +190,7 @@ async def send_mission_routine(end, start, elapsed_time):
                         MissionEventOut.from_missionevent(e).dict()
                         for e in m.events
                     ],
-                    "notify_receive_date": m.notify_recv_date,
+                    "notify_receive_date": None,
                     "notify_send_date": m.notify_send_date
                 },
                 qos=2
@@ -198,31 +198,33 @@ async def send_mission_routine(end, start, elapsed_time):
 
         else:
             await mqtt_client.publish(
-            f"foxlink/users/{m.worker.current_UUID}/move-rescue-station",
-            {
-                "type": "rescue",
-                "mission_id": m.id,
-                "worker_now_position": m.worker.at_device,
-                "create_date": m.created_date,
-                "device": {
-                    "device_id": m.device.id,
-                    "device_name": m.device.device_name,
-                    "device_cname": m.device.device_cname,
-                    "workshop": m.device.workshop.name,
-                    "project": m.device.project,
-                    "process": m.device.process,
-                    "line": m.device.line,
+                f"foxlink/users/{m.worker.current_UUID}/move-rescue-station",
+                {
+                    "type": "rescue",
+                    "mission_id": m.id,
+                    "worker_now_position": m.worker.at_device,
+                    "create_date": m.created_date,
+                    "device": {
+                        "device_id": m.device.id,
+                        "device_name": m.device.device_name,
+                        "device_cname": m.device.device_cname,
+                        "workshop": m.device.workshop.name,
+                        "project": m.device.project,
+                        "process": m.device.process,
+                        "line": m.device.line,
+                    },
+                    "name": m.name,
+                    "description": m.description,
+                    "events": [],
+                    "notify_receive_date": None,
+                    "notify_send_date": m.notify_send_date
                 },
-                "name": m.name,
-                "description": m.description,
-                "events": [],
-                "notify_receive_date": m.notify_recv_date,
-                "notify_send_date": m.notify_send_date
-            },
-            qos=2
-        )            
+                qos=2
+            )
 
 # done
+
+
 @transaction
 @show_duration
 async def mission_shift_routine():
@@ -997,7 +999,7 @@ async def main(interval: int):
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()
-            
+
             end = time.perf_counter()
             logger.warning("[main_routine] took %.2f seconds", end - start)
 

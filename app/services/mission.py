@@ -98,7 +98,7 @@ async def click_mission_by_id(mission_id: int, worker: User):
 
     if mission is None:
         raise HTTPException(404, "the mission you click not found.")
-    
+
     if mission.notify_recv_date is None:
         await mission.update(notify_recv_date=get_ntz_now())
 
@@ -522,7 +522,6 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
             name="前往救援站",
             worker=worker.badge,
             notify_send_date=get_ntz_now(),
-            notify_recv_date=get_ntz_now(),
             accept_recv_date=get_ntz_now(),
             repair_beg_date=get_ntz_now(),
             device=rescue_position,
