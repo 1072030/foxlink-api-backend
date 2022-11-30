@@ -114,7 +114,7 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
         )
 
     try:
-        mission = await Mission.objects.filter(
+        mission = await Mission.objects.select_related("device").filter(
             and_(
                 # left: user still working on a mission, right: user is not accept a mission yet.
                 or_(
@@ -443,6 +443,7 @@ async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     item.at_device_cname = worker.at_device.device_cname if worker.at_device is not None else None
 
     mission = await get_user_working_mission(worker.badge)
+    
     if worker.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
         item.mission_duration = mission.mission_duration.total_seconds()  # type: ignore
 

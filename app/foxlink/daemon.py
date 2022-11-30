@@ -190,8 +190,8 @@ async def send_mission_routine(end, start, elapsed_time):
                         MissionEventOut.from_missionevent(e).dict()
                         for e in m.events
                     ],
-                    "notify_receive_date": mission.notify_recv_date,
-                    "notify_send_date": mission.notify_send_date
+                    "notify_receive_date": m.notify_recv_date,
+                    "notify_send_date": m.notify_send_date
                 },
                 qos=2
             )
