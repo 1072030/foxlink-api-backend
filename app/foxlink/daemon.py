@@ -91,7 +91,10 @@ def show_duration(func):
         end = time.perf_counter()
         logger.warning(f'[{func.__name__}] took {end - start:.2f} seconds.')
         return result
-    return wrapper
+
+
+# def timer(func):
+#     async def weapper(*args, **_a)
 
 
 def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
@@ -150,7 +153,12 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 @transaction
 @show_duration
-async def send_mission_routine():
+async def send_mission_routine(end, start, elapsed_time):
+
+    elapsed_time += (end - start)
+    if elapsed_time % 60 > 10:
+        return
+    
     mission = await Mission.objects.select_related(
         ["device", "missionevents"]
     ).filter(repair_beg_date=None, repair_end_date=None, notify_recv_date=None,is_done=False).all()
@@ -933,6 +941,7 @@ async def main(interval: int):
     ])
     logger.info("Connections Created.")
 
+    elapsed_time = 0
     # main loop
     while not _terminate:
         await asyncio.sleep(interval)
@@ -955,9 +964,12 @@ async def main(interval: int):
 
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()
-                await send_mission_routine()
+            
             end = time.perf_counter()
             logger.warning("[main_routine] took %.2f seconds", end - start)
+
+            if not DISABLE_FOXLINK_DISPATCH:
+                await send_mission_routine(end, start, elapsed_time)
 
         except InterfaceError as e:
             # weird condition. met once, never met twice.
