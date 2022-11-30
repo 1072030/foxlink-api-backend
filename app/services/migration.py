@@ -411,26 +411,3 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         )
 
     return params
-
-
-@transaction
-async def set_worker_position(
-    device_xy_file: UploadFile,
-    woker_info_file: UploadFile
-):
-    raw_excel_worker_info: bytes = await woker_info_file.read()
-    raw_excel_device_xy: bytes = await device_xy_file.read()
-    frame_device_xy: pd.DataFrame = pd.read_excel(
-        raw_excel_device_xy, sheet_name=0)
-    wokrer_info = data_converter.fn_factory_worker_info(
-        woker_info_file.filename, raw_excel_worker_info)
-    moving_matrix = data_converter.fn_factorymap(frame_device_xy)
-    initial_pos = data_converter.fn_worker_start_position()
-    for index, row in initial_pos.iterrows():
-        user = await User.objects.filter(badge=row["worker_name"]).get_or_none()
-        if user is None:
-            continue
-        await User.objects.filter(badge=row["worker_name"]).update(
-            start_position=row["start_position"]
-        )
-    return initial_pos

@@ -5,7 +5,6 @@ from app.services.migration import (
     import_devices,
     # import_workshop_events,
     import_factory_worker_infos,
-    set_worker_position,
 )
 from fastapi import APIRouter, Depends, File, Response, UploadFile, Form
 from app.core.database import AuditActionEnum, User, AuditLogHeader
@@ -89,25 +88,3 @@ async def import_factory_worker_infos_from_excel(
         raise e
 
 
-@router.post("/set-worker-start-position", tags=["migration"], status_code=201, responses={
-    201: {
-        "description": "Success",
-    },
-    400: {"description": "There's is an error in your document."},
-    415: {"description": "The file you uploaded is not in correct format.", },
-})
-async def set_worker_start_position(device_xy_file: UploadFile = File(...), woker_info_file: UploadFile = File(...), user: User = Depends(get_manager_active_user)):
-    if device_xy_file.filename.split(".")[1] != "xlsx" or woker_info_file.filename.split(".")[1] != "xlsx":
-        raise HTTPException(415)
-    try:
-        start_pos = await set_worker_position(
-            device_xy_file, woker_info_file)
-        logging.warning(type(start_pos))
-
-    except Exception as e:
-        await AuditLogHeader.objects.create(
-            table_name="users",
-            action=AuditActionEnum.DATA_IMPORT_FAILED.value,
-            user=user,
-        )
-        raise e

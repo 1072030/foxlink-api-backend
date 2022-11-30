@@ -236,7 +236,7 @@ async def get_user_all_level_subordinates_by_badge(badge: str):
 
 
 async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
-    users = await User.objects.select_related("workshop").filter(workshop__name=workshop_name).all()
+    users = await User.objects.select_related(["workshop", "superior"]).filter(workshop__name=workshop_name).all()
 
     day_overview: List[UserOverviewOut] = []
     night_overview: List[UserOverviewOut] = []
@@ -248,18 +248,19 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
             overview = UserOverviewOut(
                 badge=u.badge,
                 username=u.username,
-                superior=u.superior.username,
                 level=u.level,
                 shift=_shift_type,
                 experiences=[]
             )
-
+            if u.superior is not None:
+                overview.superior = u.superior.username
+            
             if u.workshop is not None:
                 overview.workshop = u.workshop.name
 
             device_levels = (
-                await UserDeviceLevel.objects.select_related(["superior", "device"])
-                .filter(user=u, shift=_shift_type)
+                await UserDeviceLevel.objects.select_related(["user", "device"])
+                .filter(user=u)
                 .all()
             )
 
