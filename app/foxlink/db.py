@@ -110,10 +110,11 @@ class FoxlinkDatabasePool:
                 "device": device
             }
         )
-
-        ename_split = project_names["dev_func"].split(",")
-
-        cname_list = ", ".join([full_cnames[ename] for ename in ename_split])
+        try:
+            ename_split = project_names["dev_func"].split(",")
+            cname_list = ", ".join([full_cnames[ename] for ename in ename_split])
+        except:
+            cname_list = "無法解析裝置中文名稱"    
             
         return cname_list
 

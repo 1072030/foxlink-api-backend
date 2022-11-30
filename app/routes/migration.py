@@ -33,7 +33,7 @@ async def import_devices_from_excel(
             user=user,
         )
         return ImportDevicesOut(device_ids=device_ids, parameter=params.to_csv())
-    
+
     except Exception as e:
         await AuditLogHeader.objects.create(
             table_name="devices",
@@ -60,14 +60,15 @@ async def import_devices_from_excel(
 )
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
-    file: UploadFile = File(...),
+    worker_file: UploadFile = File(...),
+    device_file: UploadFile = File(...),
     user: User = Depends(get_manager_active_user),
 ):
-    if file.filename.split(".")[1] != "xlsx":
+    if worker_file.filename.split(".")[1] != "xlsx" or  device_file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
 
     try:
-        params = await import_factory_worker_infos(workshop_name, file)
+        params = await import_factory_worker_infos(workshop_name, worker_file, device_file)
         await AuditLogHeader.objects.create(
             table_name="users",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
@@ -102,7 +103,6 @@ async def set_worker_start_position(device_xy_file: UploadFile = File(...), woke
         start_pos = await set_worker_position(
             device_xy_file, woker_info_file)
         logging.warning(type(start_pos))
-
 
     except Exception as e:
         await AuditLogHeader.objects.create(
