@@ -91,7 +91,3 @@ venv/
 */*.swp
 */*/*.swp
 */*/*/*.swp
-
-.env
-
-tools/

@@ -91,6 +91,7 @@ def show_duration(func):
         end = time.perf_counter()
         logger.warning(f'[{func.__name__}] took {end - start:.2f} seconds.')
         return result
+    return wrapper
 
 
 # def timer(func):
@@ -160,7 +161,7 @@ async def send_mission_routine(end, start, elapsed_time):
         return
     
     mission = await Mission.objects.select_related(
-        ["device", "missionevents"]
+        ["device"]
     ).filter(repair_beg_date=None, repair_end_date=None, notify_recv_date=None,is_done=False).all()
 
     for m in mission:
