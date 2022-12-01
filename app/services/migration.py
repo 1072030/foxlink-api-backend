@@ -270,11 +270,15 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         shift: int = int(row["shift"]) + 1
         level: int = int(row["job"])
         if level == 1:
-            start_position = initial_pos.loc[initial_pos["worker_name"]
-                                             == badge].iloc[0]["start_position"]
+            try:
+                start_position = initial_pos.loc[initial_pos["worker_name"] == badge].iloc[0]["start_position"]            
+            except:
+                start_position= None
         else:
             start_position = None
         worker = None
+
+        worker = await User.objects.filter(badge=badge).get_or_none()
 
         if not await User.objects.filter(badge=badge).exists():
             # create worker entity
@@ -402,6 +406,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         await UserDeviceLevel.objects.bulk_create(create_user_device_levels_bulk)
 
     # update user device levels
+
     if len(update_user_device_levels_bulk) > 0:
         sample = update_user_device_levels_bulk[0]
         await UserDeviceLevel.objects.bulk_update(

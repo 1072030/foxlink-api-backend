@@ -34,7 +34,8 @@ services:
       - "host.docker.internal:host-gateway"
 
   mysql:
-    image: mysql:8
+    # image: mysql:8
+    image: mysql-test:test2
     restart: unless-stopped
     labels:
       com.centurylinklabs.watchtower.enable: "false"
@@ -43,8 +44,8 @@ services:
       MYSQL_ROOT_PASSWORD: AqqhQ993VNto
     ports:
       - 27001:3306
-    volumes:
-      - mysql-storage:/var/lib/mysql
+    # volumes:
+    #   - mysql-storage:/var/lib/mysql
     networks:
       - backend
 

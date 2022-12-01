@@ -25,7 +25,6 @@ from app.log import LOGGER_NAME
 from fastapi.middleware.cors import CORSMiddleware
 from app.foxlink.db import foxlink_dbs
 
-
 # dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
 
