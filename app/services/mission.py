@@ -525,9 +525,8 @@ async def request_assistance(mission_id: int, worker: User):
 
 
 @ transaction
-async def set_mission_by_rescue_position(
-        worker: User,
-        rescue_position: str):
+async def set_mission_by_rescue_position(worker: User, rescue_position: str):
+
     # fetch position
     rescue_position = await(
         Device.objects
@@ -554,8 +553,6 @@ async def set_mission_by_rescue_position(
 
     await worker.update(status=WorkerStatusEnum.notice.value)
 
-    await asyncio.sleep(3)
-
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_ASSIGNED.value,
         user=worker.badge,
@@ -563,7 +560,7 @@ async def set_mission_by_rescue_position(
         record_pk=str(mission.id),
         description="前往消防站",
     )
-    
+
     await mqtt_client.publish(
         f"foxlink/users/{worker.current_UUID}/move-rescue-station",
         {

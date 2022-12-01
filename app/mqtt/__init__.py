@@ -31,7 +31,7 @@ class MQTT_Client:
         """
         self.mqtt_client.connect_async(self.broker, port=self.port, keepalive=30)
         self.mqtt_client.loop_start()
-        await self.wait_status(True)
+        # await self.wait_status(True)
 
     async def check_status(self, desire):
         while not self.status() == desire:
@@ -52,7 +52,7 @@ class MQTT_Client:
         """關閉MQTT連線"""
         if self.mqtt_client is not None:
             self.mqtt_client.disconnect()
-        await self.wait_status(False)
+        # await self.wait_status(False)
 
     async def publish(self, topic: str, payload, qos: int = 0, retain: bool = False) -> bool:
         """發送訊息到MQTT broker
@@ -62,7 +62,7 @@ class MQTT_Client:
         - qos: 訊息優先度
         - retain: 是否保留訊息
         """
-        await self.wait_status(True)
+        # await self.wait_status(True)
 
         json_str = json.dumps(payload, default=self.serializer)
 

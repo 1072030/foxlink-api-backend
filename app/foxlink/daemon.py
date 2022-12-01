@@ -1000,6 +1000,7 @@ async def main(interval: int):
         try:
             logger.warning('[main_routine] Foxlink daemon is running...')
             start = time.perf_counter()
+
             await update_complete_events_handler()
 
             await auto_close_missions()
