@@ -150,6 +150,51 @@ class MissionDto(BaseModel):
             updated_date=m.updated_date,
         )
 
+class MissionInfo(BaseModel):
+    mission_id: int
+    device: DeviceDto
+    name: str
+    description: str
+    worker: Optional[UserNameDto]
+    events: List[MissionEventOut]
+    is_started: bool
+    is_closed: bool
+    is_done: bool
+    is_emergency: bool
+    created_date: datetime
+    updated_date: datetime
+    notify_receive_date:datetime
+    notify_send_date:datetime
+
+    @classmethod
+    def from_mission(cls, m: Mission):
+        return cls(
+            mission_id=m.id,
+            name=m.name,
+            device=DeviceDto(
+                device_id=m.device.id,
+                device_name=m.device.device_name,
+                device_cname=m.device.device_cname,
+                workshop=m.device.workshop.name,
+                project=m.device.project,
+                process=m.device.process,
+                line=m.device.line,
+            ),
+            description=m.description,
+            is_started=m.is_started,
+            is_closed=m.is_closed,
+            is_done=m.is_done,
+            is_emergency=m.is_emergency,
+            worker=UserNameDto(
+                badge=m.worker.badge,
+                username=m.worker.username
+            ) if m.worker else None,
+            events=[MissionEventOut.from_missionevent(e) for e in m.events],
+            created_date=m.created_date,
+            updated_date=m.updated_date,
+            notify_receive_date = m.notify_recv_date,
+            notify_send_date = m.notify_send_date
+        )
 
 class WorkerStatusDto(BaseModel):
     worker_id: str

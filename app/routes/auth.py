@@ -18,6 +18,7 @@ from app.core.database import (
 )
 from app.core.database import get_ntz_now
 from app.services.user import check_user_begin_shift
+from app.services.mission import set_mission_by_rescue_position 
 import logging
 import traceback
 
@@ -54,36 +55,31 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
 
     mission = await Mission.objects.filter(is_done=False, worker=user).get_or_none()
-    user.login_date = get_ntz_now()
-
-    if (mission == None):
-        user.status = WorkerStatusEnum.idle.value
-    elif (not mission.repair_beg_date == None):
-        user.status = WorkerStatusEnum.working.value
-    elif (not mission.accept_recv_date == None):
-        user.status = WorkerStatusEnum.moving.value
-    elif (not mission.notify_send_date == None):
-        user.status = WorkerStatusEnum.notice.value
+    
+    if mission :   
+        if (not mission.repair_beg_date == None):
+            status = WorkerStatusEnum.working.value
+        elif (not mission.accept_recv_date == None):
+            status = WorkerStatusEnum.moving.value
+        elif (not mission.notify_send_date == None):
+            status = WorkerStatusEnum.notice.value
     else:
-        user.status = WorkerStatusEnum.idle.value
+        status = WorkerStatusEnum.idle.value 
         
-    await user.update()
-    await AuditLogHeader.objects.create(
-        table_name="users",
-        record_pk=user.badge,
-        action=AuditActionEnum.USER_LOGIN.value,
-        user=user,
-    )
-
-    if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
-        # reset user parameters
-        await user.update(
-            shift_beg_date=get_ntz_now(),
-            finish_event_date=get_ntz_now(),
-            shift_reject_count=0,
-            shift_accept_count=0
+    await asyncio.gather(
+        user.update(
+            status=status,
+            login_date=get_ntz_now()
+        ),
+        AuditLogHeader.objects.create(
+            table_name="users",
+            record_pk=user.badge,
+            action=AuditActionEnum.USER_LOGIN.value,
+            user=user,
         )
-
+    )
+    
+    if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
         # TODO: Weird Check, this section is required due to design flaws?
         rescue_missions = (
             await Mission.objects
@@ -96,10 +92,28 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             .all()
         )
 
-        for r in rescue_missions:
-            await r.update(
-                is_done=True,
-                is_done_cancel=True
+        await asyncio.gather(
+            # update previous rescue missions
+            *[ 
+                    r.update(
+                        is_done=True,
+                        is_done_cancel=True
+                    )
+                    for r in rescue_missions
+            ],
+            
+            # give rescue missiong if condition match
+            set_mission_by_rescue_position(user, user.start_position.id)
+            if(status == WorkerStatusEnum.idle.value and not user.start_position == None) else
+            None,
+            
+            # reset user parameters
+            user.update(
+                shift_beg_date=get_ntz_now(),
+                finish_event_date=get_ntz_now(),
+                shift_reject_count=0,
+                shift_accept_count=0
             )
+        )
 
     return {"access_token": access_token, "token_type": "bearer"}

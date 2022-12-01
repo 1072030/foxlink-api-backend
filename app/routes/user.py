@@ -77,7 +77,7 @@ async def read_all_users(
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_user)):
     first_login_timestamp = user.login_date
-    user = await User.objects.select_related("workshop").get()
+    user = await User.objects.select_related("workshop").get(badge=user.badge)
     if user.workshop is None:
         workshop_name = "無"
     else:
@@ -137,8 +137,12 @@ async def change_password(
 @router.get("/set-user-start-position", tags=["users"])
 async def set_user_start_position(user: User = Depends(get_current_user)):
     try:
-        user = await User.objects.filter(status=WorkerStatusEnum.idle.value, level=UserLevel.maintainer.value, start_position__isnull=False).get()
-        if await check_user_begin_shift(user):
+        # if(
+        #     user.status == WorkerStatusEnum.idle.value and 
+        #     user.level == UserLevel.maintainer.value and
+        #     not user.start_position == None and 
+        #     await check_user_just_login(user) 
+        # ):
             await set_mission_by_rescue_position(user, user.start_position)
     except:
         raise HTTPException(404, "The User don't need to set start position.")

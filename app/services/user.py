@@ -84,6 +84,12 @@ async def check_user_begin_shift(user: User) -> Optional[bool]:
     except Exception as e:
         print(e)
         return None
+async def check_user_just_login(user: User, interval:timedelta = timedelta(seconds=5)):
+    if(user.shift_beg_date+interval < get_ntz_now()):
+        return True
+    else:
+        return False
+    
 
 
 async def get_worker_mission_history(badge: str) -> List[MissionDto]:
@@ -294,6 +300,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
         raise HTTPException(
             status_code=404, detail="the user with this id is not found"
         )
+        
     total_accepted_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)

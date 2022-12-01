@@ -154,21 +154,19 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 @transaction
 @show_duration
-async def send_mission_routine(elapsed_time, end, start):
+async def send_mission_routine(elapsed_time):
 
-    elapsed_time += (end - start)
     if elapsed_time % 60 > 5:
-        logger.warning(elapsed_time)
+        return
 
     mission = await Mission.objects.select_related(
-        ["device", "worker","device__workshop"]
+        ["device", "worker", "device__workshop"]
     ).filter(repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
     for m in mission:
 
         if m.worker is None:
             continue
         if m.device.is_rescue == False:
-            logger.warning(m)
 
             await mqtt_client.publish(
                 f"foxlink/users/{m.worker.current_UUID}/missions",
@@ -181,7 +179,7 @@ async def send_mission_routine(elapsed_time, end, start):
                         "device_id": m.device.id,
                         "device_name": m.device.device_name,
                         "device_cname": m.device.device_cname,
-                        "workshop": m.device__workshop__name,
+                        "workshop": m.device.workshop.name,
                         "project": m.device.project,
                         "process": m.device.process,
                         "line": m.device.line,
@@ -211,7 +209,7 @@ async def send_mission_routine(elapsed_time, end, start):
                         "device_id": m.device.id,
                         "device_name": m.device.device_name,
                         "device_cname": m.device.device_cname,
-                        "workshop": m.device__workshop__name,
+                        "workshop": m.device.workshop.name,
                         "project": m.device.project,
                         "process": m.device.process,
                         "line": m.device.line,
@@ -226,7 +224,6 @@ async def send_mission_routine(elapsed_time, end, start):
                 qos=2,
                 retain=True
             )
-
 # done
 
 
@@ -399,7 +396,6 @@ async def move_idle_workers_to_rescue_device():
 
     # request return to specific rescue device of the workshop
     for worker in workers:
-
         current_date = get_ntz_now()
         rescue_distances = []
         rescue_stations = workshop_rescue_entity_dict[worker.workshop.id][1]
@@ -458,7 +454,7 @@ async def mission_dispatch():
         await Mission.objects
         .filter(
             is_done=False,
-            worker__isnull=True
+            worker__isnull=True,
         )
         .select_related(
             [
@@ -563,7 +559,8 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
-                    badge__in=whitelist_users_entity_dict
+                    badge__in=whitelist_users_entity_dict,
+                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -583,8 +580,9 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
+                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
                 )
-                .select_related(["device_levels","at_device"])
+                .select_related(["device_levels", "at_device"])
                 .filter(
                     at_device__isnull=False,
                     device_levels__device=mission.device.id,
@@ -1021,7 +1019,11 @@ async def main(interval: int):
 
             end = time.perf_counter()
             if not DISABLE_FOXLINK_DISPATCH:
-                await send_mission_routine(elapsed_time, end, start)
+                duration = interval + (end - start)
+                elapsed_time += duration
+                logger.warning(f"[ELAPSED TIME] {elapsed_time} seconds")
+                await send_mission_routine(elapsed_time)
+                elapsed_time = elapsed_time % 60
 
             logger.warning("[main_routine] took %.2f seconds", end - start)
 
