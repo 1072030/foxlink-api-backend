@@ -86,6 +86,7 @@ async def check_user_begin_shift(user: User) -> Optional[bool]:
         return None
 
 
+
 async def get_worker_mission_history(badge: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(worker__badge=badge)
@@ -295,6 +296,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
         raise HTTPException(
             status_code=404, detail="the user with this id is not found"
         )
+        
     total_accepted_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)

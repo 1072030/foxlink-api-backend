@@ -154,20 +154,20 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 @transaction
 @show_duration
-async def send_mission_routine(end, start, elapsed_time):
+async def send_mission_routine(elapsed_time):
 
-    elapsed_time += (end - start)
-    if elapsed_time % 60 > 10:
+    if elapsed_time % 60 > 5:
         return
 
     mission = await Mission.objects.select_related(
-        ["device"]
+        ["device", "worker", "device__workshop"]
     ).filter(repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
-
     for m in mission:
+
         if m.worker is None:
             continue
         if m.device.is_rescue == False:
+
             await mqtt_client.publish(
                 f"foxlink/users/{m.worker.current_UUID}/missions",
                 {
@@ -186,14 +186,15 @@ async def send_mission_routine(end, start, elapsed_time):
                     },
                     "name": m.name,
                     "description": m.description,
+                    "notify_receive_date": None,
+                    "notify_send_date": m.notify_send_date,
                     "events": [
                         MissionEventOut.from_missionevent(e).dict()
                         for e in m.events
                     ],
-                    "notify_receive_date": None,
-                    "notify_send_date": m.notify_send_date
+                    "timestamp": get_ntz_now()
                 },
-                qos=2
+                qos=2,
             )
 
         else:
@@ -215,13 +216,14 @@ async def send_mission_routine(end, start, elapsed_time):
                     },
                     "name": m.name,
                     "description": m.description,
-                    "events": [],
                     "notify_receive_date": None,
-                    "notify_send_date": m.notify_send_date
+                    "notify_send_date": m.notify_send_date,
+                    "events": [],
+                    "timestamp": get_ntz_now()
                 },
-                qos=2
+                qos=2,
+                retain=True
             )
-
 # done
 
 
@@ -259,9 +261,12 @@ async def mission_shift_routine():
                 f"foxlink/users/{mission.worker.current_UUID}/missions/finish",
                 {
                     "mission_id": mission.id,
-                    "mission_state": "ovetime-duty"
+                    "mission_state": "ovetime-duty",
+                    "timestamp": get_ntz_now()
+
                 },
                 qos=2,
+                retain=True
             )
 
             # cancel mission
@@ -342,9 +347,11 @@ async def auto_close_missions():
                     {
                         "mission_id": mission.id,
                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
-                        "description": "finish"
+                        "description": "finish",
+                        "timestamp": get_ntz_now()
                     },
                     qos=2,
+                    retain=True
                 )
 
 
@@ -389,7 +396,6 @@ async def move_idle_workers_to_rescue_device():
 
     # request return to specific rescue device of the workshop
     for worker in workers:
-
         current_date = get_ntz_now()
         rescue_distances = []
         rescue_stations = workshop_rescue_entity_dict[worker.workshop.id][1]
@@ -448,11 +454,13 @@ async def mission_dispatch():
         await Mission.objects
         .filter(
             is_done=False,
-            worker__isnull=True
+            worker__isnull=True,
         )
         .select_related(
             [
                 "device",
+                "worker",
+                "worker__at_device",
                 "device__workshop",
                 "rejections",
             ]
@@ -551,7 +559,8 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
-                    badge__in=whitelist_users_entity_dict
+                    badge__in=whitelist_users_entity_dict,
+                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -571,9 +580,11 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
+                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
                 )
-                .select_related(["device_levels"])
+                .select_related(["device_levels", "at_device"])
                 .filter(
+                    at_device__isnull=False,
                     device_levels__device=mission.device.id,
                     device_levels__level__gt=0
                 )
@@ -685,8 +696,11 @@ async def check_mission_working_duration_overtime():
                         "worker_id": mission.worker.badge,
                         "worker_name": mission.worker.username,
                         "duration": mission_duration_seconds,
+                        "timestamp": get_ntz_now()
+
                     },
                     qos=2,
+                    retain=True
                 )
 
                 await AuditLogHeader.objects.create(
@@ -727,9 +741,12 @@ async def check_mission_assign_duration_overtime():
                 {
                     "mission_id": mission.id,
                     "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
-                    "description": "over-time-no-action"
+                    "description": "over-time-no-action",
+                    "timestamp": get_ntz_now()
+
                 },
                 qos=2,
+                retain=True
             )
 
             await reject_mission_by_id(mission.id, mission.worker)
@@ -1001,10 +1018,14 @@ async def main(interval: int):
                 await mission_dispatch()
 
             end = time.perf_counter()
-            logger.warning("[main_routine] took %.2f seconds", end - start)
-
             if not DISABLE_FOXLINK_DISPATCH:
-                await send_mission_routine(end, start, elapsed_time)
+                duration = interval + (end - start)
+                elapsed_time += duration
+                logger.warning(f"[ELAPSED TIME] {elapsed_time} seconds")
+                await send_mission_routine(elapsed_time)
+                elapsed_time = elapsed_time % 60
+
+            logger.warning("[main_routine] took %.2f seconds", end - start)
 
         except InterfaceError as e:
             # weird condition. met once, never met twice.

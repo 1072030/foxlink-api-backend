@@ -26,7 +26,7 @@ from app.services.auth import (
     get_current_user,
     get_manager_active_user,
 )
-from app.models.schema import MissionUpdate, MissionDto
+from app.models.schema import MissionUpdate, MissionDto, MissionInfo
 from fastapi.exceptions import HTTPException
 
 from app.services.user import check_user_begin_shift, is_user_working_on_mission
@@ -142,6 +142,20 @@ async def get_self_mission(
             missions = [mission for mission in missions if not mission.worker]
 
     return [MissionDto.from_mission(x) for x in missions]
+
+@router.get("/get-current-mission", response_model=List[MissionInfo], tags=['missions'])
+async def get_current_mission(user: User = Depends(get_current_user)):
+    mission = (
+        await Mission.objects
+        .select_related(["device", "worker"])
+        .filter(worker=user.badge, is_done=False)
+        .get_or_none()
+    )
+    if mission :
+        return [MissionInfo.from_mission(mission)]
+    else:
+        return  []
+   
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
