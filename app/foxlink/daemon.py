@@ -195,6 +195,7 @@ async def send_mission_routine(elapsed_time):
                     "timestamp": get_ntz_now()
                 },
                 qos=2,
+                retain=True
             )
 
         else:
@@ -239,7 +240,7 @@ async def mission_shift_routine():
             worker__isnull=False
         )
         .select_related(
-            ["worker", "events", "device"]
+            ["worker", "events", "device", "worker__shift"]
         )
         .filter(
             device__is_rescue=False,
@@ -254,63 +255,64 @@ async def mission_shift_routine():
         worker_shift = ShiftType(mission.worker.shift.id)
 
         # shift swap required
-        if current_shift != worker_shift:
+        if current_shift == worker_shift:
+            continue
 
-            # send mission finish message
-            await mqtt_client.publish(
-                f"foxlink/users/{mission.worker.current_UUID}/missions/finish",
-                {
-                    "mission_id": mission.id,
-                    "mission_state": "ovetime-duty",
-                    "timestamp": get_ntz_now()
+        # cancel mission
+        await mission.update(
+            is_done=True,
+            is_done_shift=True,
+            description='換班任務，自動結案'
+        )
 
-                },
-                qos=2,
-                retain=True
+        # replicate mission of the new shift
+        replicate_mission = await Mission.objects.create(
+            name=mission.name,
+            description=f"換班任務，沿用 Mission ID: {mission.id}",
+            device=mission.device,
+            is_emergency=mission.is_emergency
+        )
+
+        # replicate mission events for the new mission
+        for e in mission.events:
+            replicate_event = MissionEvent(
+                event_id=e.event_id,
+                host=e.host,
+                table_name=e.table_name,
+                category=e.category,
+                message=e.message,
+                event_beg_date=e.event_beg_date,
+                event_end_date=e.event_end_date
             )
+            await replicate_mission.events.add(replicate_event)
 
-            # cancel mission
-            await mission.update(
-                is_done=True,
-                is_done_shift=True,
-                description='換班任務，自動結案'
-            )
+        # update worker status
+        await mission.worker.update(
+            status=WorkerStatusEnum.idle.value,
+            finish_event_date=get_ntz_now()
+        )
 
-            # replicate mission of the new shift
-            replicate_mission = await Mission.objects.create(
-                name=mission.name,
-                description=f"換班任務，沿用 Mission ID: {mission.id}",
-                device=mission.device,
-                is_emergency=mission.is_emergency
-            )
+        # create audit log
+        await AuditLogHeader.objects.create(
+            action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
+            table_name="missions",
+            description=f"員工換班，維修時長: {get_ntz_now() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
+            user=mission.worker.badge,
+            record_pk=mission.id,
+        )
 
-            # replicate mission events for the new mission
-            for e in mission.events:
-                replicate_event = MissionEvent(
-                    event_id=e.event_id,
-                    host=e.host,
-                    table_name=e.table_name,
-                    category=e.category,
-                    message=e.message,
-                    event_beg_date=e.event_beg_date,
-                    event_end_date=e.event_end_date
-                )
-                await replicate_mission.events.add(replicate_event)
-
-            # update worker status
-            await mission.worker.update(
-                status=WorkerStatusEnum.idle.value,
-                finish_event_date=get_ntz_now()
-            )
-
-            # create audit log
-            await AuditLogHeader.objects.create(
-                action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
-                table_name="missions",
-                description=f"員工換班，維修時長: {get_ntz_now() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
-                user=mission.worker.badge,
-                record_pk=mission.id,
-            )
+        # send mission finish message
+        await mqtt_client.publish(
+            f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+            {
+                "mission_id": mission.id,
+                "mission_state": "overtime-duty",
+                "description": "finish",
+                "timestamp": get_ntz_now()
+            },
+            qos=2,
+            retain=True
+        )
 
 
 # done
@@ -560,7 +562,7 @@ async def mission_dispatch():
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
                     badge__in=whitelist_users_entity_dict,
-                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
+                    login_date__lt=get_ntz_now()-timedelta(seconds=30)
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -580,7 +582,7 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
-                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
+                    login_date__lt=get_ntz_now()-timedelta(seconds=30)
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -623,11 +625,13 @@ async def mission_dispatch():
 
             if not mission.is_lonely:
                 await mission.update(is_lonely=True)
-
+                mission_is_lonely=MissionDto.from_mission(mission).dict()
+                mission_is_lonely["timestamp"]=get_ntz_now()
                 await mqtt_client.publish(
                     f"foxlink/{workshop.name}/no-available-worker",
-                    MissionDto.from_mission(mission).dict(),
-                    qos=2,
+                        mission_is_lonely,
+                        qos=2,
+                        retain=True
                 )
 
         else:
@@ -697,7 +701,17 @@ async def check_mission_working_duration_overtime():
                         "worker_name": mission.worker.username,
                         "duration": mission_duration_seconds,
                         "timestamp": get_ntz_now()
-
+                    },
+                    qos=2,
+                    retain=True
+                )
+                await mqtt_client.publish(
+                    f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+                    {
+                        "mission_id": mission.id,
+                        "mission_state": "overtime-duty",
+                        "description": "finish",
+                        "timestamp": get_ntz_now()
                     },
                     qos=2,
                     retain=True
@@ -743,7 +757,6 @@ async def check_mission_assign_duration_overtime():
                     "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                     "description": "over-time-no-action",
                     "timestamp": get_ntz_now()
-
                 },
                 qos=2,
                 retain=True

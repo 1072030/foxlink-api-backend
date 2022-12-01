@@ -18,7 +18,7 @@ from app.core.database import (
 )
 from app.core.database import get_ntz_now
 from app.services.user import check_user_begin_shift
-from app.services.mission import set_mission_by_rescue_position 
+from app.services.mission import set_mission_by_rescue_position
 import logging
 import traceback
 
@@ -54,18 +54,21 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    mission = await Mission.objects.filter(is_done=False, worker=user).get_or_none()
-    
-    if mission :   
-        if (not mission.repair_beg_date == None):
-            status = WorkerStatusEnum.working.value
-        elif (not mission.accept_recv_date == None):
-            status = WorkerStatusEnum.moving.value
-        elif (not mission.notify_send_date == None):
+    mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
+
+    if mission:
+        if mission.device.is_rescue is False:
+            if (not mission.repair_beg_date == None):
+                status = WorkerStatusEnum.working.value
+            elif (not mission.accept_recv_date == None):
+                status = WorkerStatusEnum.moving.value
+            elif (not mission.notify_send_date == None):
+                status = WorkerStatusEnum.notice.value
+        else:
             status = WorkerStatusEnum.notice.value
     else:
-        status = WorkerStatusEnum.idle.value 
-        
+        status = WorkerStatusEnum.idle.value
+
     await asyncio.gather(
         user.update(
             status=status,
@@ -78,7 +81,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             user=user,
         )
     )
-    
+
     if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
         # TODO: Weird Check, this section is required due to design flaws?
         rescue_missions = (
@@ -94,19 +97,21 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
         await asyncio.gather(
             # update previous rescue missions
-            *[ 
-                    r.update(
-                        is_done=True,
-                        is_done_cancel=True
-                    )
-                    for r in rescue_missions
+            *[
+                r.update(
+                    is_done=True,
+                    is_done_cancel=True
+                )
+                for r in rescue_missions
             ],
-            
+
             # give rescue missiong if condition match
-            set_mission_by_rescue_position(user, user.start_position.id)
-            if(status == WorkerStatusEnum.idle.value and not user.start_position == None) else
-            None,
-            
+            *[
+                set_mission_by_rescue_position(user, user.start_position.id)
+                if (status == WorkerStatusEnum.idle.value and not user.start_position == None) else
+                None
+            ],
+
             # reset user parameters
             user.update(
                 shift_beg_date=get_ntz_now(),

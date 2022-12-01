@@ -163,8 +163,8 @@ class MissionInfo(BaseModel):
     is_emergency: bool
     created_date: datetime
     updated_date: datetime
-    notify_receive_date:datetime
-    notify_send_date:datetime
+    notify_receive_date:str
+    notify_send_date:str
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -192,8 +192,8 @@ class MissionInfo(BaseModel):
             events=[MissionEventOut.from_missionevent(e) for e in m.events],
             created_date=m.created_date,
             updated_date=m.updated_date,
-            notify_receive_date = m.notify_recv_date,
-            notify_send_date = m.notify_send_date
+            notify_receive_date = "" if m.notify_recv_date == None else str(m.notify_recv_date),
+            notify_send_date = "" if m.notify_send_date == None else str(m.notify_send_date)
         )
 
 class WorkerStatusDto(BaseModel):

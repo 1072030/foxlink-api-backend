@@ -71,7 +71,7 @@ DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
 
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
-MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES = get_env("MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES", List[float], [20, 10, 10])
+MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES = get_env("MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES", List[float], [2, 2, 2])
 
 # 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
 WORKER_IDLE_OT_RESCUE_MINUTES = get_env(

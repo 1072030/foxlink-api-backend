@@ -212,10 +212,12 @@ async def reject_mission_by_id(mission_id: int, worker: User):
 
     if mission is None:
         raise HTTPException(
-            404, "the mission you request to start is not found")
-
+            200, "the mission you request to start is not found")
+    if mission.worker is None:
+        raise HTTPException(200, "the mission haven't assigned to you")
+    
     if not worker.badge == mission.worker.badge:
-        raise HTTPException(400, "the mission haven't assigned to you")
+        raise HTTPException(200, "the mission haven't assigned to you")
 
     if mission.worker == None and worker in mission.rejections:
         raise HTTPException(200, "this mission is already rejected.")
@@ -255,7 +257,6 @@ async def reject_mission_by_id(mission_id: int, worker: User):
                 "worker": worker.username,
                 "rejected_count": mission_reject_count,
                 "timestamp": get_ntz_now()
-
             },
             qos=2,
             retain=True,
@@ -264,7 +265,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
     if worker.shift_reject_count >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
 
         await mqtt_client.publish(
-            f"foxlink/users/{worker.superior}/subordinate-rejected",
+            f"foxlink/users/{worker.superior.badge}/subordinate-rejected",
             {
                 "subordinate_id": worker.badge,
                 "subordinate_name": worker.username,
@@ -484,10 +485,9 @@ async def request_assistance(mission_id: int, worker: User):
         user=worker,
         record_pk=str(mission.id)
     )
-
     try:
         await mqtt_client.publish(
-            f"foxlink/users/{worker.superior}/missions",
+            f"foxlink/users/{worker.superior.badge}/missions",
             {
                 "type": "new",
                 "mission_id": mission.id,
@@ -532,7 +532,7 @@ async def set_mission_by_rescue_position(
         Device.objects
         .filter(
             id=rescue_position
-        )
+        ).select_related("workshop")
         .get_or_none()
     )
 
@@ -562,7 +562,7 @@ async def set_mission_by_rescue_position(
         record_pk=str(mission.id),
         description="前往消防站",
     )
-    
+
     await mqtt_client.publish(
         f"foxlink/users/{worker.current_UUID}/move-rescue-station",
         {
