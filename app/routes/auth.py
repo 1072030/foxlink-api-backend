@@ -55,15 +55,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
 
     mission = await Mission.objects.filter(is_done=False, worker=user).get_or_none()
-    log =  AuditLogHeader.objects.create(
-                table_name="users",
-                record_pk=user.badge,
-                action=AuditActionEnum.USER_LOGIN.value,
-                user=user,
+    log = AuditLogHeader.objects.create(
+        table_name="users",
+        record_pk=user.badge,
+        action=AuditActionEnum.USER_LOGIN.value,
+        user=user,
     )
     status = None
     if await check_user_begin_shift(user):
-        if( user.level == UserLevel.maintainer.value ):
+        if (user.level == UserLevel.maintainer.value):
             rescue_missions = (
                 await Mission.objects
                 .select_related(["device"])
@@ -118,10 +118,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 status = WorkerStatusEnum.notice.value
         else:
             status = WorkerStatusEnum.idle.value
-    
+
     await asyncio.gather(
         user.update(
-            status = WorkerStatusEnum.idle.value,
+            status=WorkerStatusEnum.idle.value,
             login_date=get_ntz_now()
         ),
         log

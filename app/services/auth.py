@@ -112,9 +112,9 @@ async def get_manager_active_user(
 
 async def check_user_status_by_badge(user: User):
     userStatus = user.status
-    if user.status is WorkerStatusEnum.notice.value:
+    if user.status == WorkerStatusEnum.notice.value:
         try:
-            mission = await Mission.objects.select_related(['worker']).get()
+            mission = await Mission.objects.select_related(['worker']).filter(worker=user.badge, is_done=False).get()
         except:
             raise HTTPException(404, "The user do not have mission now.")
 
