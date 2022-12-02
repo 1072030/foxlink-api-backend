@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from ormar import Model
 from app.core.database import (
+    UserLevel,
     get_ntz_now,
     Mission,
     User,
@@ -140,7 +141,9 @@ async def _start_mission(mission, worker):
     if mission.device.is_rescue:
         await asyncio.gather(
             mission.update(
-                repair_end_date=get_ntz_now()
+                repair_end_date=get_ntz_now(),
+                is_done=True,
+                is_done_finish=True
             ),
             worker.update(
                 status=WorkerStatusEnum.idle.value,
@@ -277,7 +280,8 @@ async def _reject_mission(mission, worker):
 
     await asyncio.gather(
         worker.update(
-            status=WorkerStatusEnum.idle.value
+            status=WorkerStatusEnum.idle.value,
+            finish_event_date=get_ntz_now()
         ),
         AuditLogHeader.objects.create(
             table_name="missions",
@@ -470,6 +474,11 @@ async def _assign_mission(mission: Mission, worker: User):
 
     if mission.is_closed:
         raise HTTPException(status_code=400, detail="the mission you requested is closed")
+
+    if  worker.level is not UserLevel.maintainer.value:
+        raise HTTPException(
+            status_code=400, detail="the worker you requested cant not assign."
+        )
 
     if mission.worker:
         if worker.badge == mission.worker.badge:

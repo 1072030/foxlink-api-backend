@@ -752,27 +752,19 @@ async def check_mission_working_duration_overtime():
         .select_related(['worker'])
         .all()
     )
-
     thresholds: List[int] = [0]
     for minutes in MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES:
         thresholds.append(thresholds[-1] + minutes)
     thresholds.pop(0)
-
     for mission in working_missions:
         superior = mission.worker.superior
-        for thresh in thresholds:
-
-            mission_duration_seconds = mission.mission_duration.total_seconds()
-
+        mission_duration_seconds = mission.mission_duration.total_seconds()
+        for thresh in thresholds:   
             if mission_duration_seconds >= thresh * 60:
-
                 await mission.update(is_overtime=True)
-
                 if superior is None:
                     break
-
                 superior = await User.objects.filter(badge=superior.badge).get()
-
                 await mqtt_client.publish(
                     f"foxlink/users/{superior.badge}/mission-overtime",
                     {

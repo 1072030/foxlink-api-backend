@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
 from app.core.database import (
+    Mission,
     get_ntz_now,
     AuditActionEnum,
     LogoutReasonEnum,
@@ -27,7 +28,6 @@ from app.services.user import (
     get_worker_mission_history,
 )
 from app.services.auth import (
-    check_user_status_by_badge,
     set_device_UUID,
     get_current_user,
     get_manager_active_user,
@@ -116,8 +116,19 @@ async def get_user_attendances(user: User = Depends(get_current_user)):
 
 @router.get("/check-user-status", response_model=UserStatus, tags=["users"])
 async def check_user_status(user: User = Depends(get_current_user)):
-    status = await check_user_status_by_badge(user)
-    return UserStatus(status=status)
+    userStatus = user.status
+    work_type = ""
+    mission = await Mission.objects.select_related(['worker', "device"]).filter(worker=user.badge, is_done=False).get_or_none()
+
+    if mission is not None:
+        work_type = "dispatch"
+        if user.status == WorkerStatusEnum.notice.value:
+            if mission.notify_recv_date is None:
+                userStatus = WorkerStatusEnum.idle.value
+            if mission.device.is_rescue is True:
+                work_type = "rescue"
+
+    return UserStatus(status=userStatus, work_type=work_type)
 
 
 @router.post("/change-password", tags=["users"])
@@ -139,7 +150,7 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
-    if user.status != WorkerStatusEnum.idle.value:
+    if user.status != WorkerStatusEnum.idle.value and user.level == UserLevel.maintainer.value:
         raise HTTPException(404, 'You are not allow to logout except idle.')
 
     user.logout_date = get_ntz_now()

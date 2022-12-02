@@ -61,7 +61,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         action=AuditActionEnum.USER_LOGIN.value,
         user=user,
     )
-    status = None
+
     if await check_user_begin_shift(user):
         if (user.level == UserLevel.maintainer.value):
             rescue_missions = (
@@ -93,7 +93,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 )
             )
 
-            if (status == WorkerStatusEnum.idle.value and not user.start_position == None):
+            if not user.start_position == None:
                 # give rescue missiong if condition match
                 await asyncio.gather(
                     set_mission_by_rescue_position(
@@ -105,12 +105,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                     ),
                     log
                 )
-                return
+            return {"access_token": access_token, "token_type": "bearer"}
+
         else:
             status = WorkerStatusEnum.idle.value
     else:
         if mission:
-            if (not mission.repair_beg_date == None):
+            if mission.device.is_rescue is True:
+                status = WorkerStatusEnum.notice.value
+            elif (not mission.repair_beg_date == None):
                 status = WorkerStatusEnum.working.value
             elif (not mission.accept_recv_date == None):
                 status = WorkerStatusEnum.moving.value
@@ -121,7 +124,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     await asyncio.gather(
         user.update(
-            status=WorkerStatusEnum.idle.value,
+            status=status,
             login_date=get_ntz_now()
         ),
         log

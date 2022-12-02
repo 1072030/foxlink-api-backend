@@ -66,6 +66,7 @@ class UserChangePassword(BaseModel):
 
 class UserStatus(BaseModel):
     status:str
+    work_type:str
 
 # * Mission
 class MissionBase(BaseModel):
