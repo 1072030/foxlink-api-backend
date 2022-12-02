@@ -56,69 +56,65 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
 
+    log = AuditLogHeader.objects.create(
+        table_name="users",
+        record_pk=user.badge,
+        action=AuditActionEnum.USER_LOGIN.value,
+        user=user,
+    )
+
     if mission:
-        if mission.device.is_rescue is False:
-            if (not mission.repair_beg_date == None):
-                status = WorkerStatusEnum.working.value
-            elif (not mission.accept_recv_date == None):
-                status = WorkerStatusEnum.moving.value
-            elif (not mission.notify_send_date == None):
-                status = WorkerStatusEnum.notice.value
-        else:
+        if mission.device.is_rescue is True:
+            status = WorkerStatusEnum.notice.value
+        elif (not mission.repair_beg_date == None):
+            status = WorkerStatusEnum.working.value
+        elif (not mission.accept_recv_date == None):
+            status = WorkerStatusEnum.moving.value
+        elif (not mission.notify_send_date == None):
             status = WorkerStatusEnum.notice.value
     else:
         status = WorkerStatusEnum.idle.value
 
+    if await check_user_begin_shift(user):
+        if (user.level == UserLevel.maintainer.value):
+            rescue_missions = (
+                await Mission.objects
+                .select_related(["device"])
+                .filter(
+                    worker=user,
+                    is_done=False,
+                    device__is_rescue=True,
+                )
+                .all()
+            )
+
+            await asyncio.gather(
+                # update previous rescue missions
+                *[
+                    r.update(
+                        is_done=True,
+                        is_done_cancel=True
+                    )
+                    for r in rescue_missions
+                ],
+                # reset user parameters
+                user.update(
+                    shift_beg_date=get_ntz_now(),
+                    finish_event_date=get_ntz_now(),
+                    shift_reject_count=0,
+                    shift_accept_count=0
+                )
+            )
+
+            if (status == WorkerStatusEnum.idle.value and not user.start_position == None):
+                # give rescue missiong if condition match
+                await set_mission_by_rescue_position(user, user.start_position.id)
+
     await asyncio.gather(
         user.update(
-            status=status,
             login_date=get_ntz_now()
         ),
-        AuditLogHeader.objects.create(
-            table_name="users",
-            record_pk=user.badge,
-            action=AuditActionEnum.USER_LOGIN.value,
-            user=user,
-        )
+        log
     )
-
-    if user.level == UserLevel.maintainer.value and await check_user_begin_shift(user):
-        # TODO: Weird Check, this section is required due to design flaws?
-        rescue_missions = (
-            await Mission.objects
-            .select_related(["device"])
-            .filter(
-                worker=user,
-                is_done=False,
-                device__is_rescue=True,
-            )
-            .all()
-        )
-
-        await asyncio.gather(
-            # update previous rescue missions
-            *[
-                r.update(
-                    is_done=True,
-                    is_done_cancel=True
-                )
-                for r in rescue_missions
-            ],
-
-            # give rescue missiong if condition match
-            *[
-                set_mission_by_rescue_position(user, user.start_position.id)
-                if (status == WorkerStatusEnum.idle.value and not user.start_position == None) else
-                None
-            ],
-
-            # reset user parameters
-            user.update(
-                shift_beg_date=get_ntz_now(),
-                finish_event_date=get_ntz_now(),
-                shift_reject_count=0,
-                shift_accept_count=0
-            )
-        )
 
     return {"access_token": access_token, "token_type": "bearer"}

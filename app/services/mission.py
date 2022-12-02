@@ -123,7 +123,9 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     if mission.device.is_rescue:
         await mission.update(
-            repair_end_date=get_ntz_now()
+            repair_end_date=get_ntz_now(),
+            is_done=True,
+            is_done_finish=True
         )
         await worker.update(
             status=WorkerStatusEnum.idle.value,
@@ -215,7 +217,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
             200, "the mission you request to start is not found")
     if mission.worker is None:
         raise HTTPException(200, "the mission haven't assigned to you")
-    
+
     if not worker.badge == mission.worker.badge:
         raise HTTPException(200, "the mission haven't assigned to you")
 

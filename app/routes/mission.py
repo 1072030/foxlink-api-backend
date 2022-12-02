@@ -143,19 +143,19 @@ async def get_self_mission(
 
     return [MissionDto.from_mission(x) for x in missions]
 
-@router.get("/get-current-mission", response_model=List[MissionInfo], tags=['missions'])
+
+@router.get("/get-current-mission", response_model=Optional[MissionInfo], tags=['missions'])
 async def get_current_mission(user: User = Depends(get_current_user)):
     mission = (
         await Mission.objects
-        .select_related(["device", "worker"])
+        .select_related(["device", "worker", "device__workshop"])
         .filter(worker=user.badge, is_done=False)
         .get_or_none()
     )
-    if mission :
-        return [MissionInfo.from_mission(mission)]
+    if mission:
+        return MissionInfo.from_mission(mission)
     else:
-        return  []
-   
+        return None
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])

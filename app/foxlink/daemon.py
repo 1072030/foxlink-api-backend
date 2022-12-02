@@ -156,8 +156,8 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 @show_duration
 async def send_mission_routine(elapsed_time):
 
-    if elapsed_time % 60 > 5:
-        return
+    if elapsed_time < 30:
+        return False
 
     mission = await Mission.objects.select_related(
         ["device", "worker", "device__workshop"]
@@ -225,11 +225,12 @@ async def send_mission_routine(elapsed_time):
                 qos=2,
                 retain=True
             )
+        return True
 # done
 
 
-@transaction
-@show_duration
+@ transaction
+@ show_duration
 async def mission_shift_routine():
     # filter out non-rescue missions that're in process but hasn't completed
     working_missions = (
@@ -625,13 +626,13 @@ async def mission_dispatch():
 
             if not mission.is_lonely:
                 await mission.update(is_lonely=True)
-                mission_is_lonely=MissionDto.from_mission(mission).dict()
-                mission_is_lonely["timestamp"]=get_ntz_now()
+                mission_is_lonely = MissionDto.from_mission(mission).dict()
+                mission_is_lonely["timestamp"] = get_ntz_now()
                 await mqtt_client.publish(
                     f"foxlink/{workshop.name}/no-available-worker",
-                        mission_is_lonely,
-                        qos=2,
-                        retain=True
+                    mission_is_lonely,
+                    qos=2,
+                    retain=True
                 )
 
         else:
@@ -700,17 +701,6 @@ async def check_mission_working_duration_overtime():
                         "worker_id": mission.worker.badge,
                         "worker_name": mission.worker.username,
                         "duration": mission_duration_seconds,
-                        "timestamp": get_ntz_now()
-                    },
-                    qos=2,
-                    retain=True
-                )
-                await mqtt_client.publish(
-                    f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
-                    {
-                        "mission_id": mission.id,
-                        "mission_state": "overtime-duty",
-                        "description": "finish",
                         "timestamp": get_ntz_now()
                     },
                     qos=2,
@@ -1035,8 +1025,8 @@ async def main(interval: int):
                 duration = interval + (end - start)
                 elapsed_time += duration
                 logger.warning(f"[ELAPSED TIME] {elapsed_time} seconds")
-                await send_mission_routine(elapsed_time)
-                elapsed_time = elapsed_time % 60
+                if await send_mission_routine(elapsed_time):
+                    elapsed_time = 0
 
             logger.warning("[main_routine] took %.2f seconds", end - start)
 
