@@ -666,7 +666,6 @@ async def check_mission_working_duration_overtime():
     """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級但是不取消任務"""
     working_missions = (
         await Mission.objects
-        .select_related(['worker'])
         .filter(
             is_done=False,
             is_overtime=False,
@@ -674,27 +673,24 @@ async def check_mission_working_duration_overtime():
             repair_beg_date__isnull=False,
             repair_end_date__isnull=True,
         )
+        .select_related(['worker'])
         .all()
     )
-
     thresholds: List[int] = [0]
     for minutes in MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES:
         thresholds.append(thresholds[-1] + minutes)
     thresholds.pop(0)
-
     for mission in working_missions:
-        for thresh in thresholds[::-1]:
-            mission_duration_seconds = mission.mission_duration.total_seconds()
-
+        superior = mission.worker.superior
+        mission_duration_seconds = mission.mission_duration.total_seconds()
+        for thresh in thresholds:   
             if mission_duration_seconds >= thresh * 60:
-
                 await mission.update(is_overtime=True)
-
-                if mission.worker.superior is None:
+                if superior is None:
                     break
-
+                superior = await User.objects.filter(badge=superior.badge).get()
                 await mqtt_client.publish(
-                    f"foxlink/users/{mission.worker.superior.badge}/mission-overtime",
+                    f"foxlink/users/{superior.badge}/mission-overtime",
                     {
                         "mission_id": mission.id,
                         "mission_name": mission.name,
@@ -706,7 +702,6 @@ async def check_mission_working_duration_overtime():
                     qos=2,
                     retain=True
                 )
-
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
@@ -714,7 +709,8 @@ async def check_mission_working_duration_overtime():
                     record_pk=str(mission.id),
                     user=mission.worker.badge,
                 )
-
+                superior = superior.superior
+            else:
                 break
 
 

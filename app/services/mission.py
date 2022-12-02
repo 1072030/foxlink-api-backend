@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional
 from app.core.database import (
+    UserLevel,
     get_ntz_now,
     Mission,
     User,
@@ -242,7 +243,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
 
     await worker.accepted_missions.remove(mission)
 
-    await worker.update(status=WorkerStatusEnum.idle.value)
+    await worker.update(status=WorkerStatusEnum.idle.value, finish_event_date=get_ntz_now())
 
     await AuditLogHeader.objects.create(
         table_name="missions",
@@ -387,9 +388,9 @@ async def assign_mission(mission_id: int, badge: str):
             status_code=400, detail="the mission you requested is closed"
         )
 
-    if not is_idle:
+    if not is_idle or user.level is not UserLevel.maintainer.value:
         raise HTTPException(
-            status_code=400, detail="the worker you requested is not idle"
+            status_code=400, detail="the worker you requested cant not assign."
         )
 
     # if worker has already working on other mission, skip

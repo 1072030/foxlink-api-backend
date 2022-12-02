@@ -54,26 +54,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
-
+    mission = await Mission.objects.filter(is_done=False, worker=user).get_or_none()
     log = AuditLogHeader.objects.create(
         table_name="users",
         record_pk=user.badge,
         action=AuditActionEnum.USER_LOGIN.value,
         user=user,
     )
-
-    if mission:
-        if mission.device.is_rescue is True:
-            status = WorkerStatusEnum.notice.value
-        elif (not mission.repair_beg_date == None):
-            status = WorkerStatusEnum.working.value
-        elif (not mission.accept_recv_date == None):
-            status = WorkerStatusEnum.moving.value
-        elif (not mission.notify_send_date == None):
-            status = WorkerStatusEnum.notice.value
-    else:
-        status = WorkerStatusEnum.idle.value
 
     if await check_user_begin_shift(user):
         if (user.level == UserLevel.maintainer.value):
@@ -106,12 +93,38 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 )
             )
 
-            if (status == WorkerStatusEnum.idle.value and not user.start_position == None):
+            if not user.start_position == None:
                 # give rescue missiong if condition match
-                await set_mission_by_rescue_position(user, user.start_position.id)
+                await asyncio.gather(
+                    set_mission_by_rescue_position(
+                        user,
+                        user.start_position.id
+                    ),
+                    user.update(
+                        login_date=get_ntz_now()
+                    ),
+                    log
+                )
+            return {"access_token": access_token, "token_type": "bearer"}
+
+        else:
+            status = WorkerStatusEnum.idle.value
+    else:
+        if mission:
+            if mission.device.is_rescue is True:
+                status = WorkerStatusEnum.notice.value
+            if (not mission.repair_beg_date == None):
+                status = WorkerStatusEnum.working.value
+            elif (not mission.accept_recv_date == None):
+                status = WorkerStatusEnum.moving.value
+            elif (not mission.notify_send_date == None):
+                status = WorkerStatusEnum.notice.value
+        else:
+            status = WorkerStatusEnum.idle.value
 
     await asyncio.gather(
         user.update(
+            status=status,
             login_date=get_ntz_now()
         ),
         log

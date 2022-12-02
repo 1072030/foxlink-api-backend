@@ -164,7 +164,7 @@ async def set_user_start_position(user: User = Depends(get_current_user)):
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
 ):
-    if user.status != WorkerStatusEnum.idle.value:
+    if user.status != WorkerStatusEnum.idle.value and user.level == UserLevel.maintainer.value:
         raise HTTPException(404, 'You are not allow to logout except idle.')
 
     user.logout_date = get_ntz_now()
