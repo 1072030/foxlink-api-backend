@@ -20,8 +20,9 @@ from app.foxlink.utils import assemble_device_id
 from app.foxlink.db import foxlink_dbs
 from app.services.mission import (
     assign_mission,
+    assign_mission,
     get_mission_by_id,
-    reject_mission_by_id,
+    reject_mission,
     set_mission_by_rescue_position
 )
 from app.services.user import (
@@ -48,6 +49,8 @@ from app.env import (
     MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES,
     RECENT_EVENT_PAST_DAYS,
 )
+from multiprocessing import Process
+
 from app.core.database import (
     transaction,
     get_ntz_now,
@@ -62,7 +65,7 @@ from app.core.database import (
     UserLevel,
     Device,
     WhitelistDevice,
-    api_db,
+    api_db
 )
 
 from pymysql.err import (
@@ -74,10 +77,11 @@ from pymysql.err import (
 )
 
 import traceback
+DEBUG = True
 
 logger = logging.getLogger(f"foxlink(daemon)")
 
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO if not DEBUG else logging.DEBUG)
 
 dispatch = Foxlink_dispatch()
 
@@ -89,7 +93,7 @@ def show_duration(func):
         start = time.perf_counter()
         result = await func(*args, **_args)
         end = time.perf_counter()
-        logger.warning(f'[{func.__name__}] took {end - start:.2f} seconds.')
+        logger.info(f'[{func.__name__}] took {end - start:.2f} seconds.')
         return result
     return wrapper
 
@@ -154,20 +158,26 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 
 @transaction
 @show_duration
-async def send_mission_routine(elapsed_time):
+async def send_mission_notification_routine():
 
-    if elapsed_time % 60 > 5:
-        return False
+    mission = (
+        await Mission.objects
+        .filter(
+            repair_end_date__isnull=True,
+            notify_recv_date__isnull=True,
+            is_done=False
+        )
+        .select_related(
+            ["device", "worker", "device__workshop"]
+        )
+        .all()
+    )
 
-    mission = await Mission.objects.select_related(
-        ["device", "worker", "device__workshop"]
-    ).filter(repair_end_date__isnull=True, notify_recv_date__isnull=True, is_done=False).all()
     for m in mission:
-
         if m.worker is None:
             continue
-        if m.device.is_rescue == False:
 
+        if m.device.is_rescue == False:
             await mqtt_client.publish(
                 f"foxlink/users/{m.worker.current_UUID}/missions",
                 {
@@ -197,7 +207,6 @@ async def send_mission_routine(elapsed_time):
                 qos=2,
                 retain=True
             )
-
         else:
             await mqtt_client.publish(
                 f"foxlink/users/{m.worker.current_UUID}/move-rescue-station",
@@ -227,9 +236,9 @@ async def send_mission_routine(elapsed_time):
             )
 
     return True
+
+
 # done
-
-
 @transaction
 @show_duration
 async def mission_shift_routine():
@@ -242,10 +251,13 @@ async def mission_shift_routine():
             worker__isnull=False
         )
         .select_related(
-            ["worker", "events", "device", "worker__shift"]
+            ["device"]
         )
         .filter(
             device__is_rescue=False,
+        )
+        .select_related(
+            ["worker", "events", "worker__shift"]
         )
         .all()
     )
@@ -324,17 +336,26 @@ async def auto_close_missions():
     # auto complete non-started missions if all the mission events are cured.
     pending_start_missions = (
         await Mission.objects
-        .select_related(
-            ["events", "worker"]
-        )
         .filter(
             is_done=False,
             repair_beg_date__isnull=True
         )
+        .select_related(
+            ["events", "worker"]
+        )
+        .fields(
+            {
+                "id": ...,
+                "name": ...,
+                "notify_recv_date": ...,
+                "worker": {"badge", "current_UUID", "username", "level"},
+                "events": {"event_id", "category", "host", "table_name", "event_end_date"}
+            }
+        )
         .all()
     )
 
-    for mission in pending_start_missions:
+    async def driver(mission):
         for event in mission.events:
             if (event.event_end_date):
                 continue
@@ -357,6 +378,13 @@ async def auto_close_missions():
                     qos=2,
                     retain=True
                 )
+
+    await asyncio.gather(
+        *[
+            driver(mission)
+            for mission in pending_start_missions
+        ]
+    )
 
 
 # done
@@ -537,9 +565,75 @@ async def mission_dispatch():
 
     ranked_missions = dispatch.mission_priority()
 
-    for mission_id in ranked_missions:
-
+    async def fetch_mission_candid_workers(mission_id: int) -> Tuple[Mission, List[User]]:
         mission = mission_entity_dict[mission_id]
+        if (not mission):
+            return (None, [])
+
+        # fetch valid workers, also consider whitelist device scenarios.
+        if mission.device.id in whitelist_device_entity_dict:
+            return (
+                mission,
+                (
+                    await User.objects
+                    .filter(
+                        level=UserLevel.maintainer.value,
+                        shift=current_shift.value,
+                        workshop=mission.device.workshop.id,
+                        status=WorkerStatusEnum.idle.value,
+                        badge__in=whitelist_users_entity_dict,
+                        login_date__lt=get_ntz_now() - timedelta(seconds=5)
+                    )
+                    .select_related(["device_levels", "at_device"])
+                    .filter(
+                        device_levels__device=mission.device.id,
+                        device_levels__level__gt=0
+                    )
+                    .all()
+                )
+            )
+        else:
+            return (
+                mission,
+                (
+                    await User.objects
+                    .exclude(
+                        badge__in=whitelist_users_entity_dict
+                    )
+                    .filter(
+                        level=UserLevel.maintainer.value,
+                        shift=current_shift.value,
+                        workshop=mission.device.workshop.id,
+                        status=WorkerStatusEnum.idle.value,
+                        login_date__lt=get_ntz_now() - timedelta(seconds=5)
+                    )
+                    .select_related(["device_levels", "at_device"])
+                    .filter(
+                        at_device__isnull=False,
+                        device_levels__device=mission.device.id,
+                        device_levels__level__gt=0
+                    )
+                    .all()
+                )
+            )
+
+    # prefetch all valid workers for mission
+    mission_candid_workers: List[List[User]] = await asyncio.gather(
+        *[
+            fetch_mission_candid_workers(
+                mission_id
+            )
+            for mission_id in ranked_missions
+        ]
+    )
+
+    # assigned workers
+    exclude_workers = set()
+
+    assigned_mission_counter = 0
+
+    for mission, valid_workers in mission_candid_workers:
+        print(mission.id, len(valid_workers))
 
         if mission is None:
             continue
@@ -547,59 +641,24 @@ async def mission_dispatch():
         # 取得該裝置隸屬的車間資訊
         workshop = workshop_entity_dict[mission.device.workshop.id]
 
+        # 取得車間地圖資訊
         distance_matrix: List[List[float]] = workshop.map  # 距離矩陣
 
+        # 該任務的裝置在矩陣中的位置
         mission_device_idx = find_idx_in_factory_map(
-            workshop, mission.device.id)  # 該任務的裝置在矩陣中的位置
-
-        valid_workers: List[User] = None
-
-        # fetch valid workers, also consider whitelist device scenarios.
-        if mission.device.id in whitelist_device_entity_dict:
-            valid_workers = (
-                await User.objects
-                .filter(
-                    level=UserLevel.maintainer.value,
-                    shift=current_shift.value,
-                    workshop=mission.device.workshop.id,
-                    status=WorkerStatusEnum.idle.value,
-                    badge__in=whitelist_users_entity_dict,
-                    login_date__lt=get_ntz_now() - timedelta(seconds=30)
-                )
-                .select_related(["device_levels", "at_device"])
-                .filter(
-                    device_levels__device=mission.device.id,
-                    device_levels__level__gt=0
-                )
-                .all()
-            )
-        else:
-            valid_workers = (
-                await User.objects
-                .exclude(
-                    badge__in=whitelist_users_entity_dict
-                )
-                .filter(
-                    level=UserLevel.maintainer.value,
-                    shift=current_shift.value,
-                    workshop=mission.device.workshop.id,
-                    status=WorkerStatusEnum.idle.value,
-                    login_date__lt=get_ntz_now() - timedelta(seconds=30)
-                )
-                .select_related(["device_levels", "at_device"])
-                .filter(
-                    at_device__isnull=False,
-                    device_levels__device=mission.device.id,
-                    device_levels__level__gt=0
-                )
-                .all()
-            )
+            workshop,
+            mission.device.id
+        )
 
         # create worker infos for the mission
         cand_workers = []
+
         for worker in valid_workers:
             # if worker rejects this mission before.
             if worker in mission.rejections:
+                continue
+
+            if worker.badge in exclude_workers:
                 continue
 
             worker_device_idx = find_idx_in_factory_map(
@@ -622,7 +681,7 @@ async def mission_dispatch():
         if len(cand_workers) == 0:
 
             logger.info(
-                f"no worker available to dispatch for mission: (mission_id: {mission_id}, device_id: {mission.device.id})"
+                f"no worker to assign for mission: {mission.id}."
             )
 
             if not mission.is_lonely:
@@ -649,25 +708,40 @@ async def mission_dispatch():
                 )
             )
 
-            await assign_mission(mission_id, selected_worker)
+            # assign mission
+            await asyncio.gather(
+                assign_mission(
+                    mission,
+                    selected_worker
+                ),
 
-            await AuditLogHeader.objects.create(
-                table_name="missions",
-                record_pk=mission_id,
-                action=AuditActionEnum.MISSION_ASSIGNED.value,
-                user=selected_worker,
+                AuditLogHeader.objects.create(
+                    table_name="missions",
+                    record_pk=mission.id,
+                    action=AuditActionEnum.MISSION_ASSIGNED.value,
+                    user=selected_worker
+                )
             )
+
+            # exclude this worker from further dispatch process.
+            exclude_workers.add(selected_worker)
+
+            assigned_mission_counter += 1
+
+            if (assigned_mission_counter == 50):
+                break
+
+    logger.info(f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
 
 
 ######### mission overtime  ########
 # half-done
-@transaction
-@show_duration
+@ transaction
+@ show_duration
 async def check_mission_working_duration_overtime():
     """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級但是不取消任務"""
     working_missions = (
         await Mission.objects
-        .select_related(['worker'])
         .filter(
             is_done=False,
             is_overtime=False,
@@ -675,6 +749,7 @@ async def check_mission_working_duration_overtime():
             repair_beg_date__isnull=False,
             repair_end_date__isnull=True,
         )
+        .select_related(['worker'])
         .all()
     )
 
@@ -684,18 +759,22 @@ async def check_mission_working_duration_overtime():
     thresholds.pop(0)
 
     for mission in working_missions:
-        for thresh in thresholds[::-1]:
+        superior = mission.worker.superior
+        for thresh in thresholds:
+
             mission_duration_seconds = mission.mission_duration.total_seconds()
 
             if mission_duration_seconds >= thresh * 60:
 
                 await mission.update(is_overtime=True)
 
-                if mission.worker.superior is None:
+                if superior is None:
                     break
 
+                superior = await User.objects.filter(badge=superior.badge).get()
+
                 await mqtt_client.publish(
-                    f"foxlink/users/{mission.worker.superior.badge}/mission-overtime",
+                    f"foxlink/users/{superior.badge}/mission-overtime",
                     {
                         "mission_id": mission.id,
                         "mission_name": mission.name,
@@ -707,18 +786,6 @@ async def check_mission_working_duration_overtime():
                     qos=2,
                     retain=True
                 )
-                await mqtt_client.publish(
-                    f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
-                    {
-                        "mission_id": mission.id,
-                        "mission_state": "overtime-duty",
-                        "description": "finish",
-                        "timestamp": get_ntz_now()
-                    },
-                    qos=2,
-                    retain=True
-                )
-
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_OVERTIME.value,
                     table_name="missions",
@@ -726,13 +793,14 @@ async def check_mission_working_duration_overtime():
                     record_pk=str(mission.id),
                     user=mission.worker.badge,
                 )
-
+                superior = superior.superior
+            else:
                 break
 
 
 # done
-@transaction
-@show_duration
+@ transaction
+@ show_duration
 async def check_mission_assign_duration_overtime():
     """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級並且取消任務"""
 
@@ -764,7 +832,7 @@ async def check_mission_assign_duration_overtime():
                 retain=True
             )
 
-            await reject_mission_by_id(mission.id, mission.worker)
+            await reject_mission(mission.id, mission.worker)
 
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_ACCEPT_OVERTIME.value,
@@ -775,28 +843,65 @@ async def check_mission_assign_duration_overtime():
 
 
 ######### events completed  ########
-
 async def update_complete_events(event: MissionEvent):
     e = await get_incomplete_event_from_table(
         event.host,
         event.table_name,
         event.event_id
     )
+
     if e is None:
         return False
+
     if e.end_time is not None:
         await event.update(event_end_date=e.end_time)
-        return True
+        # check if all events have completed
+        if (
+            (
+                await MissionEvent.objects
+                .filter(
+                    mission=event.mission.id,
+                    event_end_date__isnull=True
+                )
+                .count()
+            ) == 0
+        ):
+            await asyncio.gather(
+                event.mission.update(
+                    is_done=True,
+                    is_done_cure=True
+                ),
+                event.mission.worker.update(
+                    status=WorkerStatusEnum.idle.value,
+                    finish_event_date=get_ntz_now()
+                ),
+                AuditLogHeader.objects.create(
+                    table_name="missions",
+                    action=AuditActionEnum.MISSION_CURED.value,
+                    record_pk=str(event.mission.id),
+                    user=event.mission.worker.badge,
+                )
+            )
+            return True
     return False
 
 
-@transaction
-@show_duration
+@ transaction
+@ show_duration
 async def update_complete_events_handler():
     """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
-    incomplete_mission_events = await MissionEvent.objects.filter(
-        event_end_date__isnull=True
-    ).all()
+    incomplete_mission_events = (
+        await MissionEvent.objects
+        .filter(
+            event_end_date__isnull=True
+        )
+        .select_related(["mission", "mission__worker"])
+        .filter(
+            mission__is_done=False,
+            mission__repair_beg_date__isnull=True
+        )
+        .all()
+    )
 
     await asyncio.gather(*[
         update_complete_events(event)
@@ -805,8 +910,8 @@ async def update_complete_events_handler():
 
 
 ######### sync event ########
-async def sync_events_from_foxlink(host: str, table_name: str, since: str = ""):
-    events = await get_recent_events_from_foxlink(host, table_name, since)
+async def sync_events_from_foxlink(host: str, table_name: str, beg_id: int):
+    events = await get_recent_events_from_foxlink(host, table_name, beg_id)
 
     for e in events:
         if await (
@@ -829,8 +934,6 @@ async def sync_events_from_foxlink(host: str, table_name: str, since: str = ""):
         device = await Device.objects.filter(
             id__iexact=device_id
         ).get_or_none()
-
-        # logger.warning(device)
 
         if device is None:
             continue
@@ -867,37 +970,60 @@ async def sync_events_from_foxlink(host: str, table_name: str, since: str = ""):
         )
 
 
-@transaction
-@show_duration
+async def latest_event_from_foxlink_of_host_table(host, table_name):
+    try:
+        mission_event = (
+            await MissionEvent.objects
+            .filter(
+                host=host,
+                table_name=table_name
+            )
+            .order_by(
+                MissionEvent.event_id.desc()
+            )
+            .first()
+        )
+    except Exception as e:
+        mission_event = None
+
+    return (
+        host,
+        table_name,
+        mission_event.event_id if mission_event else 0
+    )
+
+
+@ transaction
+@ show_duration
 async def sync_events_from_foxlink_handler():
     db_table_pairs = await foxlink_dbs.get_all_db_tables()
-    proximity_mission = await MissionEvent.objects.order_by(MissionEvent.event_beg_date.desc()).get_or_none()
-    since = proximity_mission.event_beg_date if type(
-        proximity_mission) != type(None) else ""
+
+    host_table_id_pairs = await asyncio.gather(
+        *[
+            latest_event_from_foxlink_of_host_table(host, table)
+            for host, tables in db_table_pairs
+            for table in tables
+        ]
+    )
 
     await asyncio.gather(*[
         sync_events_from_foxlink(
             host,
             table,
-            since
+            beg_id,
         )
-        for host, tables in db_table_pairs
-        for table in tables
+        for host, table, beg_id in host_table_id_pairs
     ])
 
 
-async def get_recent_events_from_foxlink(host: str, table_name: str, since: str = "") -> List[FoxlinkEvent]:
-    if (since == ""):
-        since = f"CURRENT_TIMESTAMP() - INTERVAL {RECENT_EVENT_PAST_DAYS} DAY"
-    else:
-        since = f"'{since}'"
-
+async def get_recent_events_from_foxlink(host: str, table_name: str, beg_id: int = 0) -> List[FoxlinkEvent]:
     stmt = (
         f"SELECT * FROM `{FOXLINK_EVENT_DB_NAME}`.`{table_name}` WHERE "
         "((Category >= 1 AND Category <= 199) OR (Category >= 300 AND Category <= 699)) AND "
         "End_Time is NULL AND "
-        f"Start_Time >= {since} "
-        "ORDER BY Start_Time DESC;"
+        f"ID >= {beg_id} "
+        "ORDER BY ID ASC "
+        "LIMIT 50;"
     )
     rows = await foxlink_dbs[host].fetch_all(
         query=stmt
@@ -952,73 +1078,61 @@ async def get_incomplete_event_from_table(host: str, table_name: str, id: int) -
 
 
 ######### main #########
-async def shutdown_callback():
-    pass
-
-
-def shutdown_callback_handler():
+def shutdown_callback():
     global _terminate
     _terminate = True
 
 
-async def main(interval: int):
-    global _terminate
-    _terminate = False
-
-    loop = asyncio.get_event_loop()
-    loop.add_signal_handler(signal.SIGINT, shutdown_callback_handler)
-    loop.add_signal_handler(signal.SIGTERM, shutdown_callback_handler)
-    # connect to service
-    logger.info("Start to Create  Connections.")
-
-    # while True:
-    #     try:
-    #
-    #     except Exception as e:
-    #         logger.error(f"cannot connect the API database:{e}")
-    #         continue
-    #     else:
-    #         break
-    # while True:
-    #     try:
-    #         await mqtt_client.connect()
-    #     except Exception as e:
-    #         logger.error(f"cannot connect the MQTT server:{e}")
-    #         continue
-    #     else:
-    #         break
-    # while True:
-    #     try:
-    #
-    #     except Exception as e:
-    #         logger.error(f"cannot connect the FOXLINK database:{e}")
-    #         continue
-    #     else:
-    #         break
-
-    try:
-        await asyncio.gather(
-            api_db.connect(),
-            foxlink_dbs.connect(),
-            mqtt_client.connect()
-        )
-    except Exception as e:
-        logger.error(f"Cannot Connect to the databases and servers")
-        logger.error(f"{e}")
-        exit(0)
-
-    logger.info("All Connections Created.")
-
-    elapsed_time = 0
-    # main loop
-    while not _terminate:
+async def connect_services():
+    # api_db = create_db(max_size=20)
+    while True:
         try:
-            logger.warning('[main_routine] Foxlink daemon is running...')
-            start = time.perf_counter()
+            logger.info("Start to Create Connections.")
+            await asyncio.gather(
+                api_db.connect(),
+                foxlink_dbs.connect(),
+                mqtt_client.connect()
+            )
+        except Exception as e:
+            logger.error(f"{e}")
+            logger.error(f"Cannot connect to the databases and servers")
+            logger.error(f"Reconnect in 5 seconds...")
+            await asyncio.wait(5)
+        else:
+            logger.info("All Connections Created.")
+            break
+
+
+async def disconnect_services():
+    while True:
+        logger.info("Termiante Databases/Connections...")
+        try:
+            await asyncio.gather(
+                api_db.disconnect(),
+                mqtt_client.disconnect(),
+                foxlink_dbs.disconnect()
+            )
+        except Exception as e:
+            logger.error(f"{e}")
+            logger.error(f"Cannot disconnect to the databases and servers")
+            logger.error(f"Reconnect in 5 seconds...")
+            await asyncio.wait(5)
+        else:
+            logger.info("All Services Disconnected.")
+            break
+
+
+async def general_routine():
+    global _terminate
+    while (not _terminate):
+        try:
+            logger.info('[main_routine] Foxlink daemon is running...')
+
+            beg_time = time.perf_counter()
 
             await update_complete_events_handler()
 
-            await auto_close_missions()
+            # await auto_close_missions()
 
             await mission_shift_routine()
 
@@ -1033,45 +1147,60 @@ async def main(interval: int):
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()
 
-            end = time.perf_counter()
-            if not DISABLE_FOXLINK_DISPATCH:
-                duration = interval + (end - start)
-                elapsed_time += duration
-                logger.warning(f"[ELAPSED TIME] {elapsed_time} seconds")
+            end_time = time.perf_counter()
 
-                if await send_mission_routine(elapsed_time):
-                    elapsed_time = 0
+            logger.info(
+                "[main_routine] took %.2f seconds", end_time - beg_time
+            )
 
-            logger.warning("[main_routine] took %.2f seconds", end - start)
-
-        except InterfaceError as e:
-            # weird condition. met once, never met twice.
-            logger.error(f'API Database connection failure.')
-            await api_db.disconnect()
-            await api_db.connect()
+            if (end_time - beg_time < 10):
+                await asyncio.sleep(max(1 - (end_time - beg_time), 0))
 
         except Exception as e:
-            logger.error(f'Unknown excpetion in main_routine: {repr(e)}')
+            logger.error(f'Unknown excpetion occur in general routines: {repr(e)}')
             traceback.print_exc()
+            logger.error(f'Waiting 5 seconds to restart...')
+            await asyncio.sleep(5)
 
-        await asyncio.sleep(interval)
 
-    await asyncio.sleep(5)
+async def notify_routine():
+    global _terminate
+    while (not _terminate):
+        try:
+            await send_mission_notification_routine()
 
-    # shutdown
-    logger.info("Termiante Databases/Connections...")
-    try:
-        await asyncio.gather(*[
-            api_db.disconnect(),
-            mqtt_client.disconnect(),
-            foxlink_dbs.disconnect()
-        ])
-    except Exception as e:
-        logger.error(f"Cannot Connect to the databases and servers")
-        logger.error(f"{e}")
-        exit(0)
+            await asyncio.sleep(1)
+
+        except Exception as e:
+            logger.error(f'Unknown excpetion in notify routines: {repr(e)}')
+            traceback.print_exc()
+            logger.error(f'Waiting 5 seconds to restart...')
+            await asyncio.sleep(5)
+
+
+async def main(interval: int):
+    global _terminate
+    _terminate = False
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGINT, shutdown_callback)
+    loop.add_signal_handler(signal.SIGTERM, shutdown_callback)
+
+    logger.info("Daemon Initilialized.")
+
+    ###################################################
+    # connect to services
+    await connect_services()
+    # main loop
+    await asyncio.gather(
+        general_routine(),
+        notify_routine()
+    )
+    # disconnect to services
+    await disconnect_services()
+    ###################################################
 
     logger.info("Daemon Terminated.")
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', dest='interval', type=int, default=10)
@@ -1088,4 +1217,9 @@ def create(**p):
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    asyncio.run(main(interval=args.interval))
+    asyncio.run(
+        main(
+            interval=args.interval
+        )
+        # ,debug=DEBUG
+    )

@@ -63,7 +63,6 @@ class MQTT_Client:
         - retain: 是否保留訊息
         """
         # await self.wait_status(True)
-
         json_str = json.dumps(payload, default=self.serializer)
 
         result = self.mqtt_client.publish(topic, payload=json_str, qos=qos, retain=retain)

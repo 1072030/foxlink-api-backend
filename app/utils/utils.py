@@ -1,31 +1,33 @@
-from pickle import TUPLE
 import pytz
+import asyncio
+from pickle import TUPLE
 from typing import Tuple
 from fastapi import BackgroundTasks
 from app.core.database import (
     get_ntz_now,
     ShiftType,
     Shift
-) 
-from datetime import datetime, timedelta,time
+)
+from datetime import datetime, timedelta, time
 from app.env import (
-    DAY_SHIFT_BEGIN, 
-    DAY_SHIFT_END, 
+    DAY_SHIFT_BEGIN,
+    DAY_SHIFT_END,
     TZ
 )
 
-async def get_current_shift_details()-> Tuple[ShiftType,datetime,datetime]:
+
+async def get_current_shift_details() -> Tuple[ShiftType, datetime, datetime]:
     now = get_ntz_now().astimezone(TZ)
     now_time = now.time()
     shifts = await Shift.objects.all()
     for shift in shifts:
         tz_now = now.astimezone(TZ)
 
-        # due to the timezone specification problem, 
+        # due to the timezone specification problem,
         # which is the timezone for shift time is set to TZ,
         # but the system uses datetime without timezones,
         # therefore need to convert the time setting from shift to non-timezoned format
-        period_beg =  (
+        period_beg = (
             tz_now
             .replace(
                 hour=shift.shift_beg_time.hour,
@@ -36,7 +38,7 @@ async def get_current_shift_details()-> Tuple[ShiftType,datetime,datetime]:
             .replace(tzinfo=None)
         )
 
-        period_end = (    
+        period_end = (
             tz_now
             .replace(
                 hour=shift.shift_end_time.hour,
@@ -48,32 +50,35 @@ async def get_current_shift_details()-> Tuple[ShiftType,datetime,datetime]:
         )
         shift_type = ShiftType(shift.id)
         if shift.shift_beg_time > shift.shift_end_time:
-            if(now_time > shift.shift_beg_time or now_time < shift.shift_end_time):
-                if(now_time < time.max):
+            if (now_time > shift.shift_beg_time or now_time < shift.shift_end_time):
+                if (now_time < time.max):
                     return (
                         shift_type,
                         period_beg,
-                        period_end+timedelta(days=1)
+                        period_end + timedelta(days=1)
                     )
                 else:
                     return (
                         shift_type,
-                        period_beg-timedelta(days=1),
+                        period_beg - timedelta(days=1),
                         period_end
                     )
 
         else:
-            if(now_time > shift.shift_beg_time and now_time < shift.shift_end_time):
+            if (now_time > shift.shift_beg_time and now_time < shift.shift_end_time):
                 return (
                     shift_type,
                     period_beg,
                     period_end
                 )
 
+
 async def get_current_shift_type() -> (ShiftType):
-   return (await get_current_shift_details())[0]
+    return (await get_current_shift_details())[0]
 
 # TODO: No time, need to adjust to new in database shift structure
+
+
 async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
     shift_type = await get_current_shift_type()
     now_time = get_ntz_now()
@@ -97,6 +102,8 @@ async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
     return shift_start.astimezone(pytz.utc), shift_end.astimezone(pytz.utc)
 
 # TODO: No time, need to adjust to new in database shift structure
+
+
 def get_previous_shift_time_interval():
     now_time = get_ntz_now()
 
@@ -121,6 +128,24 @@ def get_previous_shift_time_interval():
 
     return day_shift_start.astimezone(pytz.utc), day_shift_end.astimezone(pytz.utc), night_shift_start.astimezone(pytz.utc), night_shift_end.astimezone(pytz.utc)
 
+
+class BenignObj(object):
+    pass
+
+
+class AsyncEmitter:
+    def __init__(self):
+        self.jobs = []
+
+    def add(self, *coroutines):
+        self.jobs += coroutines
+
+    def emit(self):
+        return asyncio.gather(
+            *self.jobs
+        )
+
+
 # def time_within_period(at: time, beg: time,end: time):
 #     if beg > end:
 #         if(at > beg or at < end):
@@ -137,5 +162,3 @@ def get_previous_shift_time_interval():
 #         shift.shift_beg_time,
 #         shift.shift_end_time
 #     )
-
-

@@ -17,6 +17,7 @@
       "type": "python",
       "request": "launch",
       "module": "app.server_uvicorn",
+      "console": "integratedTerminal",
       "justMyCode": false
     },
     {

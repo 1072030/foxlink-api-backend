@@ -2,6 +2,7 @@ import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends
 from app.core.database import (
+    WorkerStatusEnum,
     AuditActionEnum,
     AuditLogHeader,
     User,
@@ -10,16 +11,16 @@ from app.core.database import (
     api_db,
 )
 from app.services.mission import (
-    accept_mission_by_id,
+    accept_mission,
     assign_mission,
-    cancel_mission_by_id,
+    cancel_mission,
     click_mission_by_id,
     get_mission_by_id,
     request_assistance,
     update_mission_by_id,
-    start_mission_by_id,
-    finish_mission_by_id,
-    reject_mission_by_id,
+    start_mission,
+    finish_mission,
+    reject_mission,
     delete_mission_by_id,
 )
 from app.services.auth import (
@@ -29,7 +30,7 @@ from app.services.auth import (
 from app.models.schema import MissionUpdate, MissionDto, MissionInfo
 from fastapi.exceptions import HTTPException
 
-from app.services.user import check_user_begin_shift, is_user_working_on_mission
+from app.services.user import check_user_begin_shift
 
 router = APIRouter(prefix="/missions")
 
@@ -94,7 +95,7 @@ async def get_missions_by_query(
 
 
 @router.get("/self", response_model=List[MissionDto], tags=["missions"])
-async def get_self_mission(
+async def get_missions_by_worker(
     user: User = Depends(get_current_user),
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
@@ -143,23 +144,23 @@ async def get_self_mission(
 
     return [MissionDto.from_mission(x) for x in missions]
 
+
 @router.get("/get-current-mission", response_model=List[MissionInfo], tags=['missions'])
-async def get_current_mission(user: User = Depends(get_current_user)):
+async def get_current_mission_by_worker(user: User = Depends(get_current_user)):
     mission = (
         await Mission.objects
         .select_related(["device", "worker"])
         .filter(worker=user.badge, is_done=False)
         .get_or_none()
     )
-    if mission :
+    if mission:
         return [MissionInfo.from_mission(mission)]
     else:
-        return  []
-   
+        return []
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
-async def get_a_mission_by_id(
+async def assign_mission_by_worker(
     mission_id: int, user: User = Depends(get_current_user)
 ):
     m = await get_mission_by_id(mission_id)
@@ -174,28 +175,25 @@ async def get_a_mission_by_id(
 
 
 @router.post("/{mission_id}/assign", tags=["missions"])
-async def assign_mission_to_user(
-    mission_id: int, user_name: str, user: User = Depends(get_manager_active_user)
+async def assign_mission_by_manager(
+    mission, worker, user: User = Depends(get_manager_active_user)
 ):
-    if (await is_user_working_on_mission(user_name)) == True:
-        raise HTTPException(400, "the user is working on other mission")
-
-    await assign_mission(mission_id, user_name)
+    await assign_mission(mission, worker)
 
     await AuditLogHeader.objects.create(
         table_name="missions",
-        record_pk=mission_id,
+        record_pk=mission.id,
         action=AuditActionEnum.MISSION_ASSIGNED.value,
-        user=user_name,
+        user=worker.badge,
         description=f"From Web API (Reqeust by {user.badge})",
     )
 
 
-@router.post("/{mission_id}/cancel", tags=["missions"])
-async def cancel_a_mission_by_id(
+@ router.post("/{mission_id}/cancel", tags=["missions"])
+async def cancel_mission_by_manager(
     mission_id: int, user: User = Depends(get_manager_active_user)
 ):
-    await cancel_mission_by_id(mission_id)
+    await cancel_mission(mission_id, user)
 
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_CANCELED.value,
@@ -205,46 +203,46 @@ async def cancel_a_mission_by_id(
     )
 
 
-@router.post("/{mission_id}/start", tags=["missions"])
-async def start_mission(mission_id: int, user: User = Depends(get_current_user)):
-    await start_mission_by_id(mission_id, user)
+@ router.post("/{mission_id}/start", tags=["missions"])
+async def start_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
+    await start_mission(mission_id, user)
 
 
-@router.post("/{mission_id}/accept", tags=["missions"])
+@ router.post("/{mission_id}/accept", tags=["missions"])
 async def accept_mission_by_worker(
     mission_id: int, user: User = Depends(get_current_user)
 ):
-    await accept_mission_by_id(mission_id, user)
+    await accept_mission(mission_id, user)
 
 
-@router.get("/{mission_id}/click", tags=["missions"])
+@ router.get("/{mission_id}/click", tags=["missions"])
 async def click_mission(mission_id: int, user: User = Depends(get_current_user)):
     await click_mission_by_id(mission_id, user)
 
 
-@router.get("/{mission_id}/reject", tags=["missions"])
-async def reject_a_mission(
+@ router.get("/{mission_id}/reject", tags=["missions"])
+async def reject_mission_by_worker(
     mission_id: int, user: User = Depends(get_current_user)
 ):
-    await reject_mission_by_id(mission_id, user)
+    await reject_mission(mission_id, user)
 
 
-@router.post("/{mission_id}/finish", tags=["missions"])
-async def finish_mission(
+@ router.post("/{mission_id}/finish", tags=["missions"])
+async def finish_mission_by_worker(
     mission_id: int, user: User = Depends(get_current_user)
 ):
-    await finish_mission_by_id(mission_id, user)
+    await finish_mission(mission_id, user)
 
 
-@router.get("/{mission_id}/emergency", tags=["missions"], status_code=201)
+@ router.get("/{mission_id}/emergency", tags=["missions"], status_code=201)
 async def mark_mission_emergency(
     mission_id: int, user: User = Depends(get_current_user)
 ):
     await request_assistance(mission_id, user)
 
 
-@router.patch("/{mission_id}", tags=["missions"])
-async def update_mission(
+@ router.patch("/{mission_id}", tags=["missions"])
+async def update_mission_by_manager(
     mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)
 ):
     await update_mission_by_id(mission_id, dto)
@@ -257,11 +255,11 @@ async def update_mission(
     )
 
 
-@router.delete("/{mission_id}", tags=["missions"])
-async def delete_mission(
+@ router.delete("/{mission_id}", tags=["missions"])
+async def delete_mission_by_manager(
     mission_id: int, user: User = Depends(get_manager_active_user)
 ):
-    await delete_mission_by_id(mission_id)
+    await delete_mission_by_id(mission_id, user)
     await AuditLogHeader.objects.create(
         table_name="missions",
         action=AuditActionEnum.MISSION_DELETED.value,

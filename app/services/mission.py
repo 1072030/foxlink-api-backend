@@ -2,6 +2,7 @@ import time
 import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional
+from ormar import Model
 from app.core.database import (
     get_ntz_now,
     Mission,
@@ -20,8 +21,7 @@ from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt import mqtt_client
 from app.services.user import (
-    get_user_by_badge,
-    is_user_working_on_mission
+    get_worker_by_badge
 )
 from app.log import LOGGER_NAME
 from app.env import (
@@ -38,7 +38,17 @@ async def get_missions() -> List[Mission]:
     return await Mission.objects.select_all().all()
 
 
-async def get_mission_by_id(id: int, select_fields: List[str] = ["rejections", "worker", "device", "events", "device__workshop"]) -> Optional[Mission]:
+async def get_mission_by_id(
+    id: int,
+    select_fields: List[str] = [
+        "rejections",
+        "worker",
+        "device",
+        "events",
+        "device__workshop",
+        "worker__shift"
+    ]
+) -> Optional[Mission]:
     mission = (
         await Mission.objects.select_related(
             select_fields
@@ -105,22 +115,27 @@ async def click_mission_by_id(mission_id: int, worker: User):
         await mission.update(notify_recv_date=get_ntz_now())
 
 
+######## REFACTORED BY OD ########
 @transaction
-async def start_mission_by_id(mission_id: int, worker: User):
-    mission = await get_mission_by_id(mission_id)
+async def start_mission(mission, worker):
+    if not isinstance(mission, Mission):
+        mission = await get_mission_by_id(mission)
 
+    if not isinstance(worker, User):
+        worker = await get_worker_by_badge(worker)
+
+    await _start_mission(mission, worker)
+
+
+async def _start_mission(mission, worker):
     if mission is None:
-        raise HTTPException(
-            404, "the mission you request to start is not found")
+        raise HTTPException(404, "the mission you request to start is not found")
 
     if worker.badge != mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.is_done:
         raise HTTPException(400, "this mission is already closed.")
-
-    # if mission.is_closed or mission.is_done_cancel:
-    #     raise HTTPException(400, "this mission is already closed or canceled")
 
     if mission.device.is_rescue:
         await asyncio.gather(
@@ -130,6 +145,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
             worker.update(
                 status=WorkerStatusEnum.idle.value,
                 at_device=mission.device.id,
+                shift_accept_count=worker.shift_accept_count + 1,
                 finish_event_date=get_ntz_now()
             )
         )
@@ -140,9 +156,8 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
     # check if worker has accepted this mission
     if not mission.is_accepted:
-        raise HTTPException(
-            400, "one of the worker hasn't accepted the mission yet!"
-        )
+        raise HTTPException(400, "the worker hasn't accept the mission yet!")
+
     await asyncio.gather(
         mission.update(
             repair_beg_date=get_ntz_now()
@@ -150,7 +165,7 @@ async def start_mission_by_id(mission_id: int, worker: User):
         worker.update(
             status=WorkerStatusEnum.working.value,
             at_device=mission.device.id,
-            finish_event_date=get_ntz_now()
+            shift_accept_count=worker.shift_accept_count + 1,
         ),
         AuditLogHeader.objects.create(
             action=AuditActionEnum.MISSION_STARTED.value,
@@ -162,9 +177,17 @@ async def start_mission_by_id(mission_id: int, worker: User):
 
 
 @transaction
-async def accept_mission_by_id(mission_id: int, worker: User):
-    mission = await get_mission_by_id(mission_id)
+async def accept_mission(mission, worker):
+    if not isinstance(mission, Mission):
+        mission = await get_mission_by_id(mission)
 
+    if not isinstance(worker, User):
+        worker = await get_worker_by_badge(worker)
+
+    await _accept_mission(mission, worker)
+
+
+async def _accept_mission(mission, worker):
     if mission is None:
         raise HTTPException(
             404,
@@ -193,30 +216,36 @@ async def accept_mission_by_id(mission_id: int, worker: User):
             notify_recv_date=get_ntz_now()
         ),
         worker.update(
-            status=WorkerStatusEnum.moving.value,
-            shift_accept_count=worker.shift_accept_count + 1
+            status=WorkerStatusEnum.moving.value
+        ),
+        AuditLogHeader.objects.create(
+            action=AuditActionEnum.MISSION_ACCEPTED.value,
+            user=worker.badge,
+            table_name="missions",
+            record_pk=str(mission.id)
         )
     )
 
 
 @ transaction
-async def reject_mission_by_id(mission_id: int, worker: User):
-    mission = await get_mission_by_id(mission_id)
+async def reject_mission(mission, worker):
 
-    worker = (
-        await User.objects
-        .select_related("accepted_missions")
-        .get_or_none(badge=worker.badge)
-    )
+    if not isinstance(mission, Mission):
+        mission = await get_mission_by_id(mission)
 
+    if not isinstance(worker, User):
+        worker = await get_worker_by_badge(worker)
+
+    await _reject_mission(mission, worker)
+
+
+async def _reject_mission(mission, worker):
     if mission is None:
-        raise HTTPException(
-            200, "the mission you request to start is not found"
-        )
+        raise HTTPException(200, "the mission you request to start is not found")
 
     if mission.worker is None:
         raise HTTPException(200, "the mission haven't assigned to you")
-    
+
     if not worker.badge == mission.worker.badge:
         raise HTTPException(200, "the mission haven't assigned to you")
 
@@ -228,26 +257,34 @@ async def reject_mission_by_id(mission_id: int, worker: User):
 
     mission_reject_count = len(mission.rejections) + 1
 
-    worker.shift_reject_count += 1
+    shift_reject_count = worker.shift_reject_count + 1
 
-    await mission.update(
-        notify_send_date=None,
-        notify_recv_date=None,
-        accept_recv_date=None,
-        repair_beg_date=None,
-        repair_end_date=None
+    await asyncio.gather(
+        mission.update(
+            notify_send_date=None,
+            notify_recv_date=None,
+            accept_recv_date=None,
+            repair_beg_date=None,
+            repair_end_date=None
+        ),
+        worker.rejected_missions.add(
+            mission
+        ),
+        worker.accepted_missions.remove(
+            mission
+        ),
     )
-    await worker.rejected_missions.add(mission)
 
-    await worker.accepted_missions.remove(mission)
-
-    await worker.update(status=WorkerStatusEnum.idle.value)
-
-    await AuditLogHeader.objects.create(
-        table_name="missions",
-        action=AuditActionEnum.MISSION_REJECTED.value,
-        record_pk=str(mission.id),
-        user=worker,
+    await asyncio.gather(
+        worker.update(
+            status=WorkerStatusEnum.idle.value
+        ),
+        AuditLogHeader.objects.create(
+            table_name="missions",
+            action=AuditActionEnum.MISSION_REJECTED.value,
+            record_pk=str(mission.id),
+            user=worker,
+        )
     )
 
     if mission_reject_count >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
@@ -263,7 +300,7 @@ async def reject_mission_by_id(mission_id: int, worker: User):
             retain=True,
         )
 
-    if worker.shift_reject_count >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
+    if shift_reject_count >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
 
         await mqtt_client.publish(
             f"foxlink/users/{worker.superior.badge}/subordinate-rejected",
@@ -279,20 +316,26 @@ async def reject_mission_by_id(mission_id: int, worker: User):
 
 
 @ transaction
-async def finish_mission_by_id(mission_id: int, worker: User):
-    mission = await get_mission_by_id(mission_id)
+async def finish_mission(mission, worker):
 
+    if not isinstance(mission, Mission):
+        mission = await get_mission_by_id(mission)
+
+    if not isinstance(worker, User):
+        worker = await get_worker_by_badge(worker)
+
+    await _finish_mission(mission, worker)
+
+
+async def _finish_mission(mission, worker):
     if mission is None:
-        raise HTTPException(
-            404, "the mission you request to start is not found"
-        )
+        raise HTTPException(404, "the mission you request to start is not found")
 
     if mission.worker != worker:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.is_done_shift:
-        raise HTTPException(
-            200, "you're no longer this missions assignee due to shifting.")
+        raise HTTPException(200, "you're no longer this missions assignee due to shifting.")
 
     if mission.is_done:
         raise HTTPException(200, "the mission has closed.")
@@ -300,31 +343,35 @@ async def finish_mission_by_id(mission_id: int, worker: User):
     if mission.repair_beg_date is None:
         raise HTTPException(400, "You need to start mission first")
 
-    now_time = get_ntz_now()
+    await asyncio.gather(
+        mission.update(
+            is_done=True,
+            is_done_finish=True,
+            repair_end_date=get_ntz_now()
+        ),
 
-    await mission.update(
-        is_done=True,
-        is_done_finish=True,
-        repair_end_date=now_time,
-    )
+        # set each assignee's finish_event_date
+        worker.update(
+            status=WorkerStatusEnum.idle.value,
+            finish_event_date=get_ntz_now()
+        ),
 
-    # set each assignee's finish_event_date
-    await worker.update(
-        status=WorkerStatusEnum.idle.value,
-        finish_event_date=now_time
-    )
-
-    await AuditLogHeader.objects.create(
-        table_name="missions",
-        action=AuditActionEnum.MISSION_FINISHED.value,
-        record_pk=str(mission.id),
-        user=worker.badge,
+        AuditLogHeader.objects.create(
+            table_name="missions",
+            action=AuditActionEnum.MISSION_FINISHED.value,
+            record_pk=str(mission.id),
+            user=worker.badge,
+        )
     )
 
 
 @ transaction
-async def delete_mission_by_id(mission_id: int):
-    mission = await get_mission_by_id(mission_id)
+async def delete_mission_by_id(mission, worker):
+    if not isinstance(mission, Mission):
+        mission = await get_mission_by_id(mission)
+
+    if not isinstance(worker, User):
+        worker = await get_worker_by_badge(worker)
 
     if mission is None:
         raise HTTPException(
@@ -332,99 +379,116 @@ async def delete_mission_by_id(mission_id: int):
             "the mission you request to delete is not found"
         )
 
-    await mission.delete()
+    await _delete_mission(mission, worker)
+
+
+async def _delete_mission(mission, worker):
+    await asyncio.gather(
+        mission.delete(),
+
+        AuditLogHeader.objects.create(
+            table_name="missions",
+            action=AuditActionEnum.MISSION_DELETED.value,
+            record_pk=str(mission.id),
+            user=worker.badge,
+        )
+    )
 
 
 @ transaction
-async def cancel_mission_by_id(mission_id: int):
-    mission = await get_mission_by_id(mission_id)
+async def cancel_mission(mission, worker):
+    if not isinstance(mission, Mission):
+        mission = await get_mission_by_id(mission)
+
+    if not isinstance(worker, User):
+        worker = await get_worker_by_badge(worker)
+
+    await _cancel_mission(mission, worker)
+
+
+async def _cancel_mission(mission, worker):
+    _jobs = []
 
     if mission is None:
-        raise HTTPException(
-            404,
-            "the mission you request to cancel is not found"
-        )
+        raise HTTPException(404, "the mission you request to cancel is not found")
 
     if mission.is_done_cancel:
-        raise HTTPException(
-            400,
-            "this mission is already canceled"
-        )
+        raise HTTPException(400, "this mission is already canceled")
 
     if mission.is_done:
-        raise HTTPException(
-            400,
-            "this mission is already closed"
-        )
-
-    await mission.update(
-        is_done=True,
-        is_done_cancel=True
-    )
+        raise HTTPException(400, "this mission is already closed")
 
     if mission.worker:
-        await mission.worker.update(
-            finish_event_date=get_ntz_now()
+        _jobs.append(
+            mission.worker.update(
+                finish_event_date=get_ntz_now(),
+                status=WorkerStatusEnum.idle.value,
+            )
         )
+
+    _jobs.append(
+        mission.update(
+            is_done=True,
+            is_done_cancel=True
+        )
+    )
+
+    _jobs.append(
+        AuditLogHeader.objects.create(
+            table_name="missions",
+            action=AuditActionEnum.MISSION_CANCELED.value,
+            record_pk=str(mission.id),
+            user=worker.badge,
+        )
+    )
+
+    await asyncio.gather(
+        *_jobs
+    )
 
 
 @ transaction
-async def assign_mission(mission_id: int, badge: str):
-    user = await User.objects.get_or_none(badge=badge)
+async def assign_mission(mission, worker):
+    if (not isinstance(mission, Mission)):
+        mission = await get_mission_by_id(mission)
 
-    mission = await Mission.objects.select_related(["device", "events", "device__workshop"]).get_or_none(id=mission_id)
+    if (not isinstance(worker, Model)):
+        worker = await get_worker_by_badge(worker)
 
-    is_idle = (user.status == WorkerStatusEnum.idle.value)
+    await _assign_mission(mission, worker)
 
+
+async def _assign_mission(mission: Mission, worker: User):
     if mission is None:
-        raise HTTPException(
-            status_code=404, detail="the mission you requested is not found"
-        )
-
-    if mission.is_closed:
-        raise HTTPException(
-            status_code=400, detail="the mission you requested is closed"
-        )
-
-    if not is_idle:
-        raise HTTPException(
-            status_code=400, detail="the worker you requested is not idle"
-        )
-
-    # if worker has already working on other mission, skip
-    if (await is_user_working_on_mission(badge)) == True:
-        raise HTTPException(
-            status_code=400, detail="the worker you requested is working on other mission"
-        )
-
-    if mission.worker:
-        if badge == mission.worker.badge:
-            raise HTTPException(
-                status_code=400, detail="this mission is already assigned to this user"
-            )
-        else:
-            raise HTTPException(
-                status_code=400, detail="the mission is already assigned"
-            )
-
-    worker = await get_user_by_badge(badge)
+        raise HTTPException(status_code=404, detail="the mission you requested is not found")
 
     if worker is None:
-        raise HTTPException(
-            status_code=404, detail="the user you requested is not found"
+        raise HTTPException(status_code=404, detail="the user you requested is not found")
+
+    if not worker.status == WorkerStatusEnum.idle.value:
+        raise HTTPException(status_code=400, detail="the worker you requested is not idle")
+
+    if mission.is_closed:
+        raise HTTPException(status_code=400, detail="the mission you requested is closed")
+
+    if mission.worker:
+        if worker.badge == mission.worker.badge:
+            raise HTTPException(status_code=400, detail="this mission is already assigned to this user")
+        else:
+            raise HTTPException(status_code=400, detail="the mission is already assigned")
+
+    await asyncio.gather(
+        mission.update(
+            worker=worker,
+            is_lonely=False,
+            notify_send_date=get_ntz_now()
+        ),
+        worker.update(
+            status=WorkerStatusEnum.notice.value,
         )
-
-    await mission.update(
-        worker=worker,
-        is_lonely=False,
-        notify_send_date=get_ntz_now()
     )
 
-    await worker.update(
-        status=WorkerStatusEnum.notice.value,
-    )
-
-    if mission.device.is_rescue == False:
+    if not mission.device.is_rescue:
         await mqtt_client.publish(
             f"foxlink/users/{worker.current_UUID}/missions",
             {
@@ -465,9 +529,7 @@ async def request_assistance(mission_id: int, worker: User):
         raise HTTPException(404, "the mission you request is not found")
 
     if mission.device.is_rescue == True:
-        raise HTTPException(
-            400, "you can't mark to-rescue-station mission as emergency"
-        )
+        raise HTTPException(400, "you can't mark to-rescue-station mission as emergency")
 
     if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
@@ -478,14 +540,16 @@ async def request_assistance(mission_id: int, worker: User):
     if mission.is_closed:
         raise HTTPException(400, "this mission is already closed")
 
-    await mission.update(is_emergency=True)
-
-    await AuditLogHeader.objects.create(
-        action=AuditActionEnum.MISSION_EMERGENCY.value,
-        table_name='missions',
-        user=worker,
-        record_pk=str(mission.id)
+    await asyncio.gather(
+        mission.update(is_emergency=True),
+        AuditLogHeader.objects.create(
+            action=AuditActionEnum.MISSION_EMERGENCY.value,
+            table_name='missions',
+            user=worker,
+            record_pk=str(mission.id)
+        )
     )
+
     try:
         await mqtt_client.publish(
             f"foxlink/users/{worker.superior.badge}/missions",
@@ -551,14 +615,17 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         )
     )
 
-    await worker.update(status=WorkerStatusEnum.notice.value)
-
-    await AuditLogHeader.objects.create(
-        action=AuditActionEnum.MISSION_ASSIGNED.value,
-        user=worker.badge,
-        table_name="missions",
-        record_pk=str(mission.id),
-        description="前往消防站",
+    await asyncio.gather(
+        worker.update(
+            status=WorkerStatusEnum.notice.value
+        ),
+        AuditLogHeader.objects.create(
+            action=AuditActionEnum.MISSION_ASSIGNED.value,
+            user=worker.badge,
+            table_name="missions",
+            record_pk=str(mission.id),
+            description="前往消防站",
+        )
     )
 
     await mqtt_client.publish(

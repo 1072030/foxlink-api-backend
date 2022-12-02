@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from jose import jwt
-from .user import get_user_by_badge, pwd_context
+from app.services.user import get_worker_by_badge, pwd_context
 from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
 from app.env import (
@@ -42,7 +42,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 
 async def authenticate_user(badge: str, password: str):
-    user = await get_user_by_badge(badge)
+    user = await get_worker_by_badge(badge)
 
     if user is None:
         raise HTTPException(
@@ -70,7 +70,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                              "verify_exp": False, "verify_signature": False})
         badge: str = payload.get("sub")
         decode_UUID: str = payload.get("UUID")
-        user = await get_user_by_badge(badge)
+        user = await get_worker_by_badge(badge)
 
         if decode_UUID == user.current_UUID:
             user = await user.update(current_UUID="0")
@@ -80,7 +80,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except:
         raise HTTPException(403, 'Could not validate credentials')
 
-    user = await get_user_by_badge(badge)
+    user = await get_worker_by_badge(badge)
 
     if user is None:
         raise HTTPException(403, 'Could not validate credentials')

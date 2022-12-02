@@ -61,9 +61,34 @@ async def get_users() -> List[User]:
 #             status_code=400, detail="cannot add user:" + str(e))
 
 
-async def get_user_by_badge(badge: str) -> Optional[User]:
-    user = await User.objects.get_or_none(badge=badge)
-    return user
+async def get_worker_by_badge(
+    badge,
+    select_fields: List[str] = [
+        "accepted_missions",
+        "rejected_missions",
+        "workshop",
+        "superior",
+        "at_device",
+        "start_position"
+    ]
+) -> Optional[User]:
+    worker = (
+        await User.objects
+        .filter(badge=badge)
+        .select_related(
+            select_fields
+        )
+        .exclude_fields(
+            [
+                "workshop__map",
+                "workshop__related_devices",
+                "workshop__image",
+            ]
+        )
+        .get_or_none()
+    )
+
+    return worker
 
 
 async def delete_user_by_badge(badge: str):
@@ -84,7 +109,6 @@ async def check_user_begin_shift(user: User) -> Optional[bool]:
     except Exception as e:
         print(e)
         return None
-
 
 
 async def get_worker_mission_history(badge: str) -> List[MissionDto]:
@@ -133,44 +157,7 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
         return None
 
 
-async def is_user_working_on_mission(badge: str) -> bool:
-
-    worker = await User.objects.filter(badge=badge).get_or_none()
-
-    if worker is None:
-        raise HTTPException(
-            status_code=404, detail="the user with this id is not found"
-        )
-
-    # if worker has already working on other mission, skip
-    # left: user still working on a mission, right: user is not accept a mission yet.
-    if (
-        await Mission.objects
-        .filter(
-            and_(
-            or_(
-                and_(
-                    repair_beg_date__isnull=False,
-                    repair_end_date__isnull=True,
-                ),
-                and_(
-                    repair_beg_date__isnull=True,
-                    repair_end_date__isnull=True
-                ),
-            ),
-            is_done=False,
-            worker=worker,
-            )
-        )
-        .count() > 0
-    ):
-        return True
-
-    return False
-
-# ============ features re-add by Teddy ============
-
-
+# ============ features re-add by Teddy ===========
 async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(worker__badge=username)
@@ -255,7 +242,7 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
             )
             if u.superior is not None:
                 overview.superior = u.superior.username
-            
+
             if u.workshop is not None:
                 overview.workshop = u.workshop.name
 
@@ -296,7 +283,7 @@ async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
         raise HTTPException(
             status_code=404, detail="the user with this id is not found"
         )
-        
+
     total_accepted_count_this_month = await api_db.fetch_all(
         f"""
         SELECT COUNT(DISTINCT record_pk)
@@ -446,7 +433,7 @@ async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     item.at_device_cname = worker.at_device.device_cname if worker.at_device is not None else None
 
     mission = await get_user_working_mission(worker.badge)
-    
+
     if worker.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
         item.mission_duration = mission.mission_duration.total_seconds()  # type: ignore
 

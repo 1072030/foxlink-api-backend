@@ -25,7 +25,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-api_db = databases.Database(DATABASE_URI, max_size=5)
+api_db = databases.Database(DATABASE_URI, max_size=30)
 
 metadata = MetaData()
 
@@ -116,6 +116,7 @@ class AuditActionEnum(Enum):
     MISSION_UPDATED = "MISSION_UPDATED"
     MISSION_OVERTIME = "MISSION_OVERTIME"
     MISSION_CANCELED = "MISSION_CANCELED"
+    MISSION_CURED = "MISSION_CURED"
     MISSION_USER_DUTY_SHIFT = "MISSION_USER_DUTY_SHIFT"
     MISSION_EMERGENCY = "MISSION_EMERGENCY"
     USER_LOGIN = "USER_LOGIN"
