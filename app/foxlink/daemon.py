@@ -157,7 +157,7 @@ def find_idx_in_factory_map(factory_map: FactoryMap, device_id: str) -> int:
 async def send_mission_routine(elapsed_time):
 
     if elapsed_time % 60 > 5:
-        return
+        return False
 
     mission = await Mission.objects.select_related(
         ["device", "worker", "device__workshop"]
@@ -224,6 +224,8 @@ async def send_mission_routine(elapsed_time):
                 qos=2,
                 retain=True
             )
+
+    return True
 # done
 
 
@@ -560,7 +562,7 @@ async def mission_dispatch():
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
                     badge__in=whitelist_users_entity_dict,
-                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
+                    login_date__lt=get_ntz_now() - timedelta(seconds=30)
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -580,7 +582,7 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
-                    login_date__lt =get_ntz_now()-timedelta(seconds=30)
+                    login_date__lt=get_ntz_now() - timedelta(seconds=30)
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -1023,8 +1025,9 @@ async def main(interval: int):
                 duration = interval + (end - start)
                 elapsed_time += duration
                 logger.warning(f"[ELAPSED TIME] {elapsed_time} seconds")
-                await send_mission_routine(elapsed_time)
-                elapsed_time = elapsed_time % 60
+
+                if await send_mission_routine(elapsed_time):
+                    elapsed_time = 0
 
             logger.warning("[main_routine] took %.2f seconds", end - start)
 

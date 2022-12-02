@@ -123,13 +123,15 @@ async def start_mission_by_id(mission_id: int, worker: User):
     #     raise HTTPException(400, "this mission is already closed or canceled")
 
     if mission.device.is_rescue:
-        await mission.update(
-            repair_end_date=get_ntz_now()
-        )
-        await worker.update(
-            status=WorkerStatusEnum.idle.value,
-            at_device=mission.device.id,
-            finish_event_date=get_ntz_now()
+        await asyncio.gather(
+            mission.update(
+                repair_end_date=get_ntz_now()
+            ),
+            worker.update(
+                status=WorkerStatusEnum.idle.value,
+                at_device=mission.device.id,
+                finish_event_date=get_ntz_now()
+            )
         )
         return
 
@@ -141,22 +143,21 @@ async def start_mission_by_id(mission_id: int, worker: User):
         raise HTTPException(
             400, "one of the worker hasn't accepted the mission yet!"
         )
-
-    await mission.update(
-        repair_beg_date=get_ntz_now()
-    )
-
-    await worker.update(
-        status=WorkerStatusEnum.working.value,
-        at_device=mission.device.id,
-        finish_event_date=get_ntz_now()
-    )
-
-    await AuditLogHeader.objects.create(
-        action=AuditActionEnum.MISSION_STARTED.value,
-        user=worker.badge,
-        table_name="missions",
-        record_pk=str(mission.id),
+    await asyncio.gather(
+        mission.update(
+            repair_beg_date=get_ntz_now()
+        ),
+        worker.update(
+            status=WorkerStatusEnum.working.value,
+            at_device=mission.device.id,
+            finish_event_date=get_ntz_now()
+        ),
+        AuditLogHeader.objects.create(
+            action=AuditActionEnum.MISSION_STARTED.value,
+            user=worker.badge,
+            table_name="missions",
+            record_pk=str(mission.id),
+        )
     )
 
 
@@ -170,38 +171,35 @@ async def accept_mission_by_id(mission_id: int, worker: User):
             "the mission you request is not found"
         )
 
-    if not worker.badge == mission.worker.badge:
+    if (
+        not worker.badge or
+        not worker.badge == mission.worker.badge
+    ):
         raise HTTPException(
             400,
             "you are not this mission's assignee"
         )
 
     if not mission.device.is_rescue:
-        if mission.is_started or mission.is_closed:
+        if mission.is_accepted or mission.is_started or mission.is_closed:
             raise HTTPException(
                 400,
                 "this mission is already started or closed"
             )
 
-    await mission.update(
-        accept_recv_date=get_ntz_now(),
-        notify_recv_date=get_ntz_now()
-    )
-
-    await worker.update(
-        status=WorkerStatusEnum.moving.value,
-        shift_accept_count=worker.shift_accept_count + 1
-    )
-
-    await AuditLogHeader.objects.create(
-        action=AuditActionEnum.MISSION_ACCEPTED.value,
-        user=worker.badge,
-        table_name="missions",
-        record_pk=str(mission_id),
+    await asyncio.gather(
+        mission.update(
+            accept_recv_date=get_ntz_now(),
+            notify_recv_date=get_ntz_now()
+        ),
+        worker.update(
+            status=WorkerStatusEnum.moving.value,
+            shift_accept_count=worker.shift_accept_count + 1
+        )
     )
 
 
-@transaction
+@ transaction
 async def reject_mission_by_id(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -213,7 +211,8 @@ async def reject_mission_by_id(mission_id: int, worker: User):
 
     if mission is None:
         raise HTTPException(
-            404, "the mission you request to start is not found")
+            404, "the mission you request to start is not found"
+        )
 
     if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "the mission haven't assigned to you")
