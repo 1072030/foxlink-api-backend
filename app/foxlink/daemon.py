@@ -731,7 +731,8 @@ async def mission_dispatch():
             if (assigned_mission_counter == 50):
                 break
 
-    logger.info(f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
+    logger.info(
+        f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
 
 
 ######### mission overtime  ########
@@ -744,7 +745,7 @@ async def check_mission_working_duration_overtime():
         await Mission.objects
         .filter(
             is_done=False,
-            is_overtime=False,
+            is_overtime__lt = len(MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES),
             worker__isnull=False,
             repair_beg_date__isnull=False,
             repair_end_date__isnull=True,
@@ -759,12 +760,20 @@ async def check_mission_working_duration_overtime():
     for mission in working_missions:
         superior = mission.worker.superior
         mission_duration_seconds = mission.mission_duration.total_seconds()
-        for thresh in thresholds:   
-            if mission_duration_seconds >= thresh * 60:
-                await mission.update(is_overtime=True)
+        for i,thresh in enumerate(thresholds):
+            if i >= mission.is_overtime and  mission_duration_seconds >= thresh * 60:
                 if superior is None:
                     break
                 superior = await User.objects.filter(badge=superior.badge).get()
+
+                await AuditLogHeader.objects.create(
+                    action=AuditActionEnum.MISSION_OVERTIME.value,
+                    table_name="missions",
+                    description=str(min),
+                    record_pk=str(mission.id),
+                    user=mission.worker.badge,
+                )
+
                 await mqtt_client.publish(
                     f"foxlink/users/{superior.badge}/mission-overtime",
                     {
@@ -778,16 +787,13 @@ async def check_mission_working_duration_overtime():
                     qos=2,
                     retain=True
                 )
-                await AuditLogHeader.objects.create(
-                    action=AuditActionEnum.MISSION_OVERTIME.value,
-                    table_name="missions",
-                    description=str(min),
-                    record_pk=str(mission.id),
-                    user=mission.worker.badge,
-                )
+
                 superior = superior.superior
-            else:
-                break
+                
+                await mission.update(is_overtime=i+1)
+            
+        
+       
 
 
 # done
@@ -1149,7 +1155,8 @@ async def general_routine():
                 await asyncio.sleep(max(1 - (end_time - beg_time), 0))
 
         except Exception as e:
-            logger.error(f'Unknown excpetion occur in general routines: {repr(e)}')
+            logger.error(
+                f'Unknown excpetion occur in general routines: {repr(e)}')
             traceback.print_exc()
             logger.error(f'Waiting 5 seconds to restart...')
             await asyncio.sleep(5)
@@ -1161,7 +1168,7 @@ async def notify_routine():
         try:
             await send_mission_notification_routine()
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
 
         except Exception as e:
             logger.error(f'Unknown excpetion in notify routines: {repr(e)}')

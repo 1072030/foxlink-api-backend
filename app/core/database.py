@@ -282,7 +282,7 @@ class Mission(ormar.Model):
 
     # if no worker could be assigned
     is_lonely: bool = ormar.Boolean(default=False, nullable=True)
-    is_overtime: bool = ormar.Boolean(default=False, nullable=True)
+    is_overtime: int = ormar.Integer(default=0, nullable=True)
     is_emergency: bool = ormar.Boolean(default=False, nullable=True)
 
     notify_send_date: datetime = ormar.DateTime(nullable=True)
