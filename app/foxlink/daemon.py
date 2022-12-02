@@ -564,11 +564,7 @@ async def mission_dispatch():
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
                     badge__in=whitelist_users_entity_dict,
-<<<<<<< HEAD
                     login_date__lt=get_ntz_now() - timedelta(seconds=30)
-=======
-                    login_date__lt=get_ntz_now()-timedelta(seconds=30)
->>>>>>> origin/v9.1@Ruby
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -588,11 +584,7 @@ async def mission_dispatch():
                     shift=current_shift.value,
                     workshop=mission.device.workshop.id,
                     status=WorkerStatusEnum.idle.value,
-<<<<<<< HEAD
                     login_date__lt=get_ntz_now() - timedelta(seconds=30)
-=======
-                    login_date__lt=get_ntz_now()-timedelta(seconds=30)
->>>>>>> origin/v9.1@Ruby
                 )
                 .select_related(["device_levels", "at_device"])
                 .filter(
@@ -635,13 +627,13 @@ async def mission_dispatch():
 
             if not mission.is_lonely:
                 await mission.update(is_lonely=True)
-                mission_is_lonely=MissionDto.from_mission(mission).dict()
-                mission_is_lonely["timestamp"]=get_ntz_now()
+                mission_is_lonely = MissionDto.from_mission(mission).dict()
+                mission_is_lonely["timestamp"] = get_ntz_now()
                 await mqtt_client.publish(
                     f"foxlink/{workshop.name}/no-available-worker",
-                        mission_is_lonely,
-                        qos=2,
-                        retain=True
+                    mission_is_lonely,
+                    qos=2,
+                    retain=True
                 )
 
         else:
