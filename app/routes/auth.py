@@ -95,6 +95,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
             if not user.start_position == None:
                 # give rescue missiong if condition match
+
                 await asyncio.gather(
                     set_mission_by_rescue_position(
                         user,
@@ -105,6 +106,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                     ),
                     log
                 )
+            else:
+                await asyncio.gather(
+                    user.update(
+                        login_date=get_ntz_now(),
+                        status=WorkerStatusEnum.idle.value
+                    ),
+                    log
+                )
+
             return {"access_token": access_token, "token_type": "bearer"}
 
         else:

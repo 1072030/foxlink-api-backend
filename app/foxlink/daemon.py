@@ -759,7 +759,7 @@ async def check_mission_working_duration_overtime():
     for mission in working_missions:
         superior = mission.worker.superior
         mission_duration_seconds = mission.mission_duration.total_seconds()
-        for thresh in thresholds:   
+        for thresh in thresholds:
             if mission_duration_seconds >= thresh * 60:
                 await mission.update(is_overtime=True)
                 if superior is None:
