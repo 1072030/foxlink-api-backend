@@ -92,6 +92,9 @@ MISSION_ASSIGN_OT_MINUTES = get_env("MISSION_ASSIGN_OT_MINUTES", float, 10)
 # 例行程序參數設定
 RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
 
+# 例行程序參數設定
+DISABLE_STARTUP_RESCUE_MISSION = get_env("DISABLE_STARTUP_RESCUE_MISSION", bool, False)
+
 # 時區
 TZ = pytz.timezone("Asia/Taipei")
 

@@ -146,6 +146,15 @@ class AsyncEmitter:
         )
 
 
+class DTO:
+    def __init__(self, in_dict):
+        for key, val in in_dict.items():
+            if (isinstance(val, (list, tuple))):
+                setattr(self, key, [DTO(x) if isinstance(x, dict)else x for x in val])
+            else:
+                setattr(self, key, DTO(val) if isinstance(val, dict) else val)
+
+
 # def time_within_period(at: time, beg: time,end: time):
 #     if beg > end:
 #         if(at > beg or at < end):
