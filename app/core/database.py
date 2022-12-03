@@ -25,7 +25,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-api_db = databases.Database(DATABASE_URI, max_size=30)
+api_db = databases.Database(DATABASE_URI, max_size=5)
 
 metadata = MetaData()
 
@@ -63,6 +63,31 @@ def transaction(func):
             await _transaction.commit()
             return result
     return wrapper
+
+
+def transaction_with_logger(logger):
+    def decor(func):
+        async def wrapper(*args, **_args):
+
+            _transaction = (api_db.transaction(isolation="serializable"))
+            result = None
+            try:
+                logger.info("transaction starting")
+                await _transaction.start()
+                logger.info("transaction started successful")
+                result = await func(*args, **_args)
+            except Exception as e:
+                # traceback.print_exc()
+                print(f"error in transaction: {e}")
+                await _transaction.rollback()
+                logger.info("transaction ended failure")
+                raise e
+            else:
+                await _transaction.commit()
+                logger.info("transaction ended success")
+                return result
+        return wrapper
+    return decor
 
 
 class UserLevel(Enum):
@@ -343,7 +368,7 @@ class Mission(ormar.Model):
 
     @property_field
     def is_closed(self) -> bool:
-        return self.repair_end_date is not None
+        return not self.repair_end_date == None or self.is_done
 
 
 class AuditLogHeader(ormar.Model):
