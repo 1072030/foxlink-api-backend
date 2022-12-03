@@ -55,7 +55,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    mission = await Mission.objects.filter(is_done=False, worker=user).get_or_none()
+    mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
+    #RUBY:prevent mission.device is null
     log = AuditLogHeader.objects.create(
         table_name="users",
         record_pk=user.badge,

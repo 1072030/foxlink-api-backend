@@ -192,7 +192,6 @@ async def cancel_mission_by_manager(
     mission_id: int, user: User = Depends(get_manager_active_user)
 ):
     await cancel_mission(mission_id, user)
-
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_CANCELED.value,
         table_name="missions",
