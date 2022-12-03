@@ -91,7 +91,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                     shift_beg_date=get_ntz_now(),
                     finish_event_date=get_ntz_now(),
                     shift_reject_count=0,
-                    shift_accept_count=0
+                    shift_start_count=0
                 )
             )
 

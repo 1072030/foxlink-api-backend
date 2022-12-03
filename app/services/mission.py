@@ -149,7 +149,7 @@ async def _start_mission(mission, worker):
             worker.update(
                 status=WorkerStatusEnum.idle.value,
                 at_device=mission.device.id,
-                shift_accept_count=worker.shift_accept_count +
+                shift_start_count=worker.shift_start_count +
                 (1 if not mission.device.is_rescue else 0),
                 finish_event_date=get_ntz_now()
             )
@@ -170,7 +170,7 @@ async def _start_mission(mission, worker):
         worker.update(
             status=WorkerStatusEnum.working.value,
             at_device=mission.device.id,
-            shift_accept_count=worker.shift_accept_count + 1,
+            shift_start_count=worker.shift_start_count + 1,
         ),
         AuditLogHeader.objects.create(
             action=AuditActionEnum.MISSION_STARTED.value,

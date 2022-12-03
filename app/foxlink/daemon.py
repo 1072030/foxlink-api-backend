@@ -647,7 +647,7 @@ if __name__ == "__main__":
                     "idle_time": (
                         get_ntz_now() - worker.finish_event_date
                     ).total_seconds(),
-                    "daily_count": worker.shift_accept_count,
+                    "daily_count": worker.shift_start_count,
                     "level": worker.level,
                 }
 
@@ -720,7 +720,7 @@ if __name__ == "__main__":
             await Mission.objects
             .filter(
                 is_done=False,
-                is_overtime__lt=len(MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES),
+                overtime_level__lt=len(MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES),
                 worker__isnull=False,
                 repair_beg_date__isnull=False,
                 repair_end_date__isnull=True,
@@ -744,7 +744,7 @@ if __name__ == "__main__":
 
                     superior = await User.objects.filter(badge=superior.badge).get()
 
-                    if i >= mission.is_overtime:
+                    if i >= mission.overtime_level:
 
                         await AuditLogHeader.objects.create(
                             action=AuditActionEnum.MISSION_OVERTIME.value,
@@ -767,7 +767,7 @@ if __name__ == "__main__":
                             qos=2,
                             retain=True
                         )
-                        await mission.update(is_overtime=i+1)
+                        await mission.update(overtime_level=i+1)
 
                     superior = superior.superior
 

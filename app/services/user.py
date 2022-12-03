@@ -419,7 +419,7 @@ async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
 
     shift, shift_start, shift_end = await get_current_shift_details()
 
-    total_start_count = worker.shift_accept_count
+    total_start_count = worker.shift_start_count
 
     item = WorkerStatusDto(
         worker_id=worker.badge,

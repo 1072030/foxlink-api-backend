@@ -206,7 +206,7 @@ class User(ormar.Model):
         DeviceRef, ondelete="SET NULL", nullable=True, related_name="nearby_users"
     )
     ####################
-    shift_accept_count: int = ormar.Integer(default=0, nullable=True)
+    shift_start_count: int = ormar.Integer(default=0, nullable=True)
     shift_reject_count: int = ormar.Integer(default=0, nullable=True)
     ####################
     check_alive_time: datetime = ormar.DateTime(
@@ -307,8 +307,9 @@ class Mission(ormar.Model):
 
     # if no worker could be assigned
     is_lonely: bool = ormar.Boolean(default=False, nullable=True)
-    is_overtime: int = ormar.Integer(default=0, nullable=True)
     is_emergency: bool = ormar.Boolean(default=False, nullable=True)
+
+    overtime_level: int = ormar.Integer(default=0, nullable=True)
 
     notify_send_date: datetime = ormar.DateTime(nullable=True)
     notify_recv_date: datetime = ormar.DateTime(nullable=True)

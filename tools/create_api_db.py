@@ -1,3 +1,4 @@
+from os import system
 import mysql.connector
 import asyncio
 from app.env import (
@@ -27,7 +28,7 @@ try:
 except Exception as e:
     print(e)
 ##### BUILD TABLE ######
-print("Createing table...")
+print("Creating table...")
 try:
     cursor.execute(
         f"""CREATE DATABASE {DATABASE_NAME};"""
@@ -38,9 +39,13 @@ except Exception as e:
 ##### BUILD SCHEMA ######
 print("Creating Schema...")
 try:
-    engine = create_engine(
-        f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}")
-    metadata.create_all(engine)
+    # engine = create_engine(
+    #     f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}")
+    # metadata.create_all(engine)
+    
+    system("rm -rf /code/app/alembic/versions/* 2> /dev/null")
+    system("alembic revision --autogenerate -m 'initialize'")
+    system("alembic upgrade head")
 except Exception as e:
     print(e)
 
