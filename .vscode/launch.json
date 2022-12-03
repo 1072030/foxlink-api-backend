@@ -21,6 +21,14 @@
       "justMyCode": false
     },
     {
+      "name": "Python: Test",
+      "type": "python",
+      "request": "launch",
+      "module": "test",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
       "name": "Python: Background Daemon",
       "type": "python",
       "request": "launch",

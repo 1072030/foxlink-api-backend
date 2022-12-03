@@ -160,9 +160,7 @@ async def get_current_mission(user: User = Depends(get_current_user)):
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
-async def assign_mission_by_worker(
-    mission_id: int, user: User = Depends(get_current_user)
-):
+async def worker_mission_detail(mission_id: int, user: User = Depends(get_current_user)):
     m = await get_mission_by_id(mission_id)
 
     if m is None:
@@ -176,15 +174,15 @@ async def assign_mission_by_worker(
 
 @router.post("/{mission_id}/assign", tags=["missions"])
 async def assign_mission_by_manager(
-    mission, worker, user: User = Depends(get_manager_active_user)
+    mission_id: int, user_name: str, user: User = Depends(get_manager_active_user)
 ):
-    await assign_mission(mission, worker)
+    await assign_mission(mission_id, user_name)
 
     await AuditLogHeader.objects.create(
         table_name="missions",
-        record_pk=mission.id,
+        record_pk=str(mission_id),
         action=AuditActionEnum.MISSION_ASSIGNED.value,
-        user=worker.badge,
+        user=user_name,
         description=f"From Web API (Reqeust by {user.badge})",
     )
 
@@ -209,9 +207,7 @@ async def start_mission_by_worker(mission_id: int, user: User = Depends(get_curr
 
 
 @ router.post("/{mission_id}/accept", tags=["missions"])
-async def accept_mission_by_worker(
-    mission_id: int, user: User = Depends(get_current_user)
-):
+async def accept_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
     await accept_mission(mission_id, user)
 
 
@@ -221,30 +217,22 @@ async def click_mission(mission_id: int, user: User = Depends(get_current_user))
 
 
 @ router.get("/{mission_id}/reject", tags=["missions"])
-async def reject_mission_by_worker(
-    mission_id: int, user: User = Depends(get_current_user)
-):
+async def reject_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
     await reject_mission(mission_id, user)
 
 
 @ router.post("/{mission_id}/finish", tags=["missions"])
-async def finish_mission_by_worker(
-    mission_id: int, user: User = Depends(get_current_user)
-):
+async def finish_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
     await finish_mission(mission_id, user)
 
 
 @ router.get("/{mission_id}/emergency", tags=["missions"], status_code=201)
-async def mark_mission_emergency(
-    mission_id: int, user: User = Depends(get_current_user)
-):
+async def mark_mission_emergency(mission_id: int, user: User = Depends(get_current_user)):
     await request_assistance(mission_id, user)
 
 
 @ router.patch("/{mission_id}", tags=["missions"])
-async def update_mission_by_manager(
-    mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)
-):
+async def update_mission_by_manager(mission_id: int, dto: MissionUpdate, user: User = Depends(get_manager_active_user)):
     await update_mission_by_id(mission_id, dto)
     await AuditLogHeader.objects.create(
         table_name="missions",

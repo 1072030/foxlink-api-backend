@@ -72,7 +72,8 @@ DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
 MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES = get_env(
-    "MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES", List[float], [1, 1, 1])
+    "MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES", List[float], [20, 30, 30]
+)
 
 # 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
 WORKER_IDLE_OT_RESCUE_MINUTES = get_env(
@@ -95,8 +96,12 @@ RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
 # 例行程序參數設定
 DISABLE_STARTUP_RESCUE_MISSION = get_env("DISABLE_STARTUP_RESCUE_MISSION", bool, False)
 
+# Debug mode
+DEBUG = get_env("DEBUG", bool, False)
+
 # 時區
 TZ = pytz.timezone("Asia/Taipei")
+
 
 if os.environ.get("USE_ALEMBIC") is None:
     if PY_ENV not in ["production", "dev"]:
@@ -108,18 +113,22 @@ if os.environ.get("USE_ALEMBIC") is None:
             "For security, JWT_SECRET is highly recommend to be set in production environment!!"
         )
 
-    # if len(FOXLINK_EVENT_DB_HOSTS) == 0:
-    #     logger.error("FOXLINK_EVENT_DB_HOSTS env should not be empty!")
-    #     exit(1)
+    if len(FOXLINK_EVENT_DB_HOSTS) == 0:
+        logger.error("FOXLINK_EVENT_DB_HOSTS env should not be empty!")
+        exit(1)
 
-    # if MQTT_BROKER is None:
-    #     logger.error("MQTT_BROKER is not set")
-    #     exit(1)
+    if MQTT_BROKER is None:
+        logger.error("MQTT_BROKER is not set")
+        exit(1)
 
     if DISABLE_FOXLINK_DISPATCH is True:
         logger.warn(
-            "DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")
+            "DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!"
+        )
 
-    logger.warn(f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}")
     logger.warn(
-        f"MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES: {MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES}")
+        f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}"
+    )
+    logger.warn(
+        f"MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES: {MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES}"
+    )
