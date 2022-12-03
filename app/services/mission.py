@@ -195,8 +195,8 @@ async def accept_mission(mission, worker):
 async def _accept_mission(mission, worker):
     if mission is None:
         raise HTTPException(
-            404,
-            "the mission you request is not found"
+            400, 
+            "无此任务"
         )
 
     if (
@@ -205,15 +205,15 @@ async def _accept_mission(mission, worker):
     ):
         raise HTTPException(
             400,
-            "you are not this mission's assignee"
+            "任务已解除"
         )
 
     if not mission.device.is_rescue:
-        #RUBY: mission already accepted
+        # RUBY: mission already accepted
         if mission.is_started or mission.is_closed:
             raise HTTPException(
                 400,
-                "this mission is already started or closed"
+                "任务已开始或已结束"
             )
 
     await asyncio.gather(
@@ -342,7 +342,7 @@ async def _finish_mission(mission, worker):
             404, "the mission you request to start is not found")
 
     if mission.worker != worker:
-        raise HTTPException(400, "you are not this mission's assignee")
+        raise HTTPException(200, "you are not this mission's assignee")
 
     if mission.is_done_shift:
         raise HTTPException(
