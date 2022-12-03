@@ -781,12 +781,13 @@ async def check_mission_working_duration_overtime():
         await Mission.objects
         .filter(
             is_done=False,
-            is_overtime__lt = len(MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES),
+            is_overtime__lt=len(MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES),
             worker__isnull=False,
             repair_beg_date__isnull=False,
             repair_end_date__isnull=True,
         )
-        .select_related(['worker'])
+        .select_related(['worker', 'worker__superior'])
+        #RUBY: prevent worker__superior is null
         .all()
     )
     thresholds: List[int] = [0]
@@ -794,42 +795,41 @@ async def check_mission_working_duration_overtime():
         thresholds.append(thresholds[-1] + minutes)
     thresholds.pop(0)
     for mission in working_missions:
+        #RUBY: check ouvetime use repair_duration
         superior = mission.worker.superior
-        mission_duration_seconds = mission.mission_duration.total_seconds()
-        for i,thresh in enumerate(thresholds):
-            if i >= mission.is_overtime and  mission_duration_seconds >= thresh * 60:
-                if superior is None:
-                    break
+        mission_duration_seconds = mission.repair_duration.total_seconds()
+        for i, thresh in enumerate(thresholds):
+            if mission_duration_seconds >= thresh * 60:
                 superior = await User.objects.filter(badge=superior.badge).get()
 
-                await AuditLogHeader.objects.create(
-                    action=AuditActionEnum.MISSION_OVERTIME.value,
-                    table_name="missions",
-                    description=str(min),
-                    record_pk=str(mission.id),
-                    user=mission.worker.badge,
-                )
+                if i >= mission.is_overtime:
+                    if superior is None:
+                        break
 
-                await mqtt_client.publish(
-                    f"foxlink/users/{superior.badge}/mission-overtime",
-                    {
-                        "mission_id": mission.id,
-                        "mission_name": mission.name,
-                        "worker_id": mission.worker.badge,
-                        "worker_name": mission.worker.username,
-                        "duration": mission_duration_seconds,
-                        "timestamp": get_ntz_now()
-                    },
-                    qos=2,
-                    retain=True
-                )
+                    await AuditLogHeader.objects.create(
+                        action=AuditActionEnum.MISSION_OVERTIME.value,
+                        table_name="missions",
+                        description=superior.badge,
+                        record_pk=str(mission.id),
+                        user=mission.worker.badge,
+                    )
+
+                    await mqtt_client.publish(
+                        f"foxlink/users/{superior.badge}/mission-overtime",
+                        {
+                            "mission_id": mission.id,
+                            "mission_name": mission.name,
+                            "worker_id": mission.worker.badge,
+                            "worker_name": mission.worker.username,
+                            "duration": mission_duration_seconds,
+                            "timestamp": get_ntz_now()
+                        },
+                        qos=2,
+                        retain=True
+                    )
+                    await mission.update(is_overtime=i+1)
 
                 superior = superior.superior
-                
-                await mission.update(is_overtime=i+1)
-            
-        
-       
 
 
 # done
@@ -852,7 +852,6 @@ async def check_mission_assign_duration_overtime():
 
     for mission in assign_mission_check:
         if mission.assign_duration.total_seconds() / 60 >= MISSION_ASSIGN_OT_MINUTES:
-            # TODO: missing notify supervisor
 
             await mqtt_client.publish(
                 f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
@@ -914,7 +913,19 @@ async def update_complete_events(event: MissionEvent):
                     action=AuditActionEnum.MISSION_CURED.value,
                     record_pk=str(event.mission.id),
                     user=event.mission.worker.badge,
+                ),
+                mqtt_client.publish(
+                    f"foxlink/users/{event.mission.worker.current_UUID}/missions/stop-notify",
+                    {
+                        "mission_id": event.mission.id,
+                        "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
+                        "description": "finish",
+                        "timestamp": get_ntz_now()
+                    },
+                    qos=2,
+                    retain=True
                 )
+                #RUBY: mqtt auto-close mission
             )
             return True
     return False

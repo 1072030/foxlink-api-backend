@@ -76,7 +76,6 @@ async def get_current_shift_details() -> Tuple[ShiftType, datetime, datetime]:
 async def get_current_shift_type() -> (ShiftType):
     return (await get_current_shift_details())[0]
 
-# TODO: No time, need to adjust to new in database shift structure
 
 
 async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
@@ -101,7 +100,6 @@ async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
 
     return shift_start.astimezone(pytz.utc), shift_end.astimezone(pytz.utc)
 
-# TODO: No time, need to adjust to new in database shift structure
 
 
 def get_previous_shift_time_interval():

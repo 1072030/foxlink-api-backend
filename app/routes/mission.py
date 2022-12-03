@@ -176,15 +176,16 @@ async def assign_mission_by_worker(
 
 @router.post("/{mission_id}/assign", tags=["missions"])
 async def assign_mission_by_manager(
-    mission, worker, user: User = Depends(get_manager_active_user)
+    #RUBY: 422 error name no match
+    mission_id: int, user_name: str, user: User = Depends(get_manager_active_user)
 ):
-    await assign_mission(mission, worker)
+    await assign_mission(mission_id, user_name)
 
     await AuditLogHeader.objects.create(
         table_name="missions",
-        record_pk=mission.id,
+        record_pk=mission_id,
         action=AuditActionEnum.MISSION_ASSIGNED.value,
-        user=worker.badge,
+        user=user_name,
         description=f"From Web API (Reqeust by {user.badge})",
     )
 
@@ -194,7 +195,6 @@ async def cancel_mission_by_manager(
     mission_id: int, user: User = Depends(get_manager_active_user)
 ):
     await cancel_mission(mission_id, user)
-
     await AuditLogHeader.objects.create(
         action=AuditActionEnum.MISSION_CANCELED.value,
         table_name="missions",

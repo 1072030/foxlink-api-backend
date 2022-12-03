@@ -130,7 +130,8 @@ async def start_mission(mission, worker):
 
 async def _start_mission(mission, worker):
     if mission is None:
-        raise HTTPException(404, "the mission you request to start is not found")
+        raise HTTPException(
+            404, "the mission you request to start is not found")
 
     if worker.badge != mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
@@ -148,7 +149,8 @@ async def _start_mission(mission, worker):
             worker.update(
                 status=WorkerStatusEnum.idle.value,
                 at_device=mission.device.id,
-                shift_accept_count=worker.shift_accept_count + (1 if not mission.device.is_rescue else 0),
+                shift_accept_count=worker.shift_accept_count +
+                (1 if not mission.device.is_rescue else 0),
                 finish_event_date=get_ntz_now()
             )
         )
@@ -207,7 +209,8 @@ async def _accept_mission(mission, worker):
         )
 
     if not mission.device.is_rescue:
-        if mission.is_accepted or mission.is_started or mission.is_closed:
+        #RUBY: mission already accepted
+        if mission.is_started or mission.is_closed:
             raise HTTPException(
                 400,
                 "this mission is already started or closed"
@@ -244,7 +247,8 @@ async def reject_mission(mission, worker):
 
 async def _reject_mission(mission, worker):
     if mission is None:
-        raise HTTPException(200, "the mission you request to start is not found")
+        raise HTTPException(
+            200, "the mission you request to start is not found")
 
     if mission.worker is None:
         raise HTTPException(200, "the mission haven't assigned to you")
@@ -334,13 +338,15 @@ async def finish_mission(mission, worker):
 
 async def _finish_mission(mission, worker):
     if mission is None:
-        raise HTTPException(404, "the mission you request to start is not found")
+        raise HTTPException(
+            404, "the mission you request to start is not found")
 
     if mission.worker != worker:
         raise HTTPException(400, "you are not this mission's assignee")
 
     if mission.is_done_shift:
-        raise HTTPException(200, "you're no longer this missions assignee due to shifting.")
+        raise HTTPException(
+            200, "you're no longer this missions assignee due to shifting.")
 
     if mission.is_done:
         raise HTTPException(200, "the mission has closed.")
@@ -415,7 +421,8 @@ async def _cancel_mission(mission, worker):
     _jobs = []
 
     if mission is None:
-        raise HTTPException(404, "the mission you request to cancel is not found")
+        raise HTTPException(
+            404, "the mission you request to cancel is not found")
 
     if mission.is_done_cancel:
         raise HTTPException(400, "this mission is already canceled")
@@ -465,16 +472,20 @@ async def assign_mission(mission, worker):
 
 async def _assign_mission(mission: Mission, worker: User):
     if mission is None:
-        raise HTTPException(status_code=404, detail="the mission you requested is not found")
+        raise HTTPException(
+            status_code=404, detail="the mission you requested is not found")
 
     if worker is None:
-        raise HTTPException(status_code=404, detail="the user you requested is not found")
+        raise HTTPException(
+            status_code=404, detail="the user you requested is not found")
 
     if not worker.status == WorkerStatusEnum.idle.value:
-        raise HTTPException(status_code=400, detail="the worker you requested is not idle")
+        raise HTTPException(
+            status_code=400, detail="the worker you requested is not idle")
 
     if mission.is_closed:
-        raise HTTPException(status_code=400, detail="the mission you requested is closed")
+        raise HTTPException(
+            status_code=400, detail="the mission you requested is closed")
 
     if worker.level is not UserLevel.maintainer.value:
         raise HTTPException(
@@ -483,9 +494,11 @@ async def _assign_mission(mission: Mission, worker: User):
 
     if mission.worker:
         if worker.badge == mission.worker.badge:
-            raise HTTPException(status_code=400, detail="this mission is already assigned to this user")
+            raise HTTPException(
+                status_code=400, detail="this mission is already assigned to this user")
         else:
-            raise HTTPException(status_code=400, detail="the mission is already assigned")
+            raise HTTPException(
+                status_code=400, detail="the mission is already assigned")
 
     await asyncio.gather(
         mission.update(
@@ -539,7 +552,8 @@ async def request_assistance(mission_id: int, worker: User):
         raise HTTPException(404, "the mission you request is not found")
 
     if mission.device.is_rescue == True:
-        raise HTTPException(400, "you can't mark to-rescue-station mission as emergency")
+        raise HTTPException(
+            400, "you can't mark to-rescue-station mission as emergency")
 
     if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "you are not this mission's assignee")
