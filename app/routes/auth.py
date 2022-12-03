@@ -19,6 +19,7 @@ from app.core.database import (
 from app.core.database import get_ntz_now
 from app.services.user import check_user_begin_shift
 from app.services.mission import set_mission_by_rescue_position
+from app.env import DISABLE_STARTUP_RESCUE_MISSION
 import logging
 import traceback
 
@@ -93,7 +94,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 )
             )
 
-            if not user.start_position == None:
+            if not DISABLE_STARTUP_RESCUE_MISSION and not user.start_position == None:
                 # give rescue missiong if condition match
                 await asyncio.gather(
                     set_mission_by_rescue_position(
@@ -105,6 +106,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                     ),
                     log
                 )
+            else:
+                await asyncio.gather(
+                    user.update(
+                        login_date=get_ntz_now(),
+                        status=WorkerStatusEnum.idle.value
+                    ),
+                    log
+                )
+
             return {"access_token": access_token, "token_type": "bearer"}
 
         else:

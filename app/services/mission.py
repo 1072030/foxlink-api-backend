@@ -148,7 +148,7 @@ async def _start_mission(mission, worker):
             worker.update(
                 status=WorkerStatusEnum.idle.value,
                 at_device=mission.device.id,
-                shift_accept_count=worker.shift_accept_count + 1,
+                shift_accept_count=worker.shift_accept_count + (1 if not mission.device.is_rescue else 0),
                 finish_event_date=get_ntz_now()
             )
         )
@@ -281,7 +281,8 @@ async def _reject_mission(mission, worker):
     await asyncio.gather(
         worker.update(
             status=WorkerStatusEnum.idle.value,
-            finish_event_date=get_ntz_now()
+            finish_event_date=get_ntz_now(),
+            shift_reject_count=shift_reject_count
         ),
         AuditLogHeader.objects.create(
             table_name="missions",
@@ -475,7 +476,7 @@ async def _assign_mission(mission: Mission, worker: User):
     if mission.is_closed:
         raise HTTPException(status_code=400, detail="the mission you requested is closed")
 
-    if  worker.level is not UserLevel.maintainer.value:
+    if worker.level is not UserLevel.maintainer.value:
         raise HTTPException(
             status_code=400, detail="the worker you requested cant not assign."
         )

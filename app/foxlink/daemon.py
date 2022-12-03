@@ -14,6 +14,7 @@ from app.models.schema import MissionDto, MissionEventOut
 from app.routes import user
 from app.services.device import get_workers_from_whitelist_devices
 from app.utils.timer import Ticker
+from app.utils.utils import DTO
 from foxlink_dispatch.dispatch import Foxlink_dispatch
 from app.foxlink.model import FoxlinkEvent
 from app.foxlink.utils import assemble_device_id
@@ -65,6 +66,7 @@ from app.core.database import (
     UserLevel,
     Device,
     WhitelistDevice,
+    UserDeviceLevel,
     api_db
 )
 
@@ -86,6 +88,9 @@ logger.setLevel(logging.INFO if not DEBUG else logging.DEBUG)
 dispatch = Foxlink_dispatch()
 
 _terminate = None
+
+MAIN_ROUTINE_MIN_RUNTIME = 1
+NOTIFICATION_INTERVAL = 30
 
 
 def show_duration(func):
@@ -547,6 +552,64 @@ async def mission_dispatch():
         if len(worker.whitelist_devices) > 0
     }
 
+    ################ Building Workshop Valid Worker ######################
+    workshop_valid_workers = await asyncio.gather(
+        *[
+            (
+                User.objects
+                .filter(
+                    level=UserLevel.maintainer.value,
+                    shift=current_shift.value,
+                    workshop=workshop,
+                    status=WorkerStatusEnum.idle.value,
+                    badge__in=whitelist_users_entity_dict,
+                    login_date__lt=get_ntz_now() - timedelta(seconds=5)
+                )
+                .fields(["badge"])
+                .values()
+
+                if i else
+
+                User.objects
+                .exclude(
+                    badge__in=whitelist_users_entity_dict
+                )
+                .filter(
+                    level=UserLevel.maintainer.value,
+                    shift=current_shift.value,
+                    workshop=workshop,
+                    status=WorkerStatusEnum.idle.value,
+                    login_date__lt=get_ntz_now() - timedelta(seconds=5),
+                    at_device__isnull=False
+                )
+                .fields(["badge"])
+                .values()
+            )
+
+            for workshop in workshop_entity_dict.keys() for i in [True, False]
+        ]
+
+    )
+
+    workshop_valid_workers = {
+        workshop: {
+            c: [DTO(worker).badge for worker in workshop_valid_workers[i * 2 + j]]
+            for j, c in enumerate([True, False])
+        }
+        for i, workshop in enumerate(workshop_entity_dict.keys())
+    }
+    ######################################################################
+    worker_entity_dict: Dict[int, User] = {
+        worker.badge: worker
+        for worker in (
+            await User.objects
+            .select_related(
+                ["at_device"]
+            )
+            .all()
+        )
+    }
+
     # 取得優先處理的任務，並按照優先級排序
     dispatch.get_missions(
         [
@@ -567,55 +630,30 @@ async def mission_dispatch():
 
     async def fetch_mission_candid_workers(mission_id: int) -> Tuple[Mission, List[User]]:
         mission = mission_entity_dict[mission_id]
+        workshop = mission.device.workshop.id
+        device_in_whitelist = mission.device.id in whitelist_device_entity_dict
         if (not mission):
             return (None, [])
 
         # fetch valid workers, also consider whitelist device scenarios.
-        if mission.device.id in whitelist_device_entity_dict:
-            return (
-                mission,
-                (
-                    await User.objects
-                    .filter(
-                        level=UserLevel.maintainer.value,
-                        shift=current_shift.value,
-                        workshop=mission.device.workshop.id,
-                        status=WorkerStatusEnum.idle.value,
-                        badge__in=whitelist_users_entity_dict,
-                        login_date__lt=get_ntz_now() - timedelta(seconds=5)
-                    )
-                    .select_related(["device_levels", "at_device"])
-                    .filter(
-                        device_levels__device=mission.device.id,
-                        device_levels__level__gt=0
-                    )
-                    .all()
-                )
+        valid_worker_user_devices = (
+            await UserDeviceLevel.objects
+            .filter(
+                device=mission.device.id,
+                level__gt=0,
+                user__in=workshop_valid_workers[workshop][device_in_whitelist]
             )
-        else:
-            return (
-                mission,
-                (
-                    await User.objects
-                    .exclude(
-                        badge__in=whitelist_users_entity_dict
-                    )
-                    .filter(
-                        level=UserLevel.maintainer.value,
-                        shift=current_shift.value,
-                        workshop=mission.device.workshop.id,
-                        status=WorkerStatusEnum.idle.value,
-                        login_date__lt=get_ntz_now() - timedelta(seconds=5)
-                    )
-                    .select_related(["device_levels", "at_device"])
-                    .filter(
-                        at_device__isnull=False,
-                        device_levels__device=mission.device.id,
-                        device_levels__level__gt=0
-                    )
-                    .all()
-                )
-            )
+            .fields(["user"])
+            .values()
+        )
+
+        return (
+            mission,
+            [
+                worker_entity_dict[DTO(user_device).user]
+                for user_device in valid_worker_user_devices
+            ]
+        )
 
     # prefetch all valid workers for mission
     mission_candid_workers: List[List[User]] = await asyncio.gather(
@@ -633,8 +671,6 @@ async def mission_dispatch():
     assigned_mission_counter = 0
 
     for mission, valid_workers in mission_candid_workers:
-        print(mission.id, len(valid_workers))
-
         if mission is None:
             continue
 
@@ -1082,7 +1118,7 @@ def shutdown_callback():
 
 
 async def connect_services():
-    # api_db = create_db(max_size=20)
+    api_db.options["max_size"] = 20
     while True:
         try:
             logger.info("Start to Create Connections.")
@@ -1122,6 +1158,7 @@ async def disconnect_services():
 
 async def general_routine():
     global _terminate
+    last_nofity_time = time.perf_counter()
     while (not _terminate):
         try:
             logger.info('[main_routine] Foxlink daemon is running...')
@@ -1145,14 +1182,18 @@ async def general_routine():
             if not DISABLE_FOXLINK_DISPATCH:
                 await mission_dispatch()
 
+            if time.perf_counter() - last_nofity_time > NOTIFICATION_INTERVAL:
+                await send_mission_notification_routine()
+                last_nofity_time = time.perf_counter()
+
             end_time = time.perf_counter()
 
             logger.info(
                 "[main_routine] took %.2f seconds", end_time - beg_time
             )
 
-            if (end_time - beg_time < 10):
-                await asyncio.sleep(max(1 - (end_time - beg_time), 0))
+            if (end_time - beg_time < MAIN_ROUTINE_MIN_RUNTIME):
+                await asyncio.sleep(max(MAIN_ROUTINE_MIN_RUNTIME - (end_time - beg_time), 0))
 
         except Exception as e:
             logger.error(
@@ -1177,7 +1218,7 @@ async def notify_routine():
             await asyncio.sleep(5)
 
 
-async def main(interval: int):
+async def main():
     global _terminate
     _terminate = False
     loop = asyncio.get_event_loop()
@@ -1191,8 +1232,8 @@ async def main(interval: int):
     await connect_services()
     # main loop
     await asyncio.gather(
-        general_routine(),
-        notify_routine()
+        general_routine()
+        # ,notify_routine()
     )
     # disconnect to services
     await disconnect_services()
@@ -1217,8 +1258,6 @@ def create(**p):
 if __name__ == "__main__":
     args = parser.parse_args()
     asyncio.run(
-        main(
-            interval=args.interval
-        )
+        main()
         # ,debug=DEBUG
     )
