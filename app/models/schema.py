@@ -64,11 +64,14 @@ class UserChangePassword(BaseModel):
     old_password: str
     new_password: str
 
+
 class UserStatus(BaseModel):
-    status:str
-    work_type:str
+    status: str
+    work_type: str
 
 # * Mission
+
+
 class MissionBase(BaseModel):
     description: Optional[str]
 
@@ -151,6 +154,7 @@ class MissionDto(BaseModel):
             updated_date=m.updated_date,
         )
 
+
 class MissionInfo(BaseModel):
     mission_id: int
     device: DeviceDto
@@ -164,8 +168,8 @@ class MissionInfo(BaseModel):
     is_emergency: bool
     created_date: datetime
     updated_date: datetime
-    notify_receive_date:str
-    notify_send_date:str
+    notify_receive_date: str
+    notify_send_date: str
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -193,9 +197,12 @@ class MissionInfo(BaseModel):
             events=[MissionEventOut.from_missionevent(e) for e in m.events],
             created_date=m.created_date,
             updated_date=m.updated_date,
-            notify_receive_date = "" if m.notify_recv_date == None else str(m.notify_recv_date),
-            notify_send_date = "" if m.notify_send_date == None else str(m.notify_send_date)
+            notify_receive_date="2000-01-01 00:00:00" if m.notify_recv_date == None else str(
+                m.notify_recv_date),
+            notify_send_date="2000-01-01 00:00:00" if m.notify_send_date == None else str(
+                m.notify_send_date)
         )
+
 
 class WorkerStatusDto(BaseModel):
     worker_id: str
@@ -207,9 +214,11 @@ class WorkerStatusDto(BaseModel):
     total_dispatches: int
     mission_duration: Optional[float]
     repair_duration: Optional[float]
-    
+
+
 class WorkerStatus(BaseModel):
     status: str
+
 
 class ImportDevicesOut(BaseModel):
     device_ids: List[str]
