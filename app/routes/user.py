@@ -75,7 +75,7 @@ async def read_all_users(
 
 
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
-async def get_user_himself_info(user: User = Depends(get_current_user)):
+async def get_user_himself_info(user: User = Depends(get_current_user())):
     first_login_timestamp = user.login_date
     user = await User.objects.select_related("workshop").get(badge=user.badge)
     if user.workshop is None:
@@ -110,12 +110,12 @@ async def get_user_himself_info(user: User = Depends(get_current_user)):
 
 
 @router.get("/worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
-async def get_user_attendances(user: User = Depends(get_current_user)):
+async def get_user_attendances(user: User = Depends(get_current_user())):
     return await get_worker_attendances(user.badge)
 
 
 @router.get("/check-user-status", response_model=UserStatus, tags=["users"])
-async def check_user_status(user: User = Depends(get_current_user)):
+async def check_user_status(user: User = Depends(get_current_user())):
     userStatus = user.status
     work_type = ""
     mission = await Mission.objects.select_related(['worker', "device"]).filter(worker=user.badge, is_done=False).get_or_none()
@@ -133,7 +133,7 @@ async def check_user_status(user: User = Depends(get_current_user)):
 
 @router.post("/change-password", tags=["users"])
 async def change_password(
-    dto: UserChangePassword, user: User = Depends(get_current_user)
+    dto: UserChangePassword, user: User = Depends(get_current_user())
 ):
     if not verify_password(dto.old_password, user.password_hash):
         raise HTTPException(
@@ -148,7 +148,7 @@ async def change_password(
 @transaction
 @router.post("/get-off-work", tags=["users"])
 async def get_off_work(
-    reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user)
+    reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user(True))
 ):
     if user.status != WorkerStatusEnum.idle.value and user.level == UserLevel.maintainer.value:
         raise HTTPException(404, 'You are not allow to logout except idle.')
@@ -170,7 +170,7 @@ async def get_off_work(
 
 @router.patch("/{badge}", tags=["users"])
 async def update_user_information(
-    badge: str, dto: UserPatch, user: User = Depends(get_current_user)
+    badge: str, dto: UserPatch, user: User = Depends(get_current_user())
 ):
     if user.level < UserLevel.manager.value:
         raise HTTPException(401, "You do not have permission to do this")
@@ -192,7 +192,7 @@ async def get_user_subordinates(user: User = Depends(get_manager_active_user)):
 
 
 @router.get("/mission-history", tags=["users"], response_model=List[MissionDto])
-async def get_user_mission_history(user: User = Depends(get_current_user)):
+async def get_user_mission_history(user: User = Depends(get_current_user())):
     return await get_worker_mission_history(user.badge)
 
 

@@ -129,7 +129,7 @@ async def get_device_dispatchable_workers(device_id: str, shift_type: bool):
 
 @router.get("/{device_id}", response_model=DeviceOut, tags=["device"])
 async def get_device_by_id(
-    device_id: str, user: User = Depends(get_current_user)
+    device_id: str, user: User = Depends(get_current_user())
 ):
     device = (
         await Device.objects.select_related("workshop")

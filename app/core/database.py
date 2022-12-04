@@ -25,7 +25,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-api_db = databases.Database(DATABASE_URI, min_size=3, max_size=5)
+api_db = databases.Database(DATABASE_URI, min_size=5, max_size=10)
 
 metadata = MetaData()
 

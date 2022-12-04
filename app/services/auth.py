@@ -57,41 +57,47 @@ async def authenticate_user(badge: str, password: str):
     return user
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        badge: str = payload.get("sub")
-        decode_UUID: str = payload.get("UUID")
+def get_current_user(light_user=False):
+    async def driver(token: str = Depends(oauth2_scheme)):
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            badge: str = payload.get("sub")
+            decode_UUID: str = payload.get("UUID")
 
-        if badge is None:
+            if badge is None:
+                raise HTTPException(403, 'Could not validate credentials')
+        except ExpiredSignatureError:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], options={
+                "verify_exp": False, "verify_signature": False})
+            badge: str = payload.get("sub")
+            decode_UUID: str = payload.get("UUID")
+            user = await get_worker_by_badge(badge)
+
+            if decode_UUID == user.current_UUID:
+                user = await user.update(current_UUID="0")
+
+            raise HTTPException(403, 'Signature has expired')
+
+        except:
             raise HTTPException(403, 'Could not validate credentials')
-    except ExpiredSignatureError:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], options={
-                             "verify_exp": False, "verify_signature": False})
-        badge: str = payload.get("sub")
-        decode_UUID: str = payload.get("UUID")
-        user = await get_worker_by_badge(badge)
 
-        if decode_UUID == user.current_UUID:
-            user = await user.update(current_UUID="0")
+        if light_user:
+            user = await get_worker_by_badge(badge, [])
+        else:
+            user = await get_worker_by_badge(badge)
 
-        raise HTTPException(403, 'Signature has expired')
+        if user is None:
+            raise HTTPException(403, 'Could not validate credentials')
 
-    except:
-        raise HTTPException(403, 'Could not validate credentials')
+        if user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
+            raise HTTPException(403, 'log on another device. Should log out')
 
-    user = await get_worker_by_badge(badge)
+        return user
 
-    if user is None:
-        raise HTTPException(403, 'Could not validate credentials')
-
-    if user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
-        raise HTTPException(403, 'log on another device. Should log out')
-
-    return user
+    return driver
 
 
-async def get_admin_active_user(active_user: User = Depends(get_current_user)):
+async def get_admin_active_user(active_user: User = Depends(get_current_user())):
     if not active_user.level == UserLevel.admin.value:
         raise HTTPException(
             status_code=HTTPStatus.HTTP_403_FORBIDDEN, detail="Permission Denied"
@@ -100,7 +106,7 @@ async def get_admin_active_user(active_user: User = Depends(get_current_user)):
 
 
 async def get_manager_active_user(
-    manager_user: User = Depends(get_current_user),
+    manager_user: User = Depends(get_current_user()),
 ):
     if manager_user.level <= UserLevel.maintainer.value:
         raise HTTPException(

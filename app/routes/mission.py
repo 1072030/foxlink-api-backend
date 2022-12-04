@@ -96,7 +96,7 @@ async def get_missions_by_query(
 
 @router.get("/self", response_model=List[MissionDto], tags=["missions"])
 async def get_missions_by_worker(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user()),
     is_assigned: Optional[bool] = None,
     is_started: Optional[bool] = None,
     is_closed: Optional[bool] = None,
@@ -146,7 +146,7 @@ async def get_missions_by_worker(
 
 
 @router.get("/get-current-mission", response_model=Optional[MissionInfo], tags=['missions'])
-async def get_current_mission(user: User = Depends(get_current_user)):
+async def get_current_mission(user: User = Depends(get_current_user())):
     mission = (
         await Mission.objects
         .select_related(["device", "worker", "device__workshop"])
@@ -160,7 +160,7 @@ async def get_current_mission(user: User = Depends(get_current_user)):
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
-async def worker_mission_detail(mission_id: int, user: User = Depends(get_current_user)):
+async def worker_mission_detail(mission_id: int, user: User = Depends(get_current_user())):
     m = await get_mission_by_id(mission_id)
 
     if m is None:
@@ -201,32 +201,32 @@ async def cancel_mission_by_manager(
 
 
 @ router.post("/{mission_id}/start", tags=["missions"])
-async def start_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
+async def start_mission_by_worker(mission_id: int, user: User = Depends(get_current_user())):
     await start_mission(mission_id, user)
 
 
 @ router.post("/{mission_id}/accept", tags=["missions"])
-async def accept_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
+async def accept_mission_by_worker(mission_id: int, user: User = Depends(get_current_user())):
     await accept_mission(mission_id, user)
 
 
 @ router.get("/{mission_id}/click", tags=["missions"])
-async def click_mission(mission_id: int, user: User = Depends(get_current_user)):
+async def click_mission(mission_id: int, user: User = Depends(get_current_user())):
     await click_mission_by_id(mission_id, user)
 
 
 @ router.get("/{mission_id}/reject", tags=["missions"])
-async def reject_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
+async def reject_mission_by_worker(mission_id: int, user: User = Depends(get_current_user())):
     await reject_mission(mission_id, user)
 
 
 @ router.post("/{mission_id}/finish", tags=["missions"])
-async def finish_mission_by_worker(mission_id: int, user: User = Depends(get_current_user)):
+async def finish_mission_by_worker(mission_id: int, user: User = Depends(get_current_user())):
     await finish_mission(mission_id, user)
 
 
 @ router.get("/{mission_id}/emergency", tags=["missions"], status_code=201)
-async def mark_mission_emergency(mission_id: int, user: User = Depends(get_current_user)):
+async def mark_mission_emergency(mission_id: int, user: User = Depends(get_current_user())):
     await request_assistance(mission_id, user)
 
 

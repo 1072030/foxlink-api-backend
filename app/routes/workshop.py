@@ -40,7 +40,7 @@ async def get_workshop_list(user: User = Depends(get_manager_active_user)):
             "content": {"application/x-zip-compressed": {}},
             "description": "Return a zip file containing device qrcode in png format.",
         },
-        404: {"description": "workshop is not found",},
+        404: {"description": "workshop is not found", },
     },
 )
 async def get_workshop_device_qrcode(
@@ -91,11 +91,11 @@ async def upload_workshop_image(
             "content": {"image/png": {}},
             "description": "Return workshop's image in png format.",
         },
-        404: {"description": "workshop is not found",},
+        404: {"description": "workshop is not found", },
     },
 )
 async def get_workshop_image(
-    workshop_name: str, user: User = Depends(get_current_user),
+    workshop_name: str, user: User = Depends(get_current_user()),
     max_img_value: Optional[int] = None,
     navigate_device_id: Optional[str] = None,
     navigate_worker_id: Optional[str] = None
@@ -121,7 +121,7 @@ async def get_workshop_image(
     REPAIRING = (0, 140, 255)  # orange 1
     HALT = (0, 0, 255)  # red 2
     POINT_SCALE = 120
-    
+
     if navigate_worker_id or navigate_device_id:
         all_devices_status = await get_all_devices_status(workshop_name, is_rescue=True) + await get_all_devices_status(workshop_name, is_rescue=False)
     else:
@@ -176,7 +176,7 @@ async def get_workshop_image(
                 color,
                 -1,
             )
-    
+
     if max_img_value:
         bigger_side = max(height, width)
         if max_img_value == 0 or max_img_value > bigger_side:
@@ -184,12 +184,11 @@ async def get_workshop_image(
 
         scale_rate = max_img_value / bigger_side
         n_h, n_w = int(height * scale_rate), int(width * scale_rate)
-        img = cv2.resize(img, (n_w, n_h), interpolation = cv2.INTER_AREA)
+        img = cv2.resize(img, (n_w, n_h), interpolation=cv2.INTER_AREA)
 
     _, im_buf_arr = cv2.imencode(".png", img)
 
     return Response(im_buf_arr.tobytes(), media_type="image/png")
-
 
 
 @router.get(
@@ -228,4 +227,3 @@ async def get_all_devices_status_in_workshop(
     workshop_name: str, user: User = Depends(get_manager_active_user)
 ):
     return await get_all_devices_status(workshop_name)
-

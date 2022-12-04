@@ -71,21 +71,36 @@ if PY_ENV == 'dev':
 @app.on_event("startup")
 async def startup():
     # connect to databases
-    await asyncio.gather(*[
-        mqtt_client.connect(),
-        api_db.connect(),
-        foxlink_dbs.connect()
-    ])
-
-    logger.info("Foxlink API Server startup complete.")
+    while True:
+        try:
+            await asyncio.gather(*[
+                mqtt_client.connect(),
+                api_db.connect(),
+                foxlink_dbs.connect()
+            ])
+        except Exception as e:
+            logger.error(f"Start up error: {e}")
+            logger.error(f"Waiting for 5 seconds to restart")
+            await asyncio.sleep(5)
+        else:
+            logger.info("Foxlink API Server startup complete.")
+            break
 
 
 @app.on_event("shutdown")
 async def shutdown():
     # disconnect databases
-    await asyncio.gather(*[
-        mqtt_client.disconnect(),
-        api_db.disconnect(),
-        foxlink_dbs.disconnect()
-    ])
-    logger.info("Foxlink API Server shutdown complete.")
+    while True:
+        try:
+            await asyncio.gather(*[
+                mqtt_client.disconnect(),
+                api_db.disconnect(),
+                foxlink_dbs.disconnect()
+            ])
+        except Exception as e:
+            logger.error(f"Start up error: {e}")
+            logger.error(f"Waiting for 5 seconds to restart")
+            await asyncio.sleep(5)
+        else:
+            logger.info("Foxlink API Server shutdown complete.")
+            break
