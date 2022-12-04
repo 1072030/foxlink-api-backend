@@ -40,9 +40,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     user = await authenticate_user(form_data.username, form_data.password)
 
     if user.status == WorkerStatusEnum.working.value:
-        raise HTTPException(
-            403, f'{user.current_UUID} : 设备上的工作人员现在正在工作。'
-        )
+        raise HTTPException(403, f'{user.current_UUID} 现在正在工作')
 
     # form_data.client_id
 
