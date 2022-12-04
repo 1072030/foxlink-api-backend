@@ -21,7 +21,7 @@ if __name__ == "__main__":
     from typing import Any, Dict, List, Tuple, Optional
     from datetime import timedelta
     from app.models.schema import MissionDto, MissionEventOut
-
+    from app.utils.utils import AsyncEmitter
     from foxlink_dispatch.dispatch import Foxlink_dispatch
     from app.foxlink.model import FoxlinkEvent
     from app.utils.utils import DTO
@@ -71,10 +71,10 @@ if __name__ == "__main__":
     )
 
     import traceback
-    
+
     logger = logging.getLogger(f"foxlink(daemon)")
-    
-    if( DEBUG ):
+
+    if (DEBUG):
         logger.addHandler(logging.FileHandler('foxlink(daemon).log', mode="w"))
         logger.handlers[-1].setLevel(logging.DEBUG)
 
@@ -767,7 +767,7 @@ if __name__ == "__main__":
                             qos=2,
                             retain=True
                         )
-                        await mission.update(overtime_level=i+1)
+                        await mission.update(overtime_level=i + 1)
 
                     superior = superior.superior
 
@@ -840,14 +840,11 @@ if __name__ == "__main__":
                     .count()
                 ) == 0
             ):
-                await asyncio.gather(
+                emitter = AsyncEmitter()
+                emitter.add(
                     event.mission.update(
                         is_done=True,
                         is_done_cure=True
-                    ),
-                    event.mission.worker.update(
-                        status=WorkerStatusEnum.idle.value,
-                        finish_event_date=get_ntz_now()
                     ),
                     AuditLogHeader.objects.create(
                         table_name="missions",
@@ -868,6 +865,14 @@ if __name__ == "__main__":
                     )
                     # RUBY: mqtt auto-close mission
                 )
+                if event.mission.worker:
+                    emitter.add(
+                        event.mission.worker.update(
+                            status=WorkerStatusEnum.idle.value,
+                            finish_event_date=get_ntz_now()
+                        )
+                    )
+                await emitter.emit()
                 return True
         return False
 
