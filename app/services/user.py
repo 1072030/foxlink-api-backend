@@ -4,7 +4,15 @@ from typing import List, Optional, Tuple
 import aiohttp
 from fastapi.exceptions import HTTPException
 from ormar import NoMatch, or_, and_
-from app.env import EMQX_PASSWORD, EMQX_USERNAME, MQTT_BROKER, TIMEZONE_OFFSET, WEEK_START
+from app.env import (
+    EMQX_PASSWORD,
+    EMQX_USERNAME,
+    MQTT_BROKER,
+    TIMEZONE_OFFSET,
+    WEEK_START,
+    PWD_SCHEMA,
+    PWD_SALT
+)
 from app.models.schema import (
     DayAndNightUserOverview,
     DeviceExp,
@@ -35,11 +43,11 @@ from app.services.device import get_device_by_id
 from app.utils.utils import get_current_shift_time_interval, get_current_shift_details
 
 
-pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto",)
+pwd_context = CryptContext(schemes=[PWD_SCHEMA], deprecated="auto")
 
 
 def get_password_hash(password: str):
-    return pwd_context.hash(password)
+    return pwd_context.hash(password, salt=PWD_SALT, rounds=535000)
 
 
 async def get_users() -> List[User]:

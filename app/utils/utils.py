@@ -77,7 +77,6 @@ async def get_current_shift_type() -> (ShiftType):
     return (await get_current_shift_details())[0]
 
 
-
 async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
     shift_type = await get_current_shift_type()
     now_time = get_ntz_now()
@@ -99,7 +98,6 @@ async def get_current_shift_time_interval() -> Tuple[datetime, datetime]:
             shift_end += timedelta(days=1)
 
     return shift_start.astimezone(pytz.utc), shift_end.astimezone(pytz.utc)
-
 
 
 def get_previous_shift_time_interval():
@@ -138,8 +136,8 @@ class AsyncEmitter:
     def add(self, *coroutines):
         self.jobs += coroutines
 
-    def emit(self):
-        return asyncio.gather(
+    async def emit(self):
+        return await asyncio.gather(
             *self.jobs
         )
 

@@ -96,6 +96,12 @@ RECENT_EVENT_PAST_DAYS = get_env("RECENT_EVENT_PAST_DAYS", int, 1)
 # 例行程序參數設定
 DISABLE_STARTUP_RESCUE_MISSION = get_env("DISABLE_STARTUP_RESCUE_MISSION", bool, False)
 
+# PASSWORDS
+PWD_SCHEMA = get_env("PWD_SCHEMA", str, "sha256_crypt")
+
+PWD_SALT = get_env("PWD_SALT", str, "F0XL1NKPWDHaSH")
+
+
 # Debug mode
 DEBUG = get_env("DEBUG", bool, False)
 

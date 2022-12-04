@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from jose import jwt
-from app.services.user import get_worker_by_badge, pwd_context
+from app.services.user import get_worker_by_badge, pwd_context, PWD_SCHEMA
 from fastapi import Depends, HTTPException, status as HTTPStatus
 from fastapi.security import OAuth2PasswordBearer
 from app.env import (
@@ -26,8 +26,8 @@ class TokenData(BaseModel):
     badge: Optional[str] = None
 
 
-def verify_password(plain_password: str, hashed_password: str):
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(user_hashed_password: str, db_hashed_password: str):
+    return user_hashed_password == db_hashed_password
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -42,7 +42,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 
 async def authenticate_user(badge: str, password: str):
-    user = await get_worker_by_badge(badge)
+    user = await get_worker_by_badge(badge, [])
 
     if user is None:
         raise HTTPException(

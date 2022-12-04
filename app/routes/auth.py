@@ -20,8 +20,7 @@ from app.core.database import get_ntz_now
 from app.services.user import check_user_begin_shift
 from app.services.mission import set_mission_by_rescue_position
 from app.env import DISABLE_STARTUP_RESCUE_MISSION
-import logging
-import traceback
+from app.utils.utils import AsyncEmitter, BenignObj
 
 
 class Token(BaseModel):
@@ -45,7 +44,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             403, f'the worker on device : {user.current_UUID} is working now.'
         )
 
-    await set_device_UUID(user, form_data.client_id)
+    # form_data.client_id
 
     access_token = create_access_token(
         data={
@@ -55,13 +54,19 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
-    #RUBY:prevent mission.device is null
-    log = AuditLogHeader.objects.create(
-        table_name="users",
-        record_pk=user.badge,
-        action=AuditActionEnum.USER_LOGIN.value,
-        user=user,
+    changes = BenignObj()
+    emitter = AsyncEmitter()
+
+    changes.current_UUID = form_data.client_id
+    changes.login_date = get_ntz_now()
+
+    emitter.add(
+        AuditLogHeader.objects.create(
+            table_name="users",
+            record_pk=user.badge,
+            action=AuditActionEnum.USER_LOGIN.value,
+            user=user,
+        )
     )
 
     if await check_user_begin_shift(user):
@@ -71,74 +76,58 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 .select_related(["device"])
                 .filter(
                     worker=user,
-                    is_done=False,
-                    device__is_rescue=True,
+                    is_done=False
                 )
-                .all()
+                .get_or_none()
             )
 
-            await asyncio.gather(
-                # update previous rescue missions
-                *[
-                    r.update(
+            changes.shift_beg_date = get_ntz_now()
+            changes.finish_event_date = get_ntz_now()
+            changes.shift_reject_count = 0
+            changes.shift_start_count = 0
+
+            if (rescue_missions):
+                emitter.add(
+                    rescue_missions.update(
                         is_done=True,
                         is_done_cancel=True
                     )
-                    for r in rescue_missions
-                ],
-                # reset user parameters
-                user.update(
-                    shift_beg_date=get_ntz_now(),
-                    finish_event_date=get_ntz_now(),
-                    shift_reject_count=0,
-                    shift_start_count=0
                 )
-            )
 
             if not DISABLE_STARTUP_RESCUE_MISSION and not user.start_position == None:
                 # give rescue missiong if condition match
-                await asyncio.gather(
+                emitter.add(
                     set_mission_by_rescue_position(
                         user,
                         user.start_position.id
-                    ),
-                    user.update(
-                        login_date=get_ntz_now()
-                    ),
-                    log
+                    )
                 )
             else:
-                await asyncio.gather(
-                    user.update(
-                        login_date=get_ntz_now(),
-                        status=WorkerStatusEnum.idle.value
-                    ),
-                    log
-                )
-
-            return {"access_token": access_token, "token_type": "bearer"}
-
+                changes.status = WorkerStatusEnum.idle.value
         else:
-            status = WorkerStatusEnum.idle.value
+            changes.status = WorkerStatusEnum.idle.value
     else:
+        # RUBY:prevent mission.device is null
+        mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
+
         if mission:
             if mission.device.is_rescue is True:
-                status = WorkerStatusEnum.notice.value
+                changes.status = WorkerStatusEnum.notice.value
             elif (not mission.repair_beg_date == None):
-                status = WorkerStatusEnum.working.value
+                changes.status = WorkerStatusEnum.working.value
             elif (not mission.accept_recv_date == None):
-                status = WorkerStatusEnum.moving.value
+                changes.status = WorkerStatusEnum.moving.value
             elif (not mission.notify_send_date == None):
-                status = WorkerStatusEnum.notice.value
+                changes.status = WorkerStatusEnum.notice.value
         else:
-            status = WorkerStatusEnum.idle.value
+            changes.status = WorkerStatusEnum.idle.value
 
-    await asyncio.gather(
+    emitter.add(
         user.update(
-            status=status,
-            login_date=get_ntz_now()
-        ),
-        log
+            **changes.__dict__
+        )
     )
+
+    await emitter.emit()
 
     return {"access_token": access_token, "token_type": "bearer"}

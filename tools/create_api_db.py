@@ -8,6 +8,7 @@ from app.env import (
     DATABASE_PASSWORD,
     DATABASE_NAME
 )
+from app.services.user import get_password_hash
 from app.core.database import metadata, create_engine, Shift, ShiftInterval, api_db, User
 
 print(f"Working at Foxlink DB")
@@ -42,7 +43,7 @@ try:
     # engine = create_engine(
     #     f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}")
     # metadata.create_all(engine)
-    
+
     system("rm -rf /code/app/alembic/versions/* 2> /dev/null")
     system("alembic revision --autogenerate -m 'initialize'")
     system("alembic upgrade head")
@@ -70,7 +71,7 @@ async def create_default_entries():
         await User.objects.create(
             badge='admin',
             username='admin',
-            password_hash='$5$rounds=535000$fbZ4FKqPVjA70Bv2$Ox9gFhfGxOqAydiRGU6LTMmqzmsjGSVivX1RQGdHTcB',
+            password_hash=get_password_hash("foxlink"),
             workshop=None,
             superior=None,
             current_UUID=0,
