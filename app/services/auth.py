@@ -46,12 +46,12 @@ async def authenticate_user(badge: str, password: str):
 
     if user is None:
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="the user with this id is not found."
+            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="找不到具有此 ID 的用户"
         )
 
     if not verify_password(password, user.password_hash):
         raise HTTPException(
-            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="the password is incorrect."
+            status_code=HTTPStatus.HTTP_401_UNAUTHORIZED, detail="密码不正确"
         )
 
     return user
@@ -65,7 +65,7 @@ def get_current_user(light_user=False):
             decode_UUID: str = payload.get("UUID")
 
             if badge is None:
-                raise HTTPException(403, 'Could not validate credentials')
+                raise HTTPException(403, '无法验证凭据')
         except ExpiredSignatureError:
             payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], options={
                 "verify_exp": False, "verify_signature": False})
@@ -76,10 +76,10 @@ def get_current_user(light_user=False):
             if decode_UUID == user.current_UUID:
                 user = await user.update(current_UUID="0")
 
-            raise HTTPException(403, 'Signature has expired')
+            raise HTTPException(403, '准证已过期')
 
         except:
-            raise HTTPException(403, 'Could not validate credentials')
+            raise HTTPException(403, '无法验证凭据')
 
         if light_user:
             user = await get_worker_by_badge(badge, [])
@@ -87,10 +87,10 @@ def get_current_user(light_user=False):
             user = await get_worker_by_badge(badge)
 
         if user is None:
-            raise HTTPException(403, 'Could not validate credentials')
+            raise HTTPException(403, '无法验证凭据')
 
         if user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
-            raise HTTPException(403, 'log on another device. Should log out')
+            raise HTTPException(403, '登录另一台设备，请登出')
 
         return user
 

@@ -134,10 +134,10 @@ async def _start_mission(mission, worker):
             404, "the mission you request to start is not found")
 
     if worker.badge != mission.worker.badge:
-        raise HTTPException(400, "you are not this mission's assignee")
+        raise HTTPException(400, "你不是这个任务的受托人")
 
     if mission.is_done:
-        raise HTTPException(400, "this mission is already closed.")
+        raise HTTPException(400, "这个任务已经结束")
 
     if mission.device.is_rescue:
         await asyncio.gather(
@@ -157,11 +157,11 @@ async def _start_mission(mission, worker):
         return
 
     if mission.worker == worker and mission.is_started:
-        raise HTTPException(200, 'you have already started the mission')
+        raise HTTPException(200, '您已经开始任务了')
 
     # check if worker has accepted this mission
     if not mission.is_accepted:
-        raise HTTPException(400, "the worker hasn't accept the mission yet!")
+        raise HTTPException(400, "您还没接受任务")
 
     await asyncio.gather(
         mission.update(
@@ -194,27 +194,18 @@ async def accept_mission(mission, worker):
 
 async def _accept_mission(mission, worker):
     if mission is None:
-        raise HTTPException(
-            400, 
-            "无此任务"
-        )
+        raise HTTPException(400, "无此任务")
 
     if (
         not worker.badge or
         not worker.badge == mission.worker.badge
     ):
-        raise HTTPException(
-            400,
-            "任务已解除"
-        )
+        raise HTTPException(400, "任务已解除")
 
     if not mission.device.is_rescue:
         # RUBY: mission already accepted
         if mission.is_started or mission.is_closed:
-            raise HTTPException(
-                400,
-                "任务已开始或已结束"
-            )
+            raise HTTPException(400, "任务已开始或已结束")
         elif mission.is_accepted:
             return
 
@@ -250,16 +241,16 @@ async def reject_mission(mission, worker):
 async def _reject_mission(mission, worker):
     if mission is None:
         raise HTTPException(
-            200, "the mission you request to start is not found")
+            200, "未找到您要求开始的任务")
 
     if mission.worker is None:
-        raise HTTPException(200, "the mission haven't assigned to you")
+        raise HTTPException(200, "任务没有分配给你")
 
     if not worker.badge == mission.worker.badge:
-        raise HTTPException(200, "the mission haven't assigned to you")
+        raise HTTPException(200, "任务没有分配给你")
 
     if mission.worker == None and worker in mission.rejections:
-        raise HTTPException(200, "this mission is already rejected.")
+        raise HTTPException(200, "这个任务已经被拒绝了")
 
     if mission.is_started or mission.is_closed:
         raise HTTPException(200, "this mission is already started or closed")
@@ -344,17 +335,17 @@ async def _finish_mission(mission, worker):
             404, "the mission you request to start is not found")
 
     if mission.worker != worker:
-        raise HTTPException(200, "you are not this mission's assignee")
+        raise HTTPException(200, "你不是这个任务的受托人")
 
     if mission.is_done_shift:
         raise HTTPException(
-            200, "you're no longer this missions assignee due to shifting.")
+            200, "由于调动，您不再是该任务的受托人")
 
     if mission.is_done:
-        raise HTTPException(200, "the mission has closed.")
+        raise HTTPException(200, "任务已经结束")
 
     if mission.repair_beg_date is None:
-        raise HTTPException(400, "You need to start mission first")
+        raise HTTPException(200, "您需要先开始任")
 
     await asyncio.gather(
         mission.update(
@@ -389,7 +380,7 @@ async def delete_mission_by_id(mission, worker):
     if mission is None:
         raise HTTPException(
             404,
-            "the mission you request to delete is not found"
+            "找不到您要求删除的任务"
         )
 
     await _delete_mission(mission, worker)
@@ -427,10 +418,10 @@ async def _cancel_mission(mission, worker):
             404, "the mission you request to cancel is not found")
 
     if mission.is_done_cancel:
-        raise HTTPException(400, "this mission is already canceled")
+        raise HTTPException(400, "这个任务已经取消")
 
     if mission.is_done:
-        raise HTTPException(400, "this mission is already closed")
+        raise HTTPException(400, "这个任务已经结束")
 
     if mission.worker:
         _jobs.append(
@@ -483,24 +474,24 @@ async def _assign_mission(mission: Mission, worker: User):
 
     if not worker.status == WorkerStatusEnum.idle.value:
         raise HTTPException(
-            status_code=400, detail="the worker you requested is not idle")
+            status_code=400, detail="您要求的工人没有闲着")
 
     if mission.is_closed:
         raise HTTPException(
-            status_code=400, detail="the mission you requested is closed")
+            status_code=400, detail="您要求的任务已结束")
 
     if worker.level is not UserLevel.maintainer.value:
         raise HTTPException(
-            status_code=400, detail="the worker you requested cant not assign."
+            status_code=400, detail="您请求的工人无法分配"
         )
 
     if mission.worker:
         if worker.badge == mission.worker.badge:
             raise HTTPException(
-                status_code=400, detail="this mission is already assigned to this user")
+                status_code=400, detail="该任务已分配给该用户")
         else:
             raise HTTPException(
-                status_code=400, detail="the mission is already assigned")
+                status_code=400, detail="任务已经分配")
 
     await asyncio.gather(
         mission.update(
@@ -555,16 +546,16 @@ async def request_assistance(mission_id: int, worker: User):
 
     if mission.device.is_rescue == True:
         raise HTTPException(
-            400, "you can't mark to-rescue-station mission as emergency")
+            400, "您不能将前往救援站的任务标记为紧急情况")
 
     if not worker.badge == mission.worker.badge:
-        raise HTTPException(400, "you are not this mission's assignee")
+        raise HTTPException(400, "你不是这个任务的受托人")
 
     if mission.is_emergency:
-        raise HTTPException(400, "this mission is already in emergency")
+        raise HTTPException(400, "这个任务已经处于紧急状态")
 
     if mission.is_closed:
-        raise HTTPException(400, "this mission is already closed")
+        raise HTTPException(400, "这个任务已经结束")
 
     await asyncio.gather(
         mission.update(is_emergency=True),

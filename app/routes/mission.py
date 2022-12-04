@@ -167,7 +167,7 @@ async def worker_mission_detail(mission_id: int, user: User = Depends(get_curren
         raise HTTPException(404, "the mission you request is not found")
 
     if user.level == UserLevel.maintainer.value and not user.badge == m.worker.badge:
-        raise HTTPException(401, "you are not one of this mission's assignees")
+        raise HTTPException(400, "你不是这个任务的受托人")
 
     return MissionDto.from_mission(m)
 
