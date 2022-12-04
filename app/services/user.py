@@ -47,7 +47,7 @@ pwd_context = CryptContext(schemes=[PWD_SCHEMA], deprecated="auto")
 
 
 def get_password_hash(password: str):
-    return pwd_context.hash(password, salt=PWD_SALT, rounds=535000)
+    return pwd_context.hash(password, salt=PWD_SALT, rounds=10000)
 
 
 async def get_users() -> List[User]:
