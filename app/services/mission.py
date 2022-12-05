@@ -39,6 +39,7 @@ async def get_missions() -> List[Mission]:
     return await Mission.objects.select_all().all()
 
 
+# RUBY: select related worker at_device
 async def get_mission_by_id(
     id: int,
     select_fields: List[str] = [
@@ -47,7 +48,8 @@ async def get_mission_by_id(
         "device",
         "events",
         "device__workshop",
-        "worker__shift"
+        "worker__shift",
+        "worker__at_device"
     ]
 ) -> Optional[Mission]:
     mission = (
@@ -68,23 +70,23 @@ async def get_mission_by_id(
     return mission
 
 
-async def get_missions_by_badge(badge: str):
-    missions = (
-        await Mission.objects.select_related(
-            ["events", "device__workshop"]
-        )
-        .exclude_fields(
-            [
-                "device__workshop__map",
-                "device__workshop__related_devices",
-                "device__workshop__image",
-            ]
-        )
-        .filter(worker__badge=badge)
-        .order_by("-created_date")
-        .all()
-    )
-    return missions
+# async def get_missions_by_badge(badge: str):
+#     missions = (
+#         await Mission.objects.select_related(
+#             ["events", "device__workshop"]
+#         )
+#         .exclude_fields(
+#             [
+#                 "device__workshop__map",
+#                 "device__workshop__related_devices",
+#                 "device__workshop__image",
+#             ]
+#         )
+#         .filter(worker__badge=badge)
+#         .order_by("-created_date")
+#         .all()
+#     )
+#     return missions
 
 
 async def update_mission_by_id(id: int, dto: MissionUpdate):
@@ -132,6 +134,10 @@ async def _start_mission(mission, worker):
     if mission is None:
         raise HTTPException(
             404, "the mission you request to start is not found")
+
+    if mission.worker is None:
+        raise HTTPException(400, "这个任务已经结束")
+    # RUBY: mission worker NULL check
 
     if worker.badge != mission.worker.badge:
         raise HTTPException(400, "你不是这个任务的受托人")
@@ -196,10 +202,14 @@ async def _accept_mission(mission, worker):
     if mission is None:
         raise HTTPException(400, "无此任务")
 
-    if (
-        not worker.badge or
-        not worker.badge == mission.worker.badge
-    ):
+    # RUBY: mission worker Null check
+    if mission.worker is None:
+        raise HTTPException(400, "任务已解除")
+
+    if not worker.badge:
+        raise HTTPException(400, "任务已解除")
+
+    if not worker.badge == mission.worker.badge:
         raise HTTPException(400, "任务已解除")
 
     if not mission.device.is_rescue:
@@ -510,6 +520,8 @@ async def _assign_mission(mission: Mission, worker: User):
             {
                 "type": "new",
                 "mission_id": mission.id,
+                "badge": worker.badge,
+                # RUBY: set worker badge
                 "worker_now_position": worker.at_device,
                 "create_date": mission.created_date,
                 "device": {
@@ -650,6 +662,8 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         {
             "type": "rescue",
             "mission_id": mission.id,
+            "badge": worker.badge,
+            # RUBY: set worker badge
             "worker_now_position": worker.at_device,
             "create_date": mission.created_date,
             "device": {

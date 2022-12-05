@@ -113,22 +113,25 @@ if __name__ == "__main__":
                 is_done=False
             )
             .select_related(
-                ["device", "worker", "device__workshop"]
+                ["device", "worker", "device__workshop","worker__at_device","events"]
             )
             .all()
         )
+        #RUBY: related device workshop
 
         for m in mission:
             if m.worker is None:
                 continue
-
+            
             if m.device.is_rescue == False:
                 await mqtt_client.publish(
                     f"foxlink/users/{m.worker.current_UUID}/missions",
                     {
                         "type": "new",
                         "mission_id": m.id,
-                        "worker_now_position": m.worker.at_device,
+                        "worker_now_position": m.worker.at_device.id,
+                        "badge": m.worker.badge,
+                        #RUBY: set worker now position and badge
                         "create_date": m.created_date,
                         "device": {
                             "device_id": m.device.id,
@@ -158,7 +161,9 @@ if __name__ == "__main__":
                     {
                         "type": "rescue",
                         "mission_id": m.id,
-                        "worker_now_position": m.worker.at_device,
+                        "worker_now_position": m.worker.at_device.id,
+                        "badge": m.worker.badge,
+                        #RUBY: set worker now position and badge
                         "create_date": m.created_date,
                         "device": {
                             "device_id": m.device.id,
@@ -252,6 +257,7 @@ if __name__ == "__main__":
             )
 
             # create audit log
+
             await AuditLogHeader.objects.create(
                 action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
                 table_name="missions",
@@ -265,6 +271,8 @@ if __name__ == "__main__":
                 f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                 {
                     "mission_id": mission.id,
+                    "badge": mission.worker.badge,
+                    #RUBY: set worker badge
                     "mission_state": "overtime-duty",
                     "description": "finish",
                     "timestamp": get_ntz_now()
@@ -316,6 +324,8 @@ if __name__ == "__main__":
                         f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                         {
                             "mission_id": mission.id,
+                            "badge": mission.worker.badge,
+                            #RUBY: set worker badge
                             "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                             "description": "finish",
                             "timestamp": get_ntz_now()
@@ -707,7 +717,8 @@ if __name__ == "__main__":
                 if (assigned_mission_counter == 50):
                     break
 
-        logger.info(f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
+        logger.info(
+            f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
 
     ######### mission overtime  ########
     # half-done
@@ -798,6 +809,8 @@ if __name__ == "__main__":
                     f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                     {
                         "mission_id": mission.id,
+                        "badge": mission.worker.badge,
+                        #RUBY: set worker badge
                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                         "description": "over-time-no-action",
                         "timestamp": get_ntz_now()
@@ -856,6 +869,8 @@ if __name__ == "__main__":
                         f"foxlink/users/{event.mission.worker.current_UUID}/missions/stop-notify",
                         {
                             "mission_id": event.mission.id,
+                            "badge": event.mission.worker.badge,
+                            #RUBY: set worker badge
                             "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
                             "description": "finish",
                             "timestamp": get_ntz_now()
@@ -938,12 +953,12 @@ if __name__ == "__main__":
                 )
                 .get_or_none()
             )
-
+            #RUBY: set mission description
             if mission is None:
                 mission = Mission(
                     device=device,
                     name=f"{device.id} 故障",
-                    description="",
+                    description="一般任務",
                 )
                 await mission.save()
 
@@ -1145,7 +1160,8 @@ if __name__ == "__main__":
                     await asyncio.sleep(max(MAIN_ROUTINE_MIN_RUNTIME - (end_time - beg_time), 0))
 
             except Exception as e:
-                logger.error(f'Unknown excpetion occur in general routines: {repr(e)}')
+                logger.error(
+                    f'Unknown excpetion occur in general routines: {repr(e)}')
                 traceback.print_exc()
                 logger.error(f'Waiting 5 seconds to restart...')
                 await asyncio.sleep(5)
@@ -1159,7 +1175,8 @@ if __name__ == "__main__":
                 await asyncio.sleep(1)
 
             except Exception as e:
-                logger.error(f'Unknown excpetion in notify routines: {repr(e)}')
+                logger.error(
+                    f'Unknown excpetion in notify routines: {repr(e)}')
                 traceback.print_exc()
                 logger.error(f'Waiting 5 seconds to restart...')
                 await asyncio.sleep(5)

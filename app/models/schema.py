@@ -125,6 +125,9 @@ class MissionDto(BaseModel):
     is_emergency: bool
     created_date: datetime
     updated_date: datetime
+    worker_now_position: str
+    # add worker now position
+    
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -141,6 +144,8 @@ class MissionDto(BaseModel):
                 line=m.device.line,
             ),
             description=m.description,
+            worker_now_position = "" if m.worker == None else m.worker.at_device.id,
+            # add worker now position
             is_started=m.is_started,
             is_closed=m.is_closed,
             is_done=m.is_done,
@@ -170,6 +175,7 @@ class MissionInfo(BaseModel):
     updated_date: datetime
     notify_receive_date: str
     notify_send_date: str
+    worker_now_position: str
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -186,6 +192,7 @@ class MissionInfo(BaseModel):
                 line=m.device.line,
             ),
             description=m.description,
+            worker_now_position = "" if m.worker.at_device.id == None else m.worker.at_device.id,
             is_started=m.is_started,
             is_closed=m.is_closed,
             is_done=m.is_done,
