@@ -123,8 +123,12 @@ class MissionDto(BaseModel):
     is_closed: bool
     is_done: bool
     is_emergency: bool
+    #RUBY: add is done cure
+    is_done_cure: bool
     created_date: datetime
     updated_date: datetime
+    worker_now_position: str
+    # add worker now position
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -141,9 +145,12 @@ class MissionDto(BaseModel):
                 line=m.device.line,
             ),
             description=m.description,
+            worker_now_position="" if m.worker == None else m.worker.at_device.id,
+            # add worker now position
             is_started=m.is_started,
             is_closed=m.is_closed,
             is_done=m.is_done,
+            is_done_cure=m.is_done_cure,
             is_emergency=m.is_emergency,
             worker=UserNameDto(
                 badge=m.worker.badge,
@@ -155,12 +162,13 @@ class MissionDto(BaseModel):
         )
 
 
+#RUBY: edit worker to badge
 class MissionInfo(BaseModel):
     mission_id: int
     device: DeviceDto
     name: str
     description: str
-    worker: Optional[UserNameDto]
+    badge: str
     events: List[MissionEventOut]
     is_started: bool
     is_closed: bool
@@ -170,6 +178,7 @@ class MissionInfo(BaseModel):
     updated_date: datetime
     notify_receive_date: str
     notify_send_date: str
+    worker_now_position: str
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -186,14 +195,12 @@ class MissionInfo(BaseModel):
                 line=m.device.line,
             ),
             description=m.description,
+            worker_now_position="" if m.worker.at_device.id == None else m.worker.at_device.id,
             is_started=m.is_started,
             is_closed=m.is_closed,
             is_done=m.is_done,
             is_emergency=m.is_emergency,
-            worker=UserNameDto(
-                badge=m.worker.badge,
-                username=m.worker.username
-            ) if m.worker else None,
+            badge=m.worker.badge if m.worker else None,
             events=[MissionEventOut.from_missionevent(e) for e in m.events],
             created_date=m.created_date,
             updated_date=m.updated_date,

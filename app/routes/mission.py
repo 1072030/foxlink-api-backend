@@ -67,9 +67,10 @@ async def get_missions_by_query(
     if is_worker_null:
         params["worker"] = None
 
+    #RUBY: select related worker at_device
     missions = (
         await Mission.objects.select_related(
-            ["worker", "events", "device__workshop"]
+            ["worker", "events", "device__workshop","worker__at_device"]
         )
         .exclude_fields(
             [
@@ -149,7 +150,7 @@ async def get_missions_by_worker(
 async def get_current_mission(user: User = Depends(get_current_user())):
     mission = (
         await Mission.objects
-        .select_related(["device", "worker", "device__workshop"])
+        .select_related(["device", "worker", "device__workshop","worker__at_device","events"])
         .filter(worker=user.badge, is_done=False)
         .get_or_none()
     )
@@ -157,6 +158,7 @@ async def get_current_mission(user: User = Depends(get_current_user())):
         return MissionInfo.from_mission(mission)
     else:
         return None
+    #RUBY: select related worker at_device
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])
