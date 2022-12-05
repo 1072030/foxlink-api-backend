@@ -183,7 +183,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
     )
     #RUBY: solve events Null
     return [MissionDto.from_mission(x) for x in missions]
-
+    
 
 async def get_subordinates_users_by_badge(current_badge: str):
     the_user = await User.objects.filter(badge=current_badge).get_or_none()

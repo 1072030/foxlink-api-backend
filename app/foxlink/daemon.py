@@ -281,67 +281,6 @@ if __name__ == "__main__":
                 retain=True
             )
 
-    # done
-
-    @transaction_with_logger(logger)
-    @show_duration
-    async def auto_close_missions():
-        # auto complete non-started missions if all the mission events are cured.
-        pending_start_missions = (
-            await Mission.objects
-            .filter(
-                is_done=False,
-                repair_beg_date__isnull=True
-            )
-            .select_related(
-                ["events", "worker"]
-            )
-            .fields(
-                {
-                    "id": ...,
-                    "name": ...,
-                    "notify_recv_date": ...,
-                    "worker": {"badge", "current_UUID", "username", "level"},
-                    "events": {"event_id", "category", "host", "table_name", "event_end_date"}
-                }
-            )
-            .all()
-        )
-
-        async def driver(mission):
-            for event in mission.events:
-                if (event.event_end_date):
-                    continue
-                else:
-                    break
-            else:
-                await mission.update(
-                    is_done=True,
-                    is_done_cure=True
-                )
-                if mission.worker:
-                    await mqtt_client.publish(
-                        f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
-                        {
-                            "mission_id": mission.id,
-                            "badge": mission.worker.badge,
-                            #RUBY: set worker badge
-                            "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
-                            "description": "finish",
-                            "timestamp": get_ntz_now()
-                        },
-                        qos=2,
-                        retain=True
-                    )
-
-        await asyncio.gather(
-            *[
-                driver(mission)
-                for mission in pending_start_missions
-            ]
-        )
-
-    # done
 
     @transaction_with_logger(logger)
     @show_duration
@@ -1130,8 +1069,6 @@ if __name__ == "__main__":
                 beg_time = time.perf_counter()
 
                 await update_complete_events_handler()
-
-                # await auto_close_missions()
 
                 await mission_shift_routine()
 

@@ -105,7 +105,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         else:
             changes.status = WorkerStatusEnum.idle.value
     else:
-        # RUBY:prevent mission.device is null
+        # RUBY: prevent mission.device is null
         mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
 
         if mission:

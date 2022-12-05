@@ -45,7 +45,9 @@ from app.models.schema import (
     UserStatus,
     WorkerAttendance,
     WorkerStatusDto,
-    WorkerStatus
+    WorkerStatus,
+    WorkerSummary
+    #RUBY: add a new api check worker summary
 )
 
 router = APIRouter(prefix="/users")
@@ -107,6 +109,11 @@ async def get_user_himself_info(user: User = Depends(get_current_user())):
         level=user.level,
         at_device=user.at_device.id if user.at_device != None else ""
     )
+
+# RUBY: add api check worker-summary
+@router.get("/worker-summary", response_model=WorkerSummary, tags=["users"])
+async def get_worker_summary(user: User = Depends(get_current_user())):
+    return await get_user_summary(user.badge)
 
 
 @router.get("/worker-attendance", response_model=List[WorkerAttendance], tags=["users"])
