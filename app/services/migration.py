@@ -28,6 +28,7 @@ from app.core.database import (
     UserLevel,
     get_ntz_now
 )
+import logging
 
 data_converter = data_convert()
 
@@ -218,6 +219,29 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         frame_device_xy: pd.DataFrame = pd.read_excel(
             raw_excel_device_xy, sheet_name=0
         )
+        
+        for index, row in frame_device_xy.iterrows():
+            is_rescue: bool = row["project"] == "rescue"
+            line: int = int(row["line"]) if not math.isnan(
+                row["line"]) else None
+            workshop: str = row["workshop"]
+            project: str = row["project"]
+            process: str = row["process"] if type(
+                row["process"]) is str else None
+            device_name: str = row["device_name"]
+            x_axis: float = float(row["x_axis"])
+            y_axis: float = float(row["y_axis"])
+            sop_link: str = row["sop_link"]
+
+            device_id: str = assemble_device_id(
+                project,
+                workshop if is_rescue else line,
+                device_name
+            )
+            frame_device_xy.loc[index,"id"]=device_id
+        logging.warning(frame_device_xy)
+            # row["id"] = str(row["project"])+"@"+str(int(row["line"]))+"@"+str(row["device_name"])
+
         moving_matrix = data_converter.fn_factorymap(frame_device_xy)
         initial_pos = data_converter.fn_worker_start_position()
     except Exception as e:
