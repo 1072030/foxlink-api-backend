@@ -47,7 +47,6 @@ from app.models.schema import (
     WorkerStatusDto,
     WorkerStatus,
     WorkerSummary
-    #RUBY: add a new api check worker summary
 )
 
 router = APIRouter(prefix="/users")

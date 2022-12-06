@@ -72,19 +72,23 @@ def transaction_with_logger(logger):
             _transaction = (api_db.transaction(isolation="serializable"))
             result = None
             try:
-                logger.info("transaction starting")
+                if (logger):
+                    logger.info("transaction starting")
                 await _transaction.start()
-                logger.info("transaction started successful")
+                if (logger):
+                    logger.info("transaction started successful")
                 result = await func(*args, **_args)
             except Exception as e:
                 # traceback.print_exc()
                 print(f"error in transaction: {e}")
                 await _transaction.rollback()
-                logger.info("transaction ended failure")
+                if (logger):
+                    logger.info("transaction ended failure")
                 raise e
             else:
                 await _transaction.commit()
-                logger.info("transaction ended success")
+                if (logger):
+                    logger.info("transaction ended success")
                 return result
         return wrapper
     return decor

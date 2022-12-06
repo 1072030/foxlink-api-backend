@@ -33,10 +33,7 @@
       "type": "python",
       "request": "launch",
       "module": "app.foxlink.daemon",
-      "args": [
-        "-i",
-        "1"
-      ],
+      "args": [],
       "justMyCode": false
     },
     {

@@ -28,7 +28,7 @@ class Token(BaseModel):
     token_type: str
 
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

@@ -67,7 +67,6 @@ async def get_missions_by_query(
     if is_worker_null:
         params["worker"] = None
 
-    #RUBY: select related worker at_device
     missions = (
         await Mission.objects.select_related(
             ["worker", "events", "device__workshop","worker__at_device"]
@@ -158,7 +157,6 @@ async def get_current_mission(user: User = Depends(get_current_user())):
         return MissionInfo.from_mission(mission)
     else:
         return None
-    #RUBY: select related worker at_device
 
 
 @router.get("/{mission_id}", response_model=MissionDto, tags=["missions"])

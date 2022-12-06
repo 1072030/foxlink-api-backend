@@ -13,13 +13,13 @@ def create(**p):
 
 
 if __name__ == "__main__":
-    import logging
     import asyncio
     import signal
     import time
     import argparse
     from typing import Any, Dict, List, Tuple, Optional
     from datetime import timedelta
+    from app.log import logging, CustomFormatter, LOG_FORMAT_FILE
     from app.models.schema import MissionDto, MissionEventOut
     from app.utils.utils import AsyncEmitter
     from foxlink_dispatch.dispatch import Foxlink_dispatch
@@ -46,6 +46,7 @@ if __name__ == "__main__":
 
     from app.core.database import (
         transaction_with_logger,
+        transaction,
         get_ntz_now,
         ShiftType,
         FactoryMap,
@@ -73,10 +74,12 @@ if __name__ == "__main__":
     import traceback
 
     logger = logging.getLogger(f"foxlink(daemon)")
-
+    logger.addHandler(logging.FileHandler('foxlink(daemon).log', mode="w"))
+    logger.handlers[-1].setFormatter(CustomFormatter(LOG_FORMAT_FILE))
     if (DEBUG):
-        logger.addHandler(logging.FileHandler('foxlink(daemon).log', mode="w"))
         logger.handlers[-1].setLevel(logging.DEBUG)
+    else:
+        logger.handlers[-1].setLevel(logging.WARN)
 
     dispatch = Foxlink_dispatch()
 
@@ -102,8 +105,8 @@ if __name__ == "__main__":
             msg = f"{device_id} device is not in the map {factory_map.name}"
             raise ValueError(msg)
 
-    @transaction_with_logger(logger)
-    @show_duration
+    @ transaction
+    @ show_duration
     async def send_mission_notification_routine():
         mission = (
             await Mission.objects
@@ -113,16 +116,16 @@ if __name__ == "__main__":
                 is_done=False
             )
             .select_related(
-                ["device", "worker", "device__workshop","worker__at_device","events"]
+                ["device", "worker", "device__workshop", "worker__at_device", "events"]
             )
             .all()
         )
-        #RUBY: related device workshop
+        # RUBY: related device workshop
 
         for m in mission:
             if m.worker is None:
                 continue
-            
+
             if m.device.is_rescue == False:
                 await mqtt_client.publish(
                     f"foxlink/users/{m.worker.current_UUID}/missions",
@@ -131,7 +134,7 @@ if __name__ == "__main__":
                         "mission_id": m.id,
                         "worker_now_position": m.worker.at_device.id,
                         "badge": m.worker.badge,
-                        #RUBY: set worker now position and badge
+                        # RUBY: set worker now position and badge
                         "create_date": m.created_date,
                         "device": {
                             "device_id": m.device.id,
@@ -163,7 +166,7 @@ if __name__ == "__main__":
                         "mission_id": m.id,
                         "worker_now_position": m.worker.at_device.id,
                         "badge": m.worker.badge,
-                        #RUBY: set worker now position and badge
+                        # RUBY: set worker now position and badge
                         "create_date": m.created_date,
                         "device": {
                             "device_id": m.device.id,
@@ -189,8 +192,8 @@ if __name__ == "__main__":
 
     # done
 
-    @transaction_with_logger(logger)
-    @show_duration
+    @ transaction
+    @ show_duration
     async def mission_shift_routine():
         # filter out non-rescue missions that're in process but hasn't completed
         working_missions = (
@@ -202,9 +205,6 @@ if __name__ == "__main__":
             )
             .select_related(
                 ["device"]
-            )
-            .filter(
-                device__is_rescue=False,
             )
             .select_related(
                 ["worker", "events", "worker__shift"]
@@ -272,7 +272,7 @@ if __name__ == "__main__":
                 {
                     "mission_id": mission.id,
                     "badge": mission.worker.badge,
-                    #RUBY: set worker badge
+                    # RUBY: set worker badge
                     "mission_state": "overtime-duty",
                     "description": "finish",
                     "timestamp": get_ntz_now()
@@ -281,9 +281,8 @@ if __name__ == "__main__":
                 retain=True
             )
 
-
-    @transaction_with_logger(logger)
-    @show_duration
+    @ transaction
+    @ show_duration
     async def move_idle_workers_to_rescue_device():
         # find idle workers that're not at rescue devices and request them to return.
         workshop_rescue_entity_dict: Dict[
@@ -370,8 +369,8 @@ if __name__ == "__main__":
 
     # done
 
-    @transaction_with_logger(logger)
-    @show_duration
+    @ transaction
+    @ show_duration
     async def mission_dispatch():
         """處理任務派工給員工的過程"""
 
@@ -662,7 +661,7 @@ if __name__ == "__main__":
     ######### mission overtime  ########
     # half-done
 
-    @ transaction_with_logger(logger)
+    @ transaction
     @ show_duration
     async def check_mission_working_duration_overtime():
         """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級但是不取消任務"""
@@ -723,7 +722,7 @@ if __name__ == "__main__":
 
     # done
 
-    @ transaction_with_logger(logger)
+    @ transaction
     @ show_duration
     async def check_mission_assign_duration_overtime():
         """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級並且取消任務"""
@@ -749,7 +748,7 @@ if __name__ == "__main__":
                     {
                         "mission_id": mission.id,
                         "badge": mission.worker.badge,
-                        #RUBY: set worker badge
+                        # RUBY: set worker badge
                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                         "description": "over-time-no-action",
                         "timestamp": get_ntz_now()
@@ -809,7 +808,7 @@ if __name__ == "__main__":
                         {
                             "mission_id": event.mission.id,
                             "badge": event.mission.worker.badge,
-                            #RUBY: set worker badge
+                            # RUBY: set worker badge
                             "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
                             "description": "finish",
                             "timestamp": get_ntz_now()
@@ -830,7 +829,7 @@ if __name__ == "__main__":
                 return True
         return False
 
-    @ transaction_with_logger(logger)
+    @ transaction
     @ show_duration
     async def update_complete_events_handler():
         """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
@@ -892,7 +891,7 @@ if __name__ == "__main__":
                 )
                 .get_or_none()
             )
-            #RUBY: set mission description
+            # RUBY: set mission description
             if mission is None:
                 mission = Mission(
                     device=device,
@@ -935,7 +934,7 @@ if __name__ == "__main__":
             mission_event.event_id if mission_event else 0
         )
 
-    @ transaction_with_logger(logger)
+    @ transaction
     @ show_duration
     async def sync_events_from_foxlink_handler():
         db_table_pairs = await foxlink_dbs.get_all_db_tables()
@@ -1061,6 +1060,7 @@ if __name__ == "__main__":
 
     async def general_routine():
         global _terminate
+        logger.info(f"General Routine Start @{get_ntz_now()}")
         last_nofity_time = time.perf_counter()
         while (not _terminate):
             try:
@@ -1144,6 +1144,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(
-        main()
-        # ,debug=DEBUG
+        main(),
+        debug=DEBUG
     )

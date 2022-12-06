@@ -123,12 +123,10 @@ class MissionDto(BaseModel):
     is_closed: bool
     is_done: bool
     is_emergency: bool
-    #RUBY: add is done cure
     is_done_cure: bool
     created_date: datetime
     updated_date: datetime
     worker_now_position: str
-    # add worker now position
 
     @classmethod
     def from_mission(cls, m: Mission):
@@ -162,7 +160,6 @@ class MissionDto(BaseModel):
         )
 
 
-#RUBY: edit worker to badge
 class MissionInfo(BaseModel):
     mission_id: int
     device: DeviceDto

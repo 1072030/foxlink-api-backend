@@ -11,7 +11,8 @@ reset = '\x1b[0m'
 
 LOGGER_NAME: str = "uvicorn"
 # LOG_FORMAT: str = f"{grey}@%(asctime)s{reset}[{{color_level}}%(levelname)s{reset}]: {reset}%(message)s{reset}"
-LOG_FORMAT: str = f"{bold_blue}@%(name)s{reset}[{{color_level}}%(levelname)s{reset}]: {reset}%(message)s{reset}"
+LOG_FORMAT_TERMINAL: str = f"{bold_blue}@%(name)s{reset}[{{color_level}}%(levelname)s{reset}](%(asctime)s): {reset}%(message)s{reset}"
+LOG_FORMAT_FILE: str = f"@%(name)s[%(levelname)s](%(asctime)s):%(message)s"
 LOG_LEVEL: str = "INFO"
 
 
@@ -46,7 +47,7 @@ class CustomFormatter(logging.Formatter):
 
 
 baseHandler = logging.StreamHandler()
-baseHandler.setFormatter(CustomFormatter(LOG_FORMAT))
+baseHandler.setFormatter(CustomFormatter(LOG_FORMAT_TERMINAL))
 
 logging.basicConfig(level=LOG_LEVEL, handlers=[baseHandler])
 

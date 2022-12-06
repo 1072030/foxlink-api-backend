@@ -66,8 +66,8 @@ EMQX_PASSWORD = get_env("EMQX_PASSWORD", str, "public")
 WORKER_REJECT_AMOUNT_NOTIFY = get_env("WORKER_REJECT_AMOUNT_NOTIFY", int, 2)
 MISSION_REJECT_AMOUT_NOTIFY = get_env("MISSION_REJECT_AMOUT_NOTIFY", int, 2)
 
-DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "00:01")
-DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "23:59")
+DAY_SHIFT_BEGIN = get_env("DAY_SHIFT_BEGIN", str, "07:40")
+DAY_SHIFT_END = get_env("DAY_SHIFT_END", str, "19:40")
 
 MAX_NOT_ALIVE_TIME = get_env("MAX_NOT_ALIVE_TIME", int, 5)  # unit: minutes
 
@@ -76,9 +76,7 @@ MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES = get_env(
 )
 
 # 當員工身處非 Rescue Station 時，若超過此時間，則自動派遣這名員工到 Rescue Station
-WORKER_IDLE_OT_RESCUE_MINUTES = get_env(
-    "WORKER_IDLE_OT_RESCUE_MINUTES", int, 5
-)  # unit: minutes")
+WORKER_IDLE_OT_RESCUE_MINUTES = get_env("WORKER_IDLE_OT_RESCUE_MINUTES", int, 1)  # unit: minutes")
 
 # 白名單最低故障數建議閥值
 WHITELIST_MINIMUM_OCCUR_COUNT = get_env(
@@ -128,13 +126,11 @@ if os.environ.get("USE_ALEMBIC") is None:
         exit(1)
 
     if DISABLE_FOXLINK_DISPATCH is True:
-        logger.warn(
-            "DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!"
-        )
+        logger.warn("DISABLE_FOXLINK_DISPATCH is set to True, automatic dispatching is disabled!")
 
     logger.warn(
         f"Day-shift started from {DAY_SHIFT_BEGIN}~{DAY_SHIFT_END}"
     )
     logger.warn(
-        f"MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES: {MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES}"
+        f"Mission overtime notify minutes per level: {MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES}"
     )

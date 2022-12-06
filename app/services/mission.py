@@ -39,7 +39,6 @@ async def get_missions() -> List[Mission]:
     return await Mission.objects.select_all().all()
 
 
-# RUBY: select related worker at_device
 async def get_mission_by_id(
     id: int,
     select_fields: List[str] = [
@@ -68,25 +67,6 @@ async def get_mission_by_id(
     )
 
     return mission
-
-
-# async def get_missions_by_badge(badge: str):
-#     missions = (
-#         await Mission.objects.select_related(
-#             ["events", "device__workshop"]
-#         )
-#         .exclude_fields(
-#             [
-#                 "device__workshop__map",
-#                 "device__workshop__related_devices",
-#                 "device__workshop__image",
-#             ]
-#         )
-#         .filter(worker__badge=badge)
-#         .order_by("-created_date")
-#         .all()
-#     )
-#     return missions
 
 
 async def update_mission_by_id(id: int, dto: MissionUpdate):
@@ -118,7 +98,7 @@ async def click_mission_by_id(mission_id: int, worker: User):
         await mission.update(notify_recv_date=get_ntz_now())
 
 
-######## REFACTORED BY OD ########
+######## REFACTORED ########
 @transaction
 async def start_mission(mission, worker):
     if not isinstance(mission, Mission):

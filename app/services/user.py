@@ -165,7 +165,6 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
         return None
 
 
-# ============ features re-add by Teddy ===========
 async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(worker__badge=username)
@@ -181,7 +180,6 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
         .limit(10)
         .all()
     )
-    #RUBY: solve events Null
     return [MissionDto.from_mission(x) for x in missions]
     
 
@@ -282,7 +280,6 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
 
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
 
-# ============ Teddy End ============
 
 
 async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
