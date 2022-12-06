@@ -2,8 +2,6 @@ import json
 import multiprocessing
 import os
 
-preload_app = True
-
 workers_per_core_str = os.getenv("WORKERS_PER_CORE", "1")
 max_workers_str = os.getenv("MAX_WORKERS")
 use_max_workers = None

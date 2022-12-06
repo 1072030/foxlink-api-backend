@@ -74,7 +74,7 @@ if __name__ == "__main__":
     import traceback
 
     logger = logging.getLogger(f"foxlink(daemon)")
-    logger.addHandler(logging.FileHandler('foxlink(daemon).log', mode="w"))
+    logger.addHandler(logging.FileHandler('logs/foxlink(daemon).log', mode="w"))
     logger.handlers[-1].setFormatter(CustomFormatter(LOG_FORMAT_FILE))
     if (DEBUG):
         logger.handlers[-1].setLevel(logging.DEBUG)

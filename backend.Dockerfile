@@ -29,6 +29,12 @@ RUN apt-get install libmariadb-dev -y
 #
 RUN apt-get install gcc -y
 
+#
+RUN apt-get install procps -y
+
+#
+RUN apt-get install bmon -y
+
 # copy dependencies
 COPY requirements.txt /app/
 
