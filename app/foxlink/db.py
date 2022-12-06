@@ -7,6 +7,7 @@ from app.env import (
     FOXLINK_EVENT_DB_HOSTS,
     FOXLINK_EVENT_DB_USER,
     FOXLINK_EVENT_DB_PWD,
+    FOXLINK_EVENT_DB_TABLE_POSTFIX,
     FOXLINK_DEVICE_DB_NAME,
     FOXLINK_DEVICE_DB_HOST,
     FOXLINK_DEVICE_DB_USER,
@@ -120,14 +121,15 @@ class FoxlinkDatabasePool:
 
     async def get_db_tables(self,host:str) -> Tuple[List[str],str]:
         r = await self.event_dbs[host].fetch_all(
-            "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :schema_name",
+            "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME LIKE :table_name",
             {
                 "schema_name": FOXLINK_EVENT_DB_NAME,
+                "table_name": f"%{FOXLINK_EVENT_DB_TABLE_POSTFIX}"
             },
         )
         return (
             host,
-            [x[0] for x in r if "events" in x[0]]
+            [x[0] for x in r]
         )
 
     async def get_all_db_tables(self) -> List[List[str]]:

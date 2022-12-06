@@ -971,7 +971,8 @@ if __name__ == "__main__":
         return [
             FoxlinkEvent(
                 id=x[0],
-                project=x[9],
+                # project=x[9],
+                project="",
                 line=x[1],
                 device_name=x[2],
                 category=x[3],
@@ -979,7 +980,7 @@ if __name__ == "__main__":
                 end_time=x[5],
                 message=x[6],
                 start_file_name=x[7],
-                end_file_name=x[8],
+                end_file_name=x[8]
             )
             for x in rows
         ]
