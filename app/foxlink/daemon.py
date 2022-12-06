@@ -113,16 +113,17 @@ if __name__ == "__main__":
                 is_done=False
             )
             .select_related(
-                ["device", "worker", "device__workshop","worker__at_device","events"]
+                ["device", "worker", "device__workshop",
+                    "worker__at_device", "events"]
             )
             .all()
         )
-        #RUBY: related device workshop
+        # RUBY: related device workshop
 
         for m in mission:
             if m.worker is None:
                 continue
-            
+
             if m.device.is_rescue == False:
                 await mqtt_client.publish(
                     f"foxlink/users/{m.worker.current_UUID}/missions",
@@ -131,7 +132,7 @@ if __name__ == "__main__":
                         "mission_id": m.id,
                         "worker_now_position": m.worker.at_device.id,
                         "badge": m.worker.badge,
-                        #RUBY: set worker now position and badge
+                        # RUBY: set worker now position and badge
                         "create_date": m.created_date,
                         "device": {
                             "device_id": m.device.id,
@@ -163,7 +164,7 @@ if __name__ == "__main__":
                         "mission_id": m.id,
                         "worker_now_position": m.worker.at_device.id,
                         "badge": m.worker.badge,
-                        #RUBY: set worker now position and badge
+                        # RUBY: set worker now position and badge
                         "create_date": m.created_date,
                         "device": {
                             "device_id": m.device.id,
@@ -272,7 +273,7 @@ if __name__ == "__main__":
                 {
                     "mission_id": mission.id,
                     "badge": mission.worker.badge,
-                    #RUBY: set worker badge
+                    # RUBY: set worker badge
                     "mission_state": "overtime-duty",
                     "description": "finish",
                     "timestamp": get_ntz_now()
@@ -280,7 +281,6 @@ if __name__ == "__main__":
                 qos=2,
                 retain=True
             )
-
 
     @transaction_with_logger(logger)
     @show_duration
@@ -389,6 +389,7 @@ if __name__ == "__main__":
                     "worker__at_device",
                     "device__workshop",
                     "rejections",
+                    "events"
                 ]
             )
             .exclude_fields(
@@ -749,7 +750,7 @@ if __name__ == "__main__":
                     {
                         "mission_id": mission.id,
                         "badge": mission.worker.badge,
-                        #RUBY: set worker badge
+                        # RUBY: set worker badge
                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                         "description": "over-time-no-action",
                         "timestamp": get_ntz_now()
@@ -809,7 +810,7 @@ if __name__ == "__main__":
                         {
                             "mission_id": event.mission.id,
                             "badge": event.mission.worker.badge,
-                            #RUBY: set worker badge
+                            # RUBY: set worker badge
                             "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
                             "description": "finish",
                             "timestamp": get_ntz_now()
@@ -892,7 +893,7 @@ if __name__ == "__main__":
                 )
                 .get_or_none()
             )
-            #RUBY: set mission description
+            # RUBY: set mission description
             if mission is None:
                 mission = Mission(
                     device=device,
