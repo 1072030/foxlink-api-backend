@@ -116,7 +116,12 @@ if __name__ == "__main__":
                 is_done=False
             )
             .select_related(
+<<<<<<< HEAD
                 ["device", "worker", "device__workshop", "worker__at_device", "events"]
+=======
+                ["device", "worker", "device__workshop",
+                    "worker__at_device", "events"]
+>>>>>>> origin/v9.1
             )
             .all()
         )
@@ -281,8 +286,13 @@ if __name__ == "__main__":
                 retain=True
             )
 
+<<<<<<< HEAD
     @ transaction
     @ show_duration
+=======
+    @transaction_with_logger(logger)
+    @show_duration
+>>>>>>> origin/v9.1
     async def move_idle_workers_to_rescue_device():
         # find idle workers that're not at rescue devices and request them to return.
         workshop_rescue_entity_dict: Dict[
@@ -388,6 +398,7 @@ if __name__ == "__main__":
                     "worker__at_device",
                     "device__workshop",
                     "rejections",
+                    "events"
                 ]
             )
             .exclude_fields(
