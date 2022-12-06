@@ -9,7 +9,7 @@ services:
     ports:
       - 18083:18083
       - 1883:1883
-      # - 8083:8083
+      - 8183:8083
     networks:
       - backend
 
@@ -22,15 +22,17 @@ services:
       - .env
     environment:
       - DATABASE_HOST=mysql
+      - DATABASE_NAME=foxlink
       - FOXLINK_EVENT_DB_HOSTS=['172.168.1.231:3306', '172.168.1.237:3306']
       - FOXLINK_EVENT_DB_USER=ntust
       - FOXLINK_EVENT_DB_PWD=ntustpwd
       - FOXLINK_EVENT_DB_NAME=aoi
-      - FOXLINK_DEVICE_DB_HOST="172.168.1.231:3306"
+      - FOXLINK_DEVICE_DB_HOST=172.168.1.231:3306
       - FOXLINK_DEVICE_DB_USER=ntust
       - FOXLINK_DEVICE_DB_PWD=ntustpwd
       - MQTT_BROKER=emqx
-
+      - DISABLE_STARTUP_RESCUE_MISSION=1
+      - DEBUG=0
     restart: unless-stopped
     ports:
       - 80:80

@@ -38,6 +38,7 @@ if __name__ == "__main__":
         MISSION_ASSIGN_OT_MINUTES,
         DISABLE_FOXLINK_DISPATCH,
         FOXLINK_EVENT_DB_NAME,
+        FOXLINK_EVENT_DB_TABLE_POSTFIX,
         WORKER_IDLE_OT_RESCUE_MINUTES,
         MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES,
         DEBUG
@@ -116,12 +117,7 @@ if __name__ == "__main__":
                 is_done=False
             )
             .select_related(
-<<<<<<< HEAD
                 ["device", "worker", "device__workshop", "worker__at_device", "events"]
-=======
-                ["device", "worker", "device__workshop",
-                    "worker__at_device", "events"]
->>>>>>> origin/v9.1
             )
             .all()
         )
@@ -286,13 +282,8 @@ if __name__ == "__main__":
                 retain=True
             )
 
-<<<<<<< HEAD
     @ transaction
     @ show_duration
-=======
-    @transaction_with_logger(logger)
-    @show_duration
->>>>>>> origin/v9.1
     async def move_idle_workers_to_rescue_device():
         # find idle workers that're not at rescue devices and request them to return.
         workshop_rescue_entity_dict: Dict[
@@ -982,8 +973,11 @@ if __name__ == "__main__":
         return [
             FoxlinkEvent(
                 id=x[0],
-                # project=x[9],
-                project="",
+                project=(
+                    x[9] 
+                    if DEBUG else
+                    table_name[:-len(FOXLINK_EVENT_DB_TABLE_POSTFIX)].upper()
+                ),
                 line=x[1],
                 device_name=x[2],
                 category=x[3],
