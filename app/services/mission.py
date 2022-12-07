@@ -125,6 +125,13 @@ async def _start_mission(mission, worker):
     if mission.is_done:
         raise HTTPException(400, "这个任务已经结束")
 
+    log = AuditLogHeader.objects.create(
+        action=AuditActionEnum.MISSION_STARTED.value,
+        user=worker.badge,
+        table_name="missions",
+        record_pk=str(mission.id),
+    )
+
     if mission.device.is_rescue:
         await asyncio.gather(
             mission.update(
@@ -135,10 +142,9 @@ async def _start_mission(mission, worker):
             worker.update(
                 status=WorkerStatusEnum.idle.value,
                 at_device=mission.device.id,
-                shift_start_count=worker.shift_start_count +
-                (1 if not mission.device.is_rescue else 0),
                 finish_event_date=get_ntz_now()
-            )
+            ),
+            log
         )
         return
 
@@ -158,12 +164,7 @@ async def _start_mission(mission, worker):
             at_device=mission.device.id,
             shift_start_count=worker.shift_start_count + 1,
         ),
-        AuditLogHeader.objects.create(
-            action=AuditActionEnum.MISSION_STARTED.value,
-            user=worker.badge,
-            table_name="missions",
-            record_pk=str(mission.id),
-        )
+        log
     )
 
 

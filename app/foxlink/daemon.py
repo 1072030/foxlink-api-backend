@@ -235,7 +235,8 @@ if __name__ == "__main__":
                 name=mission.name,
                 description=f"換班任務，沿用 Mission ID: {mission.id}",
                 device=mission.device,
-                is_emergency=mission.is_emergency
+                is_emergency=mission.is_emergency,
+                created_date=mission.created_date
             )
 
             # replicate mission events for the new mission
@@ -974,7 +975,7 @@ if __name__ == "__main__":
             FoxlinkEvent(
                 id=x[0],
                 project=(
-                    x[9] 
+                    x[9]
                     if DEBUG else
                     table_name[:-len(FOXLINK_EVENT_DB_TABLE_POSTFIX)].upper()
                 ),

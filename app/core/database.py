@@ -296,10 +296,8 @@ class Mission(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
     device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    worker: User = ormar.ForeignKey(
-        User, ondelete="SET NULL", related_name="accepted_missions")
-    rejections: Optional[List[User]] = ormar.ManyToMany(
-        User, related_name="rejected_missions")
+    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="accepted_missions")
+    rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_missions")
     description: str = ormar.String(max_length=256, nullable=True)
 
     is_done: bool = ormar.Boolean(default=False, nullable=True)

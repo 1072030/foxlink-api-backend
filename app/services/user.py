@@ -273,7 +273,7 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
                     )
                 )
 
-            if s == 0:
+            if s == 1:
                 day_overview.append(overview)
             else:
                 night_overview.append(overview)
