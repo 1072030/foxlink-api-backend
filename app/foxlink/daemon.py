@@ -803,7 +803,7 @@ if __name__ == "__main__":
                         table_name="missions",
                         action=AuditActionEnum.MISSION_CURED.value,
                         record_pk=str(event.mission.id),
-                        user=event.mission.worker.badge,
+                        user=None,
                     ),
                     mqtt_client.publish(
                         f"foxlink/users/{event.mission.worker.current_UUID}/missions/stop-notify",

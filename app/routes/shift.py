@@ -19,11 +19,20 @@ async def update_shift_time(
     # user: User = Depends(get_manager_active_user),
 ):
     try:
-        shift = await Shift.objects.filter(
+        shift1 = await Shift.objects.filter(
             id=id,
         ).get_or_none()
 
-        await shift.update(shift_beg_time=shift_beg_time, shift_end_time=shift_end_time)
+        await shift1.update(shift_beg_time=shift_beg_time, shift_end_time=shift_end_time)
+        
+        if id == 2: id = 1
+        else: id = 2
+        
+        shift2 = await Shift.objects.filter(
+            id=id,
+        ).get_or_none()
+
+        await shift2.update(shift_beg_time=shift_end_time, shift_end_time=shift_beg_time)
 
     except:
         raise HTTPException(400, "bad shift time request")
