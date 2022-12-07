@@ -1028,7 +1028,8 @@ if __name__ == "__main__":
         _terminate = True
 
     async def connect_services():
-        api_db.options["max_size"] = 20
+        api_db.options["min_size"] = 3
+        api_db.options["max_size"] = 7
         while True:
             try:
                 logger.info("Start to Create Connections.")

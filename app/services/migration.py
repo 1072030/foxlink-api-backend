@@ -307,6 +307,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                 workshop=workshop,
                 superior=superior,
                 start_position=start_position,
+                at_device=workshop_default_rescue[workshop.name],
                 level=level,
                 shift=shift,
             )
