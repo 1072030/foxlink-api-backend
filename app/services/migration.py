@@ -1,5 +1,6 @@
 from datetime import datetime
 import math
+import random
 from typing import Dict, List, Tuple
 from app.core.database import (
     User,
@@ -23,14 +24,103 @@ import traceback
 import asyncio
 from datetime import datetime
 from ormar import or_, and_
+import pandas as pd
 from app.core.database import (
     transaction,
     UserLevel,
     get_ntz_now
 )
-import logging
 
 data_converter = data_convert()
+
+
+@transaction
+async def set_start_position_df():
+    raw_data_worker_info = await api_db.fetch_all(f"""
+        SELECT u.badge,u.workshop,u.shift,d.process,d.project,d.device_name FROM testing_api.users u
+        INNER JOIN user_device_levels udl on udl.user=u.badge
+        INNER JOIN devices d on d.id=udl.device 
+        WHERE udl.`level` !=0 and u.`level` =1
+    """)
+
+    raw_data_device_info = await api_db.fetch_all(f"""SELECT d.id ,d.project ,d.process ,d.line ,d.device_name ,d.x_axis ,d.y_axis,d.workshop  FROM devices d""")
+    raw_data_worker_info_df = pd.DataFrame(raw_data_worker_info)
+    raw_data_device_info_df = pd.DataFrame(raw_data_device_info)
+    if raw_data_device_info_df.empty or raw_data_worker_info_df.empty:
+        return
+    start_position = await fn_worker_start_position(
+        raw_data_worker_info_df, raw_data_device_info_df)
+    for index, row in start_position.iterrows():
+        badge: str = row["worker_name"]
+        start_position: str = row["start_position"]
+        worker = await User.objects.filter(badge=badge).get()
+        if worker is None:
+            continue
+        else:
+            await worker.update(start_position=start_position)
+
+
+ #建立員工開班位置；只要資料表有變更 "員工專職表" 或是 "Layout座標表" 都需要重新計算一次
+async def fn_worker_start_position(df_w, df_m):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
+    df_worker_start_position = pd.DataFrame()  # 建立空白資料表存取計算結果
+    df_m_depot = df_m[df_m["project"] ==
+                      "rescue"].reset_index(drop=True)  # 消防站位置
+    df_m_device = df_m[df_m["project"] != "rescue"].reset_index(
+        drop=True
+    )  # device位置
+
+    def get_minvalue(inputlist):
+        # get the minimum value in the list
+        min_value = min(inputlist)
+        # return the index of minimum value
+        res = [i for i, val in enumerate(inputlist) if val == min_value]
+        return res
+
+    for s in set(
+        df_w["shift"].dropna()
+    ):  # fn_factory_worker_info 中 parameter 的 shift 種類數
+        df_w_shift = df_w[df_w["shift"] == s].groupby(
+            ["badge"]
+        )  # 選班次
+        workers = []
+        start_positions = []
+        for i, j in df_w_shift:
+            # 找對應員工經驗之機檯座標
+            find_device = df_m_device[
+                (df_m_device["workshop"].isin(set(j["workshop"])))
+                & (df_m_device["project"].isin(set(j["project"])))
+                & (df_m_device["process"].isin(set(j["process"])))
+                & (df_m_device["device_name"].isin(set(j["device_name"])))
+            ].reset_index(drop=True)
+            # print(find_device)
+
+            distance_list = []
+            for d in range(len(df_m_depot)):  # 計算平均距離
+                depot = df_m_depot.iloc[d]  # 消防站
+                total_distance = (
+                    (find_device["x_axis"] - depot["x_axis"]).abs()
+                    + (find_device["y_axis"] - depot["y_axis"]).abs()
+                ).mean()
+                distance_list.append(total_distance)
+            # print(distance_list)
+
+            min_list = get_minvalue(distance_list)  # 找到最短總距離
+            if len(min_list) > 1:
+                min_list = random.choice(min_list)
+            # print(min_list)
+            position = df_m_depot.iloc[min_list].iloc[0]["id"]  # 找到該位置
+            workers.append(i)
+            start_positions.append(position)
+            # print(position)
+        shift_info = pd.DataFrame(
+            {"worker_name": workers, "start_position": start_positions}
+        )
+        # print(shift_info)
+        df_worker_start_position = pd.concat(
+            [df_worker_start_position, shift_info], ignore_index=1
+        )
+    return df_worker_start_position
+    # print(set(test_workerinfo["parameter"]["shift"].dropna()))
 
 
 @transaction
@@ -140,6 +230,8 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
         await Device.objects.exclude(id__in=current_all_device_ids).delete(each=True)
 
+        await set_start_position_df()
+
         return frame["id"].unique().tolist(), params
 
     except Exception as e:
@@ -207,43 +299,14 @@ async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> 
 
 
 @transaction
-async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, device_file: UploadFile) -> pd.DataFrame:
+async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) -> pd.DataFrame:
 
     raw_excel: bytes = await worker_file.read()
-    raw_excel_device_xy: bytes = await device_file.read()
 
     try:
         data = data_converter.fn_factory_worker_info(
             worker_file.filename, raw_excel
         )
-        frame_device_xy: pd.DataFrame = pd.read_excel(
-            raw_excel_device_xy, sheet_name=0
-        )
-        
-        for index, row in frame_device_xy.iterrows():
-            is_rescue: bool = row["project"] == "rescue"
-            line: int = int(row["line"]) if not math.isnan(
-                row["line"]) else None
-            workshop: str = row["workshop"]
-            project: str = row["project"]
-            process: str = row["process"] if type(
-                row["process"]) is str else None
-            device_name: str = row["device_name"]
-            x_axis: float = float(row["x_axis"])
-            y_axis: float = float(row["y_axis"])
-            sop_link: str = row["sop_link"]
-
-            device_id: str = assemble_device_id(
-                project,
-                workshop if is_rescue else line,
-                device_name
-            )
-            frame_device_xy.loc[index,"id"]=device_id
-        logging.warning(frame_device_xy)
-            # row["id"] = str(row["project"])+"@"+str(int(row["line"]))+"@"+str(row["device_name"])
-
-        moving_matrix = data_converter.fn_factorymap(frame_device_xy)
-        initial_pos = data_converter.fn_worker_start_position()
     except Exception as e:
         raise HTTPException(status_code=400, detail=repr(e))
 
@@ -293,15 +356,6 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         superior: str = None
         shift: int = int(row["shift"]) + 1
         level: int = int(row["job"])
-        if level == 1:
-            try:
-                start_position = initial_pos.loc[initial_pos["worker_name"]
-                                                == badge].iloc[0]["start_position"]            
-            except:
-                start_position= None
-
-        else:
-            start_position = None
         worker = None
 
         worker = await User.objects.filter(badge=badge).get_or_none()
@@ -317,7 +371,6 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                 level=level,
                 shift=shift,
                 status=WorkerStatusEnum.leave.value,
-                start_position=start_position,
                 at_device=workshop_default_rescue[workshop.name],
                 finish_event_date=get_ntz_now(),
             )
@@ -330,7 +383,6 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                 username=username,
                 workshop=workshop,
                 superior=superior,
-                start_position=start_position,
                 level=level,
                 shift=shift,
             )
@@ -440,5 +492,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
             columns=list(sample.dict(
                 exclude={"user", "device"}, exclude_defaults=True))
         )
+        
+    await set_start_position_df()
 
     return params

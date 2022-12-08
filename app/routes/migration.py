@@ -3,8 +3,9 @@ from app.models.schema import ImportDevicesOut
 from app.services.auth import get_manager_active_user
 from app.services.migration import (
     import_devices,
+    set_start_position_df,
     # import_workshop_events,
-    import_factory_worker_infos,
+    import_factory_worker_infos
 )
 from fastapi import APIRouter, Depends, File, Response, UploadFile, Form
 from app.core.database import AuditActionEnum, User, AuditLogHeader
@@ -14,6 +15,7 @@ from foxlink_dispatch.dispatch import data_convert
 
 
 router = APIRouter(prefix="/migration")
+
 
 
 @router.post("/devices", tags=["migration"], status_code=201, response_model=ImportDevicesOut)
@@ -60,14 +62,13 @@ async def import_devices_from_excel(
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
     worker_file: UploadFile = File(...),
-    device_file: UploadFile = File(...),
     user: User = Depends(get_manager_active_user),
 ):
-    if worker_file.filename.split(".")[1] != "xlsx" or  device_file.filename.split(".")[1] != "xlsx":
+    if worker_file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
 
     try:
-        params = await import_factory_worker_infos(workshop_name, worker_file, device_file)
+        params = await import_factory_worker_infos(workshop_name, worker_file)
         await AuditLogHeader.objects.create(
             table_name="users",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
@@ -86,5 +87,3 @@ async def import_factory_worker_infos_from_excel(
             user=user,
         )
         raise e
-
-
