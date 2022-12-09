@@ -230,27 +230,29 @@ if __name__ == "__main__":
                 description='換班任務，自動結案'
             )
 
-            # replicate mission of the new shift
-            replicate_mission = await Mission.objects.create(
-                name=mission.name,
-                description=f"換班任務，沿用 Mission ID: {mission.id}",
-                device=mission.device,
-                is_emergency=mission.is_emergency,
-                created_date=mission.created_date
-            )
+            if not mission.device.is_rescue:
 
-            # replicate mission events for the new mission
-            for e in mission.events:
-                replicate_event = MissionEvent(
-                    event_id=e.event_id,
-                    host=e.host,
-                    table_name=e.table_name,
-                    category=e.category,
-                    message=e.message,
-                    event_beg_date=e.event_beg_date,
-                    event_end_date=e.event_end_date
+                # replicate mission of the new shift
+                replicate_mission = await Mission.objects.create(
+                    name=mission.name,
+                    description=f"換班任務，沿用 Mission ID: {mission.id}",
+                    device=mission.device,
+                    is_emergency=mission.is_emergency,
+                    created_date=mission.created_date
                 )
-                await replicate_mission.events.add(replicate_event)
+
+                # replicate mission events for the new mission
+                for e in mission.events:
+                    replicate_event = MissionEvent(
+                        event_id=e.event_id,
+                        host=e.host,
+                        table_name=e.table_name,
+                        category=e.category,
+                        message=e.message,
+                        event_beg_date=e.event_beg_date,
+                        event_end_date=e.event_end_date
+                    )
+                    await replicate_mission.events.add(replicate_event)
 
             # update worker status
             await mission.worker.update(
@@ -381,7 +383,7 @@ if __name__ == "__main__":
             await Mission.objects
             .filter(
                 is_done=False,
-                worker__isnull=True,
+                worker__isnull=True
             )
             .select_related(
                 [
@@ -397,8 +399,11 @@ if __name__ == "__main__":
                 [
                     "device__workshop__map",
                     "device__workshop__related_devices",
-                    "device__workshop__image",
+                    "device__workshop__image"
                 ]
+            )
+            .filter(
+                device__is_rescue=False
             )
             .all()
         )
