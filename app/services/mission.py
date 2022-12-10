@@ -276,7 +276,7 @@ async def _reject_mission(mission, worker):
             table_name="missions",
             action=AuditActionEnum.MISSION_REJECTED.value,
             record_pk=str(mission.id),
-            user=worker,
+            user=worker.badge,
         )
     )
 
@@ -555,7 +555,7 @@ async def request_assistance(mission_id: int, worker: User):
         AuditLogHeader.objects.create(
             action=AuditActionEnum.MISSION_EMERGENCY.value,
             table_name='missions',
-            user=worker,
+            user=worker.badge,
             record_pk=str(mission.id)
         )
     )

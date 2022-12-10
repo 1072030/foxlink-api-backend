@@ -62,7 +62,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             table_name="users",
             record_pk=user.badge,
             action=AuditActionEnum.USER_LOGIN.value,
-            user=user,
+            user=user.badge,
         )
     )
 

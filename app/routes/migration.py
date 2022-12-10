@@ -29,7 +29,7 @@ async def import_devices_from_excel(
         await AuditLogHeader.objects.create(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
-            user=user,
+            user=user.badge,
         )
         return ImportDevicesOut(device_ids=device_ids, parameter=params.to_csv())
 
@@ -37,7 +37,7 @@ async def import_devices_from_excel(
         await AuditLogHeader.objects.create(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
-            user=user,
+            user=user.badge,
             description="Import devices layout failed",
         )
         raise HTTPException(status_code=400, detail=repr(e))
@@ -68,10 +68,11 @@ async def import_factory_worker_infos_from_excel(
 
     try:
         params = await import_factory_worker_infos(workshop_name, worker_file, device_file)
+
         await AuditLogHeader.objects.create(
             table_name="users",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
-            user=user,
+            user=user.badge,
         )
 
         return Response(
@@ -83,8 +84,8 @@ async def import_factory_worker_infos_from_excel(
         await AuditLogHeader.objects.create(
             table_name="users",
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
-            user=user,
+            user=user.badge,
         )
-        raise e
+        raise HTTPException(status_code=400, detail=repr(e))
 
 

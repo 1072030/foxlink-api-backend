@@ -56,7 +56,7 @@ def transaction(func):
             result = await func(*args, **_args)
         except Exception as e:
             # traceback.print_exc()
-            print(f"error in transaction: {e}")
+            print(f"error in transaction: {repr(e)}")
             await _transaction.rollback()
             raise e
         else:
@@ -80,7 +80,7 @@ def transaction_with_logger(logger):
                 result = await func(*args, **_args)
             except Exception as e:
                 # traceback.print_exc()
-                print(f"error in transaction: {e}")
+                print(f"error in transaction: {repr(e)}")
                 await _transaction.rollback()
                 if (logger):
                     logger.info("transaction ended failure")
@@ -296,7 +296,7 @@ class Mission(ormar.Model):
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
     device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="accepted_missions")
+    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="accepted_missions",nullable=True)
     rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_missions")
     description: str = ormar.String(max_length=256, nullable=True)
 
@@ -383,9 +383,9 @@ class AuditLogHeader(ormar.Model):
     action: str = ormar.String(
         max_length=50, nullable=False, index=True, choices=list(AuditActionEnum)
     )
-    table_name: str = ormar.String(max_length=50, index=True)
-    record_pk: str = ormar.String(max_length=100, index=True, nullable=True)
-    user: User = ormar.ForeignKey(User, nullable=True, ondelete="SET NULL")
+    table_name: str = ormar.String(max_length=30, index=True)
+    record_pk: str = ormar.String(max_length=30, index=True, nullable=True)
+    user: str = ormar.String(max_length=30, index=True, nullable=True)
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     description: str = ormar.String(max_length=256, nullable=True)
 

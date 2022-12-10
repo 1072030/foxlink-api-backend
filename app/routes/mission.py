@@ -196,7 +196,7 @@ async def cancel_mission_by_manager(
         action=AuditActionEnum.MISSION_CANCELED.value,
         table_name="missions",
         record_pk=str(mission_id),
-        user=user,
+        user=user.badge,
     )
 
 
@@ -237,7 +237,7 @@ async def update_mission_by_manager(mission_id: int, dto: MissionUpdate, user: U
         table_name="missions",
         action=AuditActionEnum.MISSION_UPDATED.value,
         record_pk=str(mission_id),
-        user=user,
+        user=user.badge,
         description=str(dto),
     )
 
@@ -251,5 +251,5 @@ async def delete_mission_by_manager(
         table_name="missions",
         action=AuditActionEnum.MISSION_DELETED.value,
         record_pk=str(mission_id),
-        user=user,
+        user=user.badge,
     )

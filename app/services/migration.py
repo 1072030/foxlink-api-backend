@@ -211,17 +211,14 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
     raw_excel: bytes = await worker_file.read()
     raw_excel_device_xy: bytes = await device_file.read()
 
-    try:
-        data = data_converter.fn_factory_worker_info(
-            worker_file.filename, raw_excel
-        )
-        frame_device_xy: pd.DataFrame = pd.read_excel(
-            raw_excel_device_xy, sheet_name=0
-        )
-        moving_matrix = data_converter.fn_factorymap(frame_device_xy)
-        initial_pos = data_converter.fn_worker_start_position()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=repr(e))
+    data = data_converter.fn_factory_worker_info(
+        worker_file.filename, raw_excel
+    )
+    frame_device_xy: pd.DataFrame = pd.read_excel(
+        raw_excel_device_xy, sheet_name=0
+    )
+    moving_matrix = data_converter.fn_factorymap(frame_device_xy)
+    initial_pos = data_converter.fn_worker_start_position()
 
     factory_worker_info, params = data["result"], data["parameter"]
     workshop_entity_dict: Dict[str, FactoryMap] = {}

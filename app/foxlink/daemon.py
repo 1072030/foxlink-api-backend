@@ -771,7 +771,7 @@ if __name__ == "__main__":
                     action=AuditActionEnum.MISSION_ACCEPT_OVERTIME.value,
                     table_name="missions",
                     record_pk=str(mission.id),
-                    user=mission.worker,
+                    user=mission.worker.badge,
                 )
 
     ######### events completed  ########
