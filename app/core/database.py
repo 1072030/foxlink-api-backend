@@ -239,7 +239,7 @@ class Device(ormar.Model):
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
     is_rescue: bool = ormar.Boolean(default=False)
-    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True)
+    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True,nullable=False)
     sop_link: str = ormar.String(max_length=128, nullable=True)
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)

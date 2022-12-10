@@ -21,6 +21,7 @@ from fastapi.background import BackgroundTasks
 from fastapi.exceptions import HTTPException
 from app.models.schema import MissionEventOut, MissionUpdate
 from app.mqtt import mqtt_client
+from app.utils.utils import AsyncEmitter
 from app.services.user import (
     get_worker_by_badge
 )
@@ -402,7 +403,7 @@ async def cancel_mission(mission, worker):
 
 
 async def _cancel_mission(mission, worker):
-    _jobs = []
+    emitter = AsyncEmitter()
 
     if mission is None:
         raise HTTPException(
@@ -415,21 +416,31 @@ async def _cancel_mission(mission, worker):
         raise HTTPException(400, "这个任务已经结束")
 
     if mission.worker:
-        _jobs.append(
+        emitter.add(
             mission.worker.update(
                 finish_event_date=get_ntz_now(),
                 status=WorkerStatusEnum.idle.value,
+            ),
+            mqtt_client.publish(
+                f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+                {
+                    "mission_id": mission.id,
+                    "badge": mission.worker.badge,
+                    # RUBY: set worker badge
+                    "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
+                    "description": "finish",
+                    "timestamp": get_ntz_now()
+                },
+                qos=2,
+                retain=True
             )
         )
 
-    _jobs.append(
+    emitter.add(
         mission.update(
             is_done=True,
             is_done_cancel=True
-        )
-    )
-
-    _jobs.append(
+        ),
         AuditLogHeader.objects.create(
             table_name="missions",
             action=AuditActionEnum.MISSION_CANCELED.value,
@@ -438,9 +449,7 @@ async def _cancel_mission(mission, worker):
         )
     )
 
-    await asyncio.gather(
-        *_jobs
-    )
+    await emitter.emit()
 
 
 @ transaction

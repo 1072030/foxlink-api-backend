@@ -1,6 +1,7 @@
 import logging
 from app.models.schema import ImportDevicesOut
 from app.services.auth import get_manager_active_user
+
 from app.services.migration import (
     import_devices,
     # import_workshop_events,
@@ -25,7 +26,7 @@ async def import_devices_from_excel(
         raise HTTPException(415)
 
     try:
-        device_ids, params = await import_devices(file)
+        device_ids, params = await import_devices(file,user)
         await AuditLogHeader.objects.create(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,

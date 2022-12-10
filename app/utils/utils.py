@@ -126,7 +126,10 @@ def get_previous_shift_time_interval():
 
 
 class BenignObj(object):
-    pass
+    def query(self):
+        result = self.__dict__
+        result["_columns"] = [key for key in self.__dict__.keys()]
+        return result
 
 
 class AsyncEmitter:

@@ -1,39 +1,37 @@
-from datetime import datetime
+
 import math
+import pandas as pd
+import traceback
+from ormar import or_, and_
+from sqlalchemy.sql import func
 from typing import Dict, List, Tuple
+from fastapi import UploadFile
+from fastapi import HTTPException, status as HTTPStatus
+from foxlink_dispatch.dispatch import data_convert
+from app.foxlink.db import foxlink_dbs
+from app.foxlink.utils import assemble_device_id
+from app.services.mission import _cancel_mission
+from app.services.user import get_password_hash
+from app.utils.utils import AsyncEmitter
 from app.core.database import (
     User,
     Device,
     UserDeviceLevel,
     FactoryMap,
-    # CategoryPRI,
     WorkerStatusEnum,
     ShiftType,
     api_db,
-)
-from fastapi import HTTPException, status as HTTPStatus
-from app.services.user import get_password_hash
-from fastapi import UploadFile
-import pandas as pd
-from foxlink_dispatch.dispatch import data_convert
-from app.foxlink.db import foxlink_dbs
-from app.foxlink.utils import assemble_device_id
-from sqlalchemy.sql import func
-import traceback
-import asyncio
-from datetime import datetime
-from ormar import or_, and_
-from app.core.database import (
     transaction,
     UserLevel,
     get_ntz_now
 )
 
+
 data_converter = data_convert()
 
 
 @transaction
-async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFrame]:
+async def import_devices(excel_file: UploadFile, user:User) -> Tuple[List[str], pd.DataFrame]:
     try:
         frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
 
@@ -43,6 +41,7 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
         update_device_bulk: Dict[str, List[Device]] = {}
 
         workshop_entity_dict: Dict[str, FactoryMap] = {}
+        device_entity_dict: Dict[str, Device] = {}
 
         # first create workshop if not exists
         for workshop in workshops:
@@ -57,25 +56,39 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
             create_device_bulk[workshop] = []
             update_device_bulk[workshop] = []
 
-        # create/update devices
+        # fetch current devices
+        device_entity_dict = {
+            workshop: {
+                device.id: device
+                for device in (
+                    await Device.objects
+                    .filter(workshop=workshop_entity_dict[workshop].id)
+                    .select_related(["missions","missions__worker","begin_users","nearby_users"])
+                    .all()
+                )
+            }
+            for workshop in workshops
+        }
+    
+        # create/update new devices infos
         for index, row in frame.iterrows():
+            #===============HARD SETTINGS===============
             is_rescue: bool = row["project"] == "rescue"
             line: int = int(row["line"]) if not math.isnan(
                 row["line"]) else None
             workshop: str = row["workshop"]
             project: str = row["project"]
-            process: str = row["process"] if type(
-                row["process"]) is str else None
             device_name: str = row["device_name"]
-            x_axis: float = float(row["x_axis"])
-            y_axis: float = float(row["y_axis"])
-            sop_link: str = row["sop_link"]
-
             device_id: str = assemble_device_id(
                 project,
                 workshop if is_rescue else line,
                 device_name
             )
+            #===============SOFT SETTINGS===============
+            process: str = row["process"] if type(row["process"]) is str else None
+            x_axis: float = float(row["x_axis"])
+            y_axis: float = float(row["y_axis"])
+            sop_link: str = row["sop_link"]
 
             if is_rescue:
                 device_cname = f"{workshop} - {row['device_name']} 號救援站"
@@ -86,49 +99,60 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
                     line,
                     device_name
                 )
+           
 
-            device = Device(
-                id=device_id,
-                project=project,
-                process=process,
-                device_name=device_name,
-                line=line,
-                x_axis=x_axis,
-                y_axis=y_axis,
-                sop_link=sop_link,
-                is_rescue=is_rescue,
-                workshop=workshop_entity_dict[workshop].id,
-                device_cname=device_cname,
-                updated_date=get_ntz_now()
-            )
-
-            # categorize device object type.
-            if await Device.objects.filter(id=device_id).exists():
+            if(workshop in device_entity_dict and device_id in device_entity_dict[workshop]):
+                device = device_entity_dict[workshop].pop(device_id)
+                # update soft settings
+                device.process = process
+                device.x_axis = x_axis
+                device.y_axis = y_axis
+                device.sop_link = sop_link
                 update_device_bulk[workshop].append(device)
             else:
+                # create  new device
+                device = Device(
+                    id=device_id,
+                    project=project,
+                    process=process,
+                    device_name=device_name,
+                    line=line,
+                    x_axis=x_axis,
+                    y_axis=y_axis,
+                    sop_link=sop_link,
+                    is_rescue=is_rescue,
+                    workshop=workshop_entity_dict[workshop].id,
+                    device_cname=device_cname,
+                    updated_date=get_ntz_now()
+                )
                 create_device_bulk[workshop].append(device)
 
             # configure frame for further needs.
             frame.at[index, "id"] = device_id
-
-        # update workshap entity & remove unlisted devices
+        
+        # update workshop entity
         current_all_device_ids: List[str] = []
+        workshop_rescue_device = {workshop: None for workshop in workshops}
         for workshop in workshops:
-            _workshop = await FactoryMap.objects.exclude_fields(["map", "image"]).get(name=workshop)
+            current_workshop_device = sorted(
+                update_device_bulk[workshop] + create_device_bulk[workshop],
+                key= lambda x: x.is_rescue,
+                reverse=True
+            )
+
             current_workshop_device_ids = [
-                device.id for device in (
-                    update_device_bulk[workshop] + create_device_bulk[workshop]
-                )
+                device.id for device in current_workshop_device
             ]
+
+            workshop_rescue_device[workshop] = current_workshop_device[0]
 
             current_all_device_ids += current_workshop_device_ids
 
-            # update devices
+            # update soft settings of devices
             if (len(update_device_bulk[workshop]) > 0):
-                sample = update_device_bulk[workshop][0]
                 await Device.objects.bulk_update(
                     objects=update_device_bulk[workshop],
-                    columns=list(sample.dict(exclude_defaults=True).keys())
+                    columns=["x_axis","y_axis","sop_link","process"]
                 )
 
             # create devices
@@ -137,56 +161,44 @@ async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFram
 
             params = await calcuate_factory_layout_matrix(workshop, frame)
 
+        # deal with unlisted devices, remove and cancel the related missions, update nearby and startup users.
+        emitter = AsyncEmitter()
+        for workshop,devices in device_entity_dict.items():
+            legacy_begin_users = []
+            legacy_nearby_users = []
+            for device in devices.values():
+                for mission in device.missions:
+                    emitter.add(_cancel_mission(mission,user))
+                legacy_begin_users += [ user.badge for user in device.begin_users]
+                legacy_nearby_users += [ user.badge for user in device.nearby_users]
+            emitter.add(
+                User.objects
+                .filter(
+                    badge__in=legacy_begin_users
+                )
+                .update(
+                    start_position = workshop_rescue_device[workshop].id
+                ),
+                User.objects
+                .filter(
+                    badge__in=legacy_nearby_users
+                )
+                .update(
+                    at_device = workshop_rescue_device[workshop].id
+                )
+            )
+        await emitter.emit()
+
+        # remote unlisted devices.
         await Device.objects.exclude(id__in=current_all_device_ids).delete(each=True)
 
+        # done, return results
         return frame["id"].unique().tolist(), params
 
     except Exception as e:
         print(e)
         traceback.print_exc()
         raise e
-
-# TODO: remove orphan category priorities
-# 匯入 Device's Category & Priority
-# @transaction
-# async def import_workshop_events(excel_file: UploadFile) -> pd.DataFrame:
-#     """
-#     Return: parameters in pandas format
-#     """
-#     raw_excel: bytes = await excel_file.read()
-#     data = data_converter.fn_proj_eventbooks(excel_file.filename, raw_excel)
-#     df, param = data["result"], data["parameter"]
-
-#     project_name = df["project"].unique()[0]
-
-#     for device_name in df["Device_Name"].unique():
-#         devices = await Device.objects.filter(
-#             project__iexact=project_name,
-#             device_name__iexact=device_name.replace(" ", "_"),
-#         ).all()
-
-#         for d in devices:
-#             await d.categorypris.clear()
-
-#     for index, row in data["result"].iterrows():
-#         if math.isnan(row["优先顺序"]):
-#             continue
-
-#         devices = await Device.objects.filter(
-#             project__iexact=row["project"],
-#             device_name__iexact=row["Device_Name"].replace(" ", "_"),
-#         ).all()
-
-#         # await CategoryPRI.objects.filter(devices=devices).delete(each=True)
-
-#         p = await CategoryPRI.objects.create(
-#             category=row["Category"], message=row["MESSAGE"], priority=row["优先顺序"],
-#         )
-
-#         for d in devices:
-#             await p.devices.add(d)  # type: ignore
-
-#     return param
 
 
 async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> pd.DataFrame:

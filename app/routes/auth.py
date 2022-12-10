@@ -66,8 +66,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
     )
 
-    if await check_user_begin_shift(user):
-        if (user.level == UserLevel.maintainer.value):
+    if (user.level == UserLevel.maintainer.value):
+        if not user.at_device:
+            changes.at_device = await Device.objects.filter(workshop=user.workshop,is_resuce=True).first()
+
+        if await check_user_begin_shift(user):
             rescue_missions = (
                 await Mission.objects
                 .select_related(["device"])
@@ -102,26 +105,26 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             else:
                 changes.status = WorkerStatusEnum.idle.value
         else:
-            changes.status = WorkerStatusEnum.idle.value
-    else:
-        # RUBY: prevent mission.device is null
-        mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
+            # RUBY: prevent mission.device is null
+            mission = await Mission.objects.select_related("device").filter(is_done=False, worker=user).get_or_none()
 
-        if mission:
-            if mission.device.is_rescue is True:
-                changes.status = WorkerStatusEnum.notice.value
-            elif (not mission.repair_beg_date == None):
-                changes.status = WorkerStatusEnum.working.value
-            elif (not mission.accept_recv_date == None):
-                changes.status = WorkerStatusEnum.moving.value
-            elif (not mission.notify_send_date == None):
-                changes.status = WorkerStatusEnum.notice.value
-        else:
-            changes.status = WorkerStatusEnum.idle.value
+            if mission:
+                if mission.device.is_rescue is True:
+                    changes.status = WorkerStatusEnum.notice.value
+                elif (not mission.repair_beg_date == None):
+                    changes.status = WorkerStatusEnum.working.value
+                elif (not mission.accept_recv_date == None):
+                    changes.status = WorkerStatusEnum.moving.value
+                elif (not mission.notify_send_date == None):
+                    changes.status = WorkerStatusEnum.notice.value
+            else:
+                changes.status = WorkerStatusEnum.idle.value
+    else:
+        changes.status = WorkerStatusEnum.idle.value
 
     emitter.add(
         user.update(
-            **changes.__dict__
+            **changes.query()
         )
     )
 
