@@ -72,7 +72,7 @@ async def get_users() -> List[User]:
 async def get_worker_by_badge(
     badge,
     select_fields: List[str] = [
-        "accepted_missions",
+        "assigned_missions",
         "rejected_missions",
         "workshop",
         "superior",

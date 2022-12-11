@@ -2,6 +2,7 @@
 import math
 import pandas as pd
 import traceback
+import asyncio
 from ormar import or_, and_
 from sqlalchemy.sql import func
 from typing import Dict, List, Tuple
@@ -18,12 +19,14 @@ from app.core.database import (
     Device,
     UserDeviceLevel,
     FactoryMap,
+    Mission,
     WorkerStatusEnum,
     ShiftType,
     api_db,
     transaction,
     UserLevel,
-    get_ntz_now
+    get_ntz_now,
+    unset_nullables
 )
 
 
@@ -32,173 +35,173 @@ data_converter = data_convert()
 
 @transaction
 async def import_devices(excel_file: UploadFile, user:User) -> Tuple[List[str], pd.DataFrame]:
-    try:
-        frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
+    frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
 
-        workshops = frame["workshop"].drop_duplicates()
+    workshops = frame["workshop"].drop_duplicates()
 
-        create_device_bulk: Dict[str, List[Device]] = {}
-        update_device_bulk: Dict[str, List[Device]] = {}
+    create_device_bulk: Dict[str, List[Device]] = {}
+    update_device_bulk: Dict[str, List[Device]] = {}
 
-        workshop_entity_dict: Dict[str, FactoryMap] = {}
-        device_entity_dict: Dict[str, Device] = {}
+    workshop_entity_dict: Dict[str, FactoryMap] = {}
+    device_entity_dict: Dict[str, Device] = {}
 
-        # first create workshop if not exists
-        for workshop in workshops:
-            factory = await FactoryMap.objects.filter(name=workshop).get_or_none()
+    # first create workshop if not exists
+    for workshop in workshops:
+        factory = await FactoryMap.objects.filter(name=workshop).get_or_none()
 
-            if not factory:
-                factory = await FactoryMap.objects.create(
-                    name=workshop, related_devices="[]", map="[]"
-                )
+        if not factory:
+            factory = await FactoryMap.objects.create(
+                name=workshop, related_devices="[]", map="[]"
+            )
 
-            workshop_entity_dict[workshop] = factory
-            create_device_bulk[workshop] = []
-            update_device_bulk[workshop] = []
+        workshop_entity_dict[workshop] = factory
+        create_device_bulk[workshop] = []
+        update_device_bulk[workshop] = []
 
-        # fetch current devices
-        device_entity_dict = {
-            workshop: {
-                device.id: device
-                for device in (
-                    await Device.objects
-                    .filter(workshop=workshop_entity_dict[workshop].id)
-                    .select_related(["missions","missions__worker","begin_users","nearby_users"])
-                    .all()
-                )
-            }
-            for workshop in workshops
+    # fetch current devices
+    device_entity_dict = {
+        workshop: {
+            device.id: device
+            for device in (
+                await Device.objects
+                .filter(workshop=workshop_entity_dict[workshop].id)
+                .select_related(["missions","missions__worker","begin_users","nearby_users"])
+                .all()
+            )
         }
-    
-        # create/update new devices infos
-        for index, row in frame.iterrows():
-            #===============HARD SETTINGS===============
-            is_rescue: bool = row["project"] == "rescue"
-            line: int = int(row["line"]) if not math.isnan(
-                row["line"]) else None
-            workshop: str = row["workshop"]
-            project: str = row["project"]
-            device_name: str = row["device_name"]
-            device_id: str = assemble_device_id(
+        for workshop in workshops
+    }
+
+    # create/update new devices infos
+    for index, row in frame.iterrows():
+        #===============HARD SETTINGS===============
+        is_rescue: bool = row["project"] == "rescue"
+        line: int = int(row["line"]) if not math.isnan(
+            row["line"]) else None
+        workshop: str = row["workshop"]
+        project: str = row["project"]
+        device_name: str = row["device_name"]
+        device_id: str = assemble_device_id(
+            project,
+            workshop if is_rescue else line,
+            device_name
+        )
+        #===============SOFT SETTINGS===============
+        process: str = row["process"] if type(row["process"]) is str else None
+        x_axis: float = float(row["x_axis"])
+        y_axis: float = float(row["y_axis"])
+        sop_link: str = row["sop_link"]
+
+        if is_rescue:
+            device_cname = f"{workshop} - {row['device_name']} 號救援站"
+        else:
+            device_cname = await foxlink_dbs.get_device_cname(
+                workshop,
                 project,
-                workshop if is_rescue else line,
+                line,
                 device_name
             )
-            #===============SOFT SETTINGS===============
-            process: str = row["process"] if type(row["process"]) is str else None
-            x_axis: float = float(row["x_axis"])
-            y_axis: float = float(row["y_axis"])
-            sop_link: str = row["sop_link"]
-
-            if is_rescue:
-                device_cname = f"{workshop} - {row['device_name']} 號救援站"
-            else:
-                device_cname = await foxlink_dbs.get_device_cname(
-                    workshop,
-                    project,
-                    line,
-                    device_name
-                )
-           
-
-            if(workshop in device_entity_dict and device_id in device_entity_dict[workshop]):
-                device = device_entity_dict[workshop].pop(device_id)
-                # update soft settings
-                device.process = process
-                device.x_axis = x_axis
-                device.y_axis = y_axis
-                device.sop_link = sop_link
-                update_device_bulk[workshop].append(device)
-            else:
-                # create  new device
-                device = Device(
-                    id=device_id,
-                    project=project,
-                    process=process,
-                    device_name=device_name,
-                    line=line,
-                    x_axis=x_axis,
-                    y_axis=y_axis,
-                    sop_link=sop_link,
-                    is_rescue=is_rescue,
-                    workshop=workshop_entity_dict[workshop].id,
-                    device_cname=device_cname,
-                    updated_date=get_ntz_now()
-                )
-                create_device_bulk[workshop].append(device)
-
-            # configure frame for further needs.
-            frame.at[index, "id"] = device_id
         
-        # update workshop entity
-        current_all_device_ids: List[str] = []
-        workshop_rescue_device = {workshop: None for workshop in workshops}
-        for workshop in workshops:
-            current_workshop_device = sorted(
-                update_device_bulk[workshop] + create_device_bulk[workshop],
-                key= lambda x: x.is_rescue,
-                reverse=True
+
+        if(workshop in device_entity_dict and device_id in device_entity_dict[workshop]):
+            device = device_entity_dict[workshop].pop(device_id)
+            # update soft settings
+            device.process = process
+            device.x_axis = x_axis
+            device.y_axis = y_axis
+            device.sop_link = sop_link
+            update_device_bulk[workshop].append(device)
+        else:
+            # create  new device
+            device = Device(
+                id=device_id,
+                project=project,
+                process=process,
+                device_name=device_name,
+                line=line,
+                x_axis=x_axis,
+                y_axis=y_axis,
+                sop_link=sop_link,
+                is_rescue=is_rescue,
+                workshop=workshop_entity_dict[workshop].id,
+                device_cname=device_cname,
+                updated_date=get_ntz_now()
+            )
+            create_device_bulk[workshop].append(device)
+
+        # configure frame for further needs.
+        frame.at[index, "id"] = device_id
+    
+    # update workshop entity
+    current_all_device_ids: List[str] = []
+    workshop_rescue_device = {workshop: None for workshop in workshops}
+    for workshop in workshops:
+        current_workshop_device = sorted(
+            update_device_bulk[workshop] + create_device_bulk[workshop],
+            key= lambda x: x.is_rescue,
+            reverse=True
+        )
+
+        current_workshop_device_ids = [
+            device.id for device in current_workshop_device
+        ]
+
+        workshop_rescue_device[workshop] = current_workshop_device[0]
+
+        current_all_device_ids += current_workshop_device_ids
+
+        # update soft settings of devices
+        if (len(update_device_bulk[workshop]) > 0):
+            await Device.objects.bulk_update(
+                objects=update_device_bulk[workshop],
+                columns=["x_axis","y_axis","sop_link","process"]
             )
 
-            current_workshop_device_ids = [
-                device.id for device in current_workshop_device
-            ]
+        # create devices
+        if (len(create_device_bulk[workshop]) > 0):
+            await Device.objects.bulk_create(create_device_bulk[workshop])
 
-            workshop_rescue_device[workshop] = current_workshop_device[0]
+        params = await calcuate_factory_layout_matrix(workshop, frame)
 
-            current_all_device_ids += current_workshop_device_ids
+    # deal with unlisted devices, remove and cancel the related missions, update nearby and startup users.
+    emitter = AsyncEmitter()
+    for workshop,devices in device_entity_dict.items():
+        for device in devices.values():
+            for mission in device.missions:
+                emitter.add(_cancel_mission(mission,user))
+    await emitter.emit()
 
-            # update soft settings of devices
-            if (len(update_device_bulk[workshop]) > 0):
-                await Device.objects.bulk_update(
-                    objects=update_device_bulk[workshop],
-                    columns=["x_axis","y_axis","sop_link","process"]
-                )
-
-            # create devices
-            if (len(create_device_bulk[workshop]) > 0):
-                await Device.objects.bulk_create(create_device_bulk[workshop])
-
-            params = await calcuate_factory_layout_matrix(workshop, frame)
-
-        # deal with unlisted devices, remove and cancel the related missions, update nearby and startup users.
-        emitter = AsyncEmitter()
-        for workshop,devices in device_entity_dict.items():
-            legacy_begin_users = []
-            legacy_nearby_users = []
-            for device in devices.values():
-                for mission in device.missions:
-                    emitter.add(_cancel_mission(mission,user))
-                legacy_begin_users += [ user.badge for user in device.begin_users]
-                legacy_nearby_users += [ user.badge for user in device.nearby_users]
-            emitter.add(
-                User.objects
-                .filter(
-                    badge__in=legacy_begin_users
-                )
-                .update(
-                    start_position = workshop_rescue_device[workshop].id
-                ),
-                User.objects
-                .filter(
-                    badge__in=legacy_nearby_users
-                )
-                .update(
-                    at_device = workshop_rescue_device[workshop].id
-                )
+    emitter = AsyncEmitter()
+    for workshop,devices in device_entity_dict.items():
+        legacy_begin_users = []
+        legacy_nearby_users = []
+        for device in devices.values():
+            legacy_begin_users += [ user.badge for user in device.begin_users]
+            legacy_nearby_users += [ user.badge for user in device.nearby_users]
+        emitter.add(
+            User.objects
+            .filter(
+                badge__in=legacy_begin_users
             )
-        await emitter.emit()
+            .update(
+                start_position = workshop_rescue_device[workshop].id
+            ),
+            User.objects
+            .filter(
+                badge__in=legacy_nearby_users
+            )
+            .update(
+                at_device = workshop_rescue_device[workshop].id
+            )
+        )
+    await emitter.emit()
 
-        # remote unlisted devices.
-        await Device.objects.exclude(id__in=current_all_device_ids).delete(each=True)
+    # remote unlisted devices.
+    await Device.objects.exclude(id__in=current_all_device_ids).delete(each=True)
 
-        # done, return results
-        return frame["id"].unique().tolist(), params
+    # done, return results
+    return frame["id"].unique().tolist(), params
 
-    except Exception as e:
-        print(e)
-        traceback.print_exc()
-        raise e
 
 
 async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> pd.DataFrame:
@@ -250,7 +253,6 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                 status_code=400, detail=f"unknown workshop name: {workshop}"
             )
         workshop_entity_dict[workshop] = entity
-        entity.map
         # build rescue station matching
         rescue = await Device.objects.filter(workshop=workshop_entity_dict[workshop], is_rescue=True).first()
         if (rescue == None):
@@ -272,7 +274,9 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
     }
 
     for index, row in worker_unique_frame.iterrows():
+        #========== HARD CONDITIONS ===============
         badge: str = row["worker_id"]
+        #========== HARD CONDITIONS ===============
         username: str = row["worker_name"]
         workshop: int = workshop_entity_dict[row["workshop"]]
         superior: str = None
@@ -303,8 +307,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                 shift=shift,
                 status=WorkerStatusEnum.leave.value,
                 start_position=start_position,
-                at_device=workshop_default_rescue[workshop.name],
-                finish_event_date=get_ntz_now(),
+                at_device=workshop_default_rescue[workshop.name]
             )
             worker_name_entity_dict[username] = worker
             create_worker_bulk.append(worker)
@@ -333,17 +336,17 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         sample = update_worker_bulk[0]
         await User.objects.bulk_update(
             objects=update_worker_bulk,
-            columns=list(sample.dict(exclude_defaults=True).keys())
+            columns=["username","workshop","superior","start_position","at_device","level","shift"]
         )
 
     # remove workers not within the provided table
-    await User.objects.exclude(
-        or_(
-            badge__in=[user.badge for user in (
-                create_worker_bulk + update_worker_bulk)],
-            level__gt=UserLevel.maintainer.value
-        )
-    ).delete(each=True)
+    # await User.objects.exclude(
+    #     or_(
+    #         badge__in=[user.badge for user in (
+    #             create_worker_bulk + update_worker_bulk)],
+    #         level__gt=UserLevel.maintainer.value
+    #     )
+    # ).delete(each=True)
 
     # superior mapping
     for index, row in worker_unique_frame.iterrows():
@@ -366,7 +369,9 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
     ]].drop_duplicates()
     unknown_devices_in_table = []
 
-    for _, row in device_worker_level_unique_frame.iterrows():
+    
+
+    async def device_level_auditor(row):
         workshop = row["workshop"]
         process: int = row["process"]
         level: int = int(row["level"])
@@ -375,8 +380,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         user: str = row["worker_id"]
         device_id: str = assemble_device_id(project, "%", device_name)
         split_device_id = device_id.split('%')
-        assert len(
-            split_device_id) == 2, "the format isn't correct, need adjustments."
+        assert len(split_device_id) == 2, "the format isn't correct, need adjustments."
 
         match_devices: List[Device] = await Device.objects.filter(
             id__istartswith=split_device_id[0],
@@ -413,12 +417,19 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                         )
                     )
 
+
+    await asyncio.gather(
+       *[ 
+            device_level_auditor(row) 
+            for _, row in device_worker_level_unique_frame.iterrows()
+        ]
+    )
+
     # create user device levels
     if len(create_user_device_levels_bulk) > 0:
         await UserDeviceLevel.objects.bulk_create(create_user_device_levels_bulk)
 
     # update user device levels
-
     if len(update_user_device_levels_bulk) > 0:
         sample = update_user_device_levels_bulk[0]
         await UserDeviceLevel.objects.bulk_update(
@@ -426,5 +437,28 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
             columns=list(sample.dict(
                 exclude={"user", "device"}, exclude_defaults=True))
         )
+
+
+    # remove unlisted users
+    current_worker_badges = [ user.badge for user in create_worker_bulk + update_worker_bulk]
+    query = (
+        User.objects.exclude(
+                or_(
+                    badge__in= current_worker_badges,
+                    level__gt=UserLevel.chief.value
+                )
+        )
+    )
+
+    remove_worker_entities = await query.select_related("assigned_missions").all()
+
+    emitter = AsyncEmitter()
+    for worker in remove_worker_entities:
+        for mission in worker.assigned_missions:
+            mission = unset_nullables(mission,Mission)
+            emitter.add(mission.update())
+    await emitter.emit()
+
+    await query.delete(each=True)
 
     return params

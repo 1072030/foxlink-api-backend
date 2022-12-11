@@ -295,10 +295,10 @@ class Mission(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
-    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE")
-    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="accepted_missions",nullable=True)
+    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE",nullable=False)
+    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="assigned_missions",nullable=True)
     rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_missions")
-    description: str = ormar.String(max_length=256, nullable=True)
+    description: str = ormar.String(max_length=256, nullable=False)
 
     is_done: bool = ormar.Boolean(default=False, nullable=True)
     is_done_cure: bool = ormar.Boolean(default=False, nullable=True)
@@ -398,8 +398,7 @@ class WhitelistDevice(ormar.Model):
     id: int = ormar.Integer(primary_key=True)
     device: Device = ormar.ForeignKey(
         Device, unique=True, ondelete='CASCADE', nullable=False)
-    workers: List[User] = ormar.ManyToMany(
-        User, related_name="whitelist_devices")
+    workers: List[User] = ormar.ManyToMany(User, related_name="whitelist_devices")
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
@@ -407,6 +406,22 @@ class WhitelistDevice(ormar.Model):
 MissionEvent.update_forward_refs()
 User.update_forward_refs()
 
+def unset_nullables(obj,model):
+    if( isinstance(obj,model) ):
+        obj = model(
+            **{
+                k:v
+                for k,v in obj.dict().items()
+                if (
+                    k in model.__fields__ and (
+                        k == obj.pk_column.name or 
+                        model.__fields__[k].required
+                    )
+                    
+                )
+            }
+        )
+    return obj
 
 @pre_update([User, Device, FactoryMap, Mission, MissionEvent, UserDeviceLevel, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):

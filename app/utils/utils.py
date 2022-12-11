@@ -50,19 +50,18 @@ async def get_current_shift_details() -> Tuple[ShiftType, datetime, datetime]:
         )
         shift_type = ShiftType(shift.id)
         if shift.shift_beg_time > shift.shift_end_time:
-            if (now_time > shift.shift_beg_time or now_time < shift.shift_end_time):
-                if (now_time < time.max):
-                    return (
-                        shift_type,
-                        period_beg,
-                        period_end + timedelta(days=1)
-                    )
-                else:
-                    return (
-                        shift_type,
-                        period_beg - timedelta(days=1),
-                        period_end
-                    )
+            if (now_time > shift.shift_beg_time and now_time < time.max):
+                return (
+                    shift_type,
+                    period_beg,
+                    period_end + timedelta(days=1)
+                )
+            elif(now_time < shift.shift_end_time):
+                return (
+                    shift_type,
+                    period_beg - timedelta(days=1),
+                    period_end
+                )
 
         else:
             if (now_time > shift.shift_beg_time and now_time < shift.shift_end_time):
