@@ -65,7 +65,7 @@ async def import_devices(excel_file: UploadFile, user:User) -> Tuple[List[str], 
             for device in (
                 await Device.objects
                 .filter(workshop=workshop_entity_dict[workshop].id)
-                .select_related(["missions","missions__worker","begin_users","nearby_users"])
+                .select_related(["begin_users","nearby_users"])
                 .all()
             )
         }
@@ -166,9 +166,14 @@ async def import_devices(excel_file: UploadFile, user:User) -> Tuple[List[str], 
     # deal with unlisted devices, remove and cancel the related missions, update nearby and startup users.
     emitter = AsyncEmitter()
     for workshop,devices in device_entity_dict.items():
-        for device in devices.values():
-            for mission in device.missions:
-                emitter.add(_cancel_mission(mission,user))
+        for mission in (
+            await Mission.objects.filter(
+                is_done=False,
+                device__in = list(devices.keys())
+            )
+            .all()
+        ):
+            emitter.add(_cancel_mission(mission,user))
     await emitter.emit()
 
     emitter = AsyncEmitter()
@@ -319,7 +324,6 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
                 workshop=workshop,
                 superior=superior,
                 start_position=start_position,
-                at_device=workshop_default_rescue[workshop.name],
                 level=level,
                 shift=shift,
             )
@@ -336,7 +340,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile, de
         sample = update_worker_bulk[0]
         await User.objects.bulk_update(
             objects=update_worker_bulk,
-            columns=["username","workshop","superior","start_position","at_device","level","shift"]
+            columns=["username","workshop","superior","start_position","level","shift"]
         )
 
     # remove workers not within the provided table
