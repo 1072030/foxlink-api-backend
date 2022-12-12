@@ -5,11 +5,20 @@
 2. Docker
 3. Mypy linter (Recommend, for development use)
 
-## How to Start?
+## How to Start?(Production)
 1. Download this repo's files as a zip.
 2. Uncompress the zip to a destination.
 3. Edit **docker-compose.yaml** and enviroment file to update server configs.
 4. Type `docker-compose up -d --build` in project's directory to start up the servers.
+
+## How to Start?(Development)
+1. Download this repo's files as a zip.
+2. Uncompress the backend project to a destination.
+3. Download the testing environment as a zip.
+4. Uncompress the testing project to a destination.
+5. Edit the **.env**  file for the desire development settings.
+6. Build the server with scripts in the testing project to start up the development server (**incubator**).
+
 
 # MQTT Topics
 - foxlink/users/{username}/missions
@@ -147,28 +156,55 @@
 # Server Config
 Config Name                 | Description                                                                                                                 | Default Value | Example Value
 ----------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------|-------------------
-DATABASE_HOST               | Database host                                                                                                               | localhost     | 127.0.0.1
-DATABASE_PORT               | Database port                                                                                                               | None          | 3306
-DATABASE_USER               | Database user                                                                                                               | None          | root
-DATABASE_PASSWORD           | Database password                                                                                                           | None          | None
-FOXLINK_EVENT_DB_HOSTS            | Foxlink DB's hosts, **first element in array** must be the main api_db that **contains device_cnames**                    | None          | ['127.0.0.1:3306']
-FOXLINK_EVENT_DB_USER             | Foxlink DB's user                                                                                                           | None          | foxlink
-FOXLINK_EVENT_DB_PASSWORD         | Foxlink DB's password                                                                                                       | None          | foxlink
-JWT_SECRET                  | JWT secret. You should change to secret value before deploying to production enviroment.                                    | secret        | secret
-MQTT_BROKER                 | IP address of MQTT broker                                                                                                   | None          | 127.0.0.1
-MQTT_PORT                   | MQTT Broker's Port                                                                                                          | 1883          | 1883
-EMQX_USERNAME               | EMQX username                                                                                                               | admin         | admin
-EMQX_PASSWORD               | EMQX password                                                                                                               | public        | public
-WORKER_REJECT_AMOUNT_NOTIFY | Minimum notify threshold a worker rejects missions in a day                                                                 | 2             | 2
-MISSION_REJECT_AMOUT_NOTIFY | Minimum notify threshold that a mission is being rejected                                                                   | 2             | 2
-DAY_SHIFT_BEGIN             | Day shift begin time (UTC Time)                                                                                             | 07:40         | 07:40
-DAY_SHIFT_END               | Day shift end time (UTC Time)                                                                                               | 19:40         | 19:40
-MAX_NOT_ALIVE_TIME          | Maximun time that a worker's application is not alive (in minutes)                                                          | 5             | 5
-WORKER_IDLE_OT_RESCUE_MINUTES | Maximun time that a worker can idle at a device. When time's out, worker will be notified to move to nearest rescue station | 5             | 5
+DATABASE_HOST	|	API's Database IP/Name	| None	| 127.0.0.1	|
+DATABASE_PORT	|	API's Database Port	| None	| 27001	|
+DATABASE_USER	|	API's Database User	| None	| root	|
+DATABASE_PASSWORD	|	API's Database Password	| None	| AqqhQ993VNto	|
+DATABASE_NAME	|	API's Database Name	| None	| foxlink	|
+PY_ENV	|	Project Mode("dev","product"), Decides whether to include the testing routes	| dev	| dev	|
+FOXLINK_EVENT_DB_HOSTS	|	Event Databases IP/Name:Port	| None	| ["127.0.0.1:27001"]	|
+FOXLINK_EVENT_DB_USER	|	Event Databases User	| None	| root	|
+FOXLINK_EVENT_DB_PWD	|	Event Databases Password	| None	| AqqhQ993VNto	|
+FOXLINK_EVENT_DB_NAME	|	Event Databases Name	| None	| aoi	|
+FOXLINK_EVENT_DB_TABLE_POSTFIX	|	Event Databases Target Postfix	| None	| _event_new	|
+FOXLINK_DEVICE_DB_HOST	|	Device Info Database IP:Port	| None	| 127.0.0.1:27001	|
+FOXLINK_DEVICE_DB_USER	|	Device Info Database User	| None	| root 	|
+FOXLINK_DEVICE_DB_PWD	|	Device Info Database Password	| None	| AqqhQ993VNto	|
+FOXLINK_DEVICE_DB_NAME	|	Device Info Database Name	| None	|  sfc	|
+JWT_SECRET	|	The secret generating the JWT tokens	| secret	| secret	|
+MQTT_BROKER	|	MQTT Server IP/Name	| None	| 127.0.0.1	|
+MQTT_PORT	|	MQTT Server Port	| None	| 1883	|
+EMQX_USERNAME	|	MQTT Server Username	| admin	|	admin	|
+EMQX_PASSWORD	|	MQTT Server Password	| public	|	public	|
+WORKER_REJECT_AMOUNT_NOTIFY	|	Amount of Mission Rejections to Notify the Worker's Superior	| 2	| 2	|
+MISSION_REJECT_AMOUT_NOTIFY	|	Amount of Worker Rejections to Notify the Mission's Workshop Managers	| 2	| 2	|
+DAY_SHIFT_BEGIN	|	Begin Time of the Day Shift	| 07:40	| 07:40	|
+DAY_SHIFT_END	|	End Time of the Day Shift	| 19:40	| 19:40	|
+MAX_NOT_ALIVE_TIME	|	(Depricated)	|  None	| None 	|
+MISSION_ASSIGN_OT_MINUTES	|	Overtime of the Mission Assigned to Worker before Being Canceled	| 10	| 10	|
+WORKER_IDLE_OT_RESCUE_MINUTES	|	Overtime of the Worker Being Idle before Making the Worker Return to a Rescue Device	| 1	| 1	|
+MISSION_WORK_OT_NOTIFY_PYRAMID_MINUTES	|	Overtime of the Worker Working on a Mission	| [20,30,30]	| [20,30,30]	|
+RECENT_EVENT_PAST_DAYS	|	(Depricated)	|  None	| None	|
+DISABLE_FOXLINK_DISPATCH	|	Disabling the Mission Dispatch Routine	| 0(False)	| 1(True) |
+DISABLE_STARTUP_RESCUE_MISSION	| Disabling the Startup Mission Routine	| 0(False)	| 1(True) |
+PWD_SCHEMA	|	Password Hashing Schema	| sha256_crypt	| bcrypt	|
+PWD_SALT	|	Passworkd Hashing Salt	| F0XL1NKPWDHaSH	| hashsalt	|
+DEBUG	|	Debug Mode: Switch on the debug messages and use different event synchronize method	| 0(False)	| 1(True) 	|
+TZ	|	Time Zone	| pytz.timezone("Asia/Taipei")	|  pytz.timezone("Asia/Taipei") 	|
+
 
 # Related Infos
-- NTUST MQTT Broker: 140.118.157.9:27010
-- Foxlink online API docs: http://140.118.157.9:8080/docs
-- Default admin login credential:
-  - username: admin
-  - password: foxlink
+- Server Settings:
+  - MQTT Broker Website: 140.118.157.9:18083
+  - Frontend Broker Website: 140.118.157.9:8083
+  - API Server Docs: http://140.118.157.9:8080/docs
+    - Default Account:
+      - username: admin
+      - password: foxlink
+- EasyConnect(VPN) Setting:
+  - URL: https://dkvpn.foxlink.com.tw:4433
+  - Username: cbgtw
+  - Password: aA946809@
+  - Server IP: 192.168.65.210
+  - Server User:root
+  - Server Ports: 80,3306,8083,18083,27010
