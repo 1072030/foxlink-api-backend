@@ -12,8 +12,9 @@ from typing import Optional, Any
 import pandas as pd
 from tqdm import tqdm
 import re
+import logging
 from scipy.spatial import distance
-
+from app.core.database import User, Device, UserDeviceLevel, UserLevel
 # %%
 
 
@@ -626,76 +627,6 @@ class data_convert:
         )
         self.df_parm = self.df_parm[columns]
         return self.df_parm
-
-    """
-    建立員工開班位置；只要資料表有變更 "員工專職表" 或是 "Layout座標表" 都需要重新計算一次
-    """
-
-    def fn_worker_start_position(self):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
-        self.df_worker_start_position = pd.DataFrame()  # 建立空白資料表存取計算結果
-        df_w = self.df_factory_worker_info_convert  # 讀取 員工專職表 轉換結果
-        df_w = df_w[df_w["job"] == 1]  # 一般員工
-        df_w = df_w[df_w["level"] > 0]  # 排除經驗0
-        df_m = self.df_device_xy  # 讀取 Layout 座標表
-        df_m_depot = df_m[df_m["project"] ==
-                          "rescue"].reset_index(drop=True)  # 消防站位置
-        df_m_device = df_m[df_m["project"] != "rescue"].reset_index(
-            drop=True
-        )  # device位置
-
-        def get_minvalue(inputlist):
-            # get the minimum value in the list
-            min_value = min(inputlist)
-            # return the index of minimum value
-            res = [i for i, val in enumerate(inputlist) if val == min_value]
-            return res
-
-        for s in set(
-            self.df_factory_worker_info_parm["shift"].dropna()
-        ):  # fn_factory_worker_info 中 parameter 的 shift 種類數
-            df_w_shift = df_w[df_w["shift"] == s].groupby(
-                ["worker_id"]
-            )  # 選班次
-            workers = []
-            start_positions = []
-            for i, j in df_w_shift:
-                # 找對應員工經驗之機檯座標
-                find_device = df_m_device[
-                    (df_m_device["workshop"].isin(set(j["workshop"])))
-                    & (df_m_device["project"].isin(set(j["project"])))
-                    & (df_m_device["process"].isin(set(j["process"])))
-                    & (df_m_device["device_name"].isin(set(j["device_name"])))
-                ].reset_index(drop=True)
-                # print(find_device)
-
-                distance_list = []
-                for d in range(len(df_m_depot)):  # 計算平均距離
-                    depot = df_m_depot.iloc[d]  # 消防站
-                    total_distance = (
-                        (find_device["x_axis"] - depot["x_axis"]).abs()
-                        + (find_device["y_axis"] - depot["y_axis"]).abs()
-                    ).mean()
-                    distance_list.append(total_distance)
-                # print(distance_list)
-
-                min_list = get_minvalue(distance_list)  # 找到最短總距離
-                if len(min_list) > 1:
-                    min_list = random.choice(min_list)
-                # print(min_list)
-                position = df_m_depot.iloc[min_list].iloc[0]["id"]  # 找到該位置
-                workers.append(i)
-                start_positions.append(position)
-                # print(position)
-            shift_info = pd.DataFrame(
-                {"worker_name": workers, "start_position": start_positions}
-            )
-            # print(shift_info)
-            self.df_worker_start_position = pd.concat(
-                [self.df_worker_start_position, shift_info], ignore_index=1
-            )
-        return self.df_worker_start_position
-        # print(set(test_workerinfo["parameter"]["shift"].dropna()))
-
 
 # %%
 """測試派工系統"""

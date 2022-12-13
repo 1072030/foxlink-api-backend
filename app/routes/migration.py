@@ -4,8 +4,9 @@ from app.services.auth import get_manager_active_user
 
 from app.services.migration import (
     import_devices,
+    set_start_position_df,
     # import_workshop_events,
-    import_factory_worker_infos,
+    import_factory_worker_infos
 )
 from fastapi import APIRouter, Depends, File, Response, UploadFile, Form
 from app.core.database import AuditActionEnum, User, AuditLogHeader
@@ -26,7 +27,7 @@ async def import_devices_from_excel(
         raise HTTPException(415)
 
     try:
-        device_ids, params = await import_devices(file,user)
+        device_ids, params = await import_devices(file, user)
         await AuditLogHeader.objects.create(
             table_name="devices",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
@@ -61,15 +62,13 @@ async def import_devices_from_excel(
 async def import_factory_worker_infos_from_excel(
     workshop_name: str = Form(default="第九車間", description="要匯入員工資訊的車間名稱"),
     worker_file: UploadFile = File(...),
-    device_file: UploadFile = File(...),
     user: User = Depends(get_manager_active_user),
 ):
-    if worker_file.filename.split(".")[1] != "xlsx" or  device_file.filename.split(".")[1] != "xlsx":
+    if worker_file.filename.split(".")[1] != "xlsx":
         raise HTTPException(415)
 
     try:
-        params = await import_factory_worker_infos(workshop_name, worker_file, device_file)
-
+        params = await import_factory_worker_infos(workshop_name, worker_file)
         await AuditLogHeader.objects.create(
             table_name="users",
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
@@ -87,6 +86,4 @@ async def import_factory_worker_infos_from_excel(
             action=AuditActionEnum.DATA_IMPORT_FAILED.value,
             user=user.badge,
         )
-        raise HTTPException(status_code=400, detail=repr(e))
-
-
+        raise e
