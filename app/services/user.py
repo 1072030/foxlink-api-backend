@@ -27,7 +27,9 @@ from passlib.context import CryptContext
 from app.core.database import (
     get_ntz_now,
     AuditActionEnum,
+    Device,
     AuditLogHeader,
+    FactoryMap,
     Mission,
     ShiftType,
     User,
@@ -231,7 +233,16 @@ async def get_user_all_level_subordinates_by_badge(badge: str):
 
 
 async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
-    users = await User.objects.select_related(["workshop", "superior"]).filter(workshop__name=workshop_name).all()
+    
+    workshop_entity = await FactoryMap.objects.fields(["id","name"]).filter(name=workshop_name).get_or_none()
+    
+    if(not workshop_entity):
+        raise HTTPException(404,f"unknown workshop: {workshop_name}")
+
+    device_entities = {
+        device.id : device
+        for device in  await Device.objects.filter(workshop=workshop_entity.id).all()
+    }
 
     day_overview: List[UserOverviewOut] = []
     night_overview: List[UserOverviewOut] = []
@@ -239,22 +250,30 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
 
     for s in shift_types:
         _shift_type = ShiftType(s)
+        users = (
+            await User.objects
+            .select_related(["superior"])
+            .filter(
+                workshop=workshop_entity.id,
+                shift=s
+            )
+            .all()
+        )
         for u in users:
             overview = UserOverviewOut(
                 badge=u.badge,
                 username=u.username,
                 level=u.level,
                 shift=_shift_type,
-                experiences=[]
+                experiences=[],
+                workshop=workshop_entity.name
             )
+
             if u.superior is not None:
                 overview.superior = u.superior.username
 
-            if u.workshop is not None:
-                overview.workshop = u.workshop.name
-
             device_levels = (
-                await UserDeviceLevel.objects.select_related(["user", "device"])
+                await UserDeviceLevel.objects
                 .filter(user=u)
                 .all()
             )
@@ -265,10 +284,10 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
             for dl in device_levels:
                 overview.experiences.append(
                     DeviceExp(
-                        project=dl.device.project,
-                        process=dl.device.process,
-                        device_name=dl.device.device_name,
-                        line=dl.device.line,
+                        project=device_entities[dl.device.id].project,
+                        process=device_entities[dl.device.id].process,
+                        device_name=device_entities[dl.device.id].device_name,
+                        line=device_entities[dl.device.id].line,
                         exp=dl.level,
                     )
                 )

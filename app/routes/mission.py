@@ -79,7 +79,7 @@ async def get_missions_by_query(
             ]
         )
         .filter(**params)  # type: ignore
-        .order_by("-created_date")
+        .order_by("-id")
         .all()
     )
 

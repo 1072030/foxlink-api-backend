@@ -84,6 +84,30 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
     china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
     china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
 
+    params = {
+        "created_date__gte": china_tz_start_date,
+        "created_date__lte": china_tz_end_date,
+        "is_done": True,
+        "device__is_rescue": False,
+        "device__workshop__id": workshop_id,
+    }
+
+    # missions = (
+    #     await Mission.objects.select_related(
+    #         ["device__workshop","worker__at_device"]
+    #     )
+    #     .exclude_fields(
+    #         [
+    #             "device__workshop__map",
+    #             "device__workshop__related_devices",
+    #             "device__workshop__image",
+    #         ]
+    #     )
+    #     .filter(**params)
+    #     .order_by("-repair_end_date__gte")
+    #     .all()
+    # )
+
     abnormal_missions = await api_db.fetch_all(
         f"""
         SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
