@@ -809,28 +809,28 @@ if __name__ == "__main__":
                         action=AuditActionEnum.MISSION_CURED.value,
                         record_pk=str(event.mission.id),
                         user=None,
-                    ),
-                    mqtt_client.publish(
-                        f"foxlink/users/{event.mission.worker.current_UUID}/missions/stop-notify",
-                        {
-                            "mission_id": event.mission.id,
-                            "badge": event.mission.worker.badge,
-                            # RUBY: set worker badge
-                            "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
-                            "description": "finish",
-                            "timestamp": get_ntz_now()
-                        },
-                        qos=2,
-                        retain=True
                     )
-                    # RUBY: mqtt auto-close mission
                 )
                 if event.mission.worker:
                     emitter.add(
                         event.mission.worker.update(
                             status=WorkerStatusEnum.idle.value,
                             finish_event_date=get_ntz_now()
+                        ),
+                        mqtt_client.publish(
+                            f"foxlink/users/{event.mission.worker.current_UUID}/missions/stop-notify",
+                            {
+                                "mission_id": event.mission.id,
+                                "badge": event.mission.worker.badge,
+                                # RUBY: set worker badge
+                                "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
+                                "description": "finish",
+                                "timestamp": get_ntz_now()
+                            },
+                            qos=2,
+                            retain=True
                         )
+                        # RUBY: mqtt auto-close mission
                     )
                 await emitter.emit()
                 return True
@@ -842,11 +842,9 @@ if __name__ == "__main__":
         """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
         incomplete_mission_events = (
             await MissionEvent.objects
-            .filter(
-                event_end_date__isnull=True
-            )
             .select_related(["mission", "mission__worker"])
             .filter(
+                event_end_date__isnull=True,
                 mission__is_done=False,
                 mission__repair_beg_date__isnull=True
             )
@@ -976,22 +974,7 @@ if __name__ == "__main__":
             query=stmt
         )
         return [
-            FoxlinkEvent(
-                id=x[0],
-                project=(
-                    x[9]
-                    if DEBUG else
-                    table_name[:-len(FOXLINK_EVENT_DB_TABLE_POSTFIX)].upper()
-                ),
-                line=x[1],
-                device_name=x[2],
-                category=x[3],
-                start_time=x[4],
-                end_time=x[5],
-                message=x[6],
-                start_file_name=x[7],
-                end_file_name=x[8]
-            )
+            FoxlinkEvent.from_raw_event(x,table_name)
             for x in rows
         ]
 
@@ -1011,18 +994,7 @@ if __name__ == "__main__":
             # type: ignore
             row: list = await foxlink_dbs[host].fetch_one(query=stmt, values={"id": id})
 
-            return FoxlinkEvent(
-                id=row[0],
-                project=row[9],
-                line=row[1],
-                device_name=row[2],
-                category=row[3],
-                start_time=row[4],
-                end_time=row[5],
-                message=row[6],
-                start_file_name=row[7],
-                end_file_name=row[8],
-            )
+            return FoxlinkEvent.from_raw_event(row,table_name)
         except:
             return None
 
