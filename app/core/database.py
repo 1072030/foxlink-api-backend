@@ -184,6 +184,13 @@ class FactoryMap(ormar.Model):
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
 
+    @staticmethod
+    def heavy_fields(represent="") -> List["str"]:
+        return [
+            field if len(represent)== 0 else f"{represent}__{field}"
+            for field in ["map","related_devices","image"]
+        ]
+
 
 class User(ormar.Model):
     class Meta(MainMeta):

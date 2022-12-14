@@ -91,8 +91,8 @@ async def get_all_worker_status(workshop_name: str):
     
     workers = (
         await User.objects
-        .select_related(["at_device"])
-        .exclude_fields(['workshop__related_devices', 'workshop__image', 'workshop__map'])
+        .select_related(["at_device","workshop"])
+        .exclude_fields(FactoryMap.heavy_fields("workshop"))
         .filter(level=UserLevel.maintainer.value, workshop__name=workshop_name)
         .all()
     )

@@ -38,8 +38,9 @@ async def get_all_devices(
     params = {k: v for k, v in params.items() if v is not None}
 
     devices = (
-        await Device.objects.select_related("workshop")
-        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
+        await Device.objects
+        .select_related("workshop")
+        .exclude_fields(FactoryMap.heavy_fields("workshop"))
         .filter(**params)  # type:ignore
         .all()
     )
@@ -71,11 +72,12 @@ async def get_all_devices(
 
 @router.get("/whitelist", tags=['whitelist device'])
 async def get_whitelist_devices(workshop_name: str):
-    whitelist_devices = (await WhitelistDevice.objects
-                         .select_related(['device', 'device__workshop', 'workers'])
-                         .exclude_fields(['device__workshop__map', 'device__workshop__image', 'device__workshop__related_devices'])
-                         .filter(device__workshop__name=workshop_name).all()
-                         )
+    whitelist_devices = (
+        await WhitelistDevice.objects
+        .select_related(['device', 'device__workshop', 'workers'])
+        .exclude_fields(FactoryMap.heavy_fields("device__workshop"))
+        .filter(device__workshop__name=workshop_name).all()
+    )
 
     resp = {}
     for w in whitelist_devices:
@@ -132,8 +134,9 @@ async def get_device_by_id(
     device_id: str, user: User = Depends(get_current_user())
 ):
     device = (
-        await Device.objects.select_related("workshop")
-        .exclude_fields(["workshop__map", "workshop__related_devices", "workshop__image"])
+        await Device.objects
+        .select_related("workshop")
+        .exclude_fields(FactoryMap.heavy_fields("workshop"))
         .filter(id=device_id)
         .get_or_none()
     )

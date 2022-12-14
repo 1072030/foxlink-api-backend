@@ -5,6 +5,7 @@ from app.core.database import (
     WorkerStatusEnum,
     AuditActionEnum,
     AuditLogHeader,
+    FactoryMap,
     User,
     Mission,
     UserLevel,
@@ -72,11 +73,7 @@ async def get_missions_by_query(
             ["worker", "events", "device__workshop","worker__at_device"]
         )
         .exclude_fields(
-            [
-                "device__workshop__map",
-                "device__workshop__related_devices",
-                "device__workshop__image",
-            ]
+            FactoryMap.heavy_fields("device__workshop")
         )
         .filter(**params)  # type: ignore
         .order_by("-id")
@@ -125,11 +122,7 @@ async def get_missions_by_worker(
             ["events", "device__workshop"]
         )
         .exclude_fields(
-            [
-                "device__workshop__map",
-                "device__workshop__related_devices",
-                "device__workshop__image",
-            ]
+           FactoryMap.heavy_fields("device__workshop")
         )
         .filter(worker__badge=user.badge, **params)  # type: ignore
         .order_by("-created_date")
@@ -150,6 +143,7 @@ async def get_current_mission(user: User = Depends(get_current_user())):
     mission = (
         await Mission.objects
         .select_related(["device", "worker", "device__workshop","worker__at_device","events"])
+        .exclude_fields(FactoryMap.heavy_fields("device__workshop"))
         .filter(worker=user.badge, is_done=False)
         .get_or_none()
     )

@@ -120,7 +120,7 @@ if __name__ == "__main__":
                 ["device", "worker", "device__workshop", "worker__at_device", "events"]
             )
             .exclude_fields(
-                ["device__workshop__map","device__workshop__image","device__workshop__related_devices"]
+                FactoryMap.heavy_fields("device__workshop")
             )
             .all()
         )
@@ -399,11 +399,7 @@ if __name__ == "__main__":
                 ]
             )
             .exclude_fields(
-                [
-                    "device__workshop__map",
-                    "device__workshop__related_devices",
-                    "device__workshop__image"
-                ]
+                FactoryMap.heavy_fields("device__workshop")
             )
             .filter(
                 device__is_rescue=False

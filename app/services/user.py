@@ -89,11 +89,7 @@ async def get_worker_by_badge(
             select_fields
         )
         .exclude_fields(
-            [
-                "workshop__map",
-                "workshop__related_devices",
-                "workshop__image",
-            ]
+            FactoryMap.heavy_fields("workshop")
         )
         .get_or_none()
     )
@@ -126,11 +122,7 @@ async def get_worker_mission_history(badge: str) -> List[MissionDto]:
         await Mission.objects.filter(worker__badge=badge)
         .select_related(["device", "device__workshop"])
         .exclude_fields(
-            [
-                "device__workshop__map",
-                "device__workshop__related_devices",
-                "device__workshop__image",
-            ]
+            FactoryMap.heavy_fields("device__workshop")
         )
         .order_by("-created_date")
         .limit(10)
@@ -172,11 +164,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
         await Mission.objects.filter(worker__badge=username)
         .select_related(["device", "device__workshop","events"])
         .exclude_fields(
-            [
-                "device__workshop__map",
-                "device__workshop__related_devices",
-                "device__workshop__image",
-            ]
+            FactoryMap.heavy_fields("device__workshop")
         )
         .order_by("-created_date")
         .limit(10)
@@ -215,8 +203,8 @@ async def get_subordinates_users_by_badge(current_badge: str):
 
     workers = (
         await User.objects
-        .select_related(["at_device"])
-        .exclude_fields(['workshop__related_devices', 'workshop__image', 'workshop__map'])
+        .select_related(["at_device","workshop"])
+        .exclude_fields(FactoryMap.heavy_fields("workshop"))
         .filter(badge__in=all_subsordinates)
         .all()
     )

@@ -57,12 +57,18 @@ async def read_all_users(
     user: User = Depends(get_admin_active_user), workshop_name: Optional[str] = None
 ):
     if workshop_name is None:
-        users = await User.objects.select_related("workshop").all()
+        users = (
+            await User.objects
+            .select_related("workshop")
+            .exclude_fields(FactoryMap.heavy_fields("workshop"))
+            .all()
+        )
     else:
         users = (
-            await User.objects.select_related("workshop")
-            .filter(location__name=workshop_name)
-            .exclude_fields(["location__map", "location__related_devices"])
+            await User.objects
+            .select_related("workshop")
+            .exclude_fields(FactoryMap.heavy_fields("workshop"))
+            .filter(workshop__name=workshop_name)
             .all()
         )
 
@@ -78,7 +84,12 @@ async def read_all_users(
 @router.get("/info", response_model=UserOutWithWorkTimeAndSummary, tags=["users"])
 async def get_user_himself_info(user: User = Depends(get_current_user())):
     first_login_timestamp = user.login_date
-    user = await User.objects.select_related("workshop").get(badge=user.badge)
+    user = await (
+        User.objects
+        .select_related("workshop")
+        .exclude_fields(FactoryMap.heavy_fields("workshop"))
+        .get(badge=user.badge)
+    )
     if user.workshop is None:
         workshop_name = "無"
     else:
@@ -124,7 +135,12 @@ async def get_user_attendances(user: User = Depends(get_current_user())):
 async def check_user_status(user: User = Depends(get_current_user())):
     userStatus = user.status
     work_type = ""
-    mission = await Mission.objects.select_related(['worker', "device"]).filter(worker=user.badge, is_done=False).get_or_none()
+    mission = (
+        await Mission.objects
+        .select_related(['worker', "device"])
+        .filter(worker=user.badge, is_done=False)
+        .get_or_none()
+    )
 
     if mission is not None:
         work_type = "dispatch"

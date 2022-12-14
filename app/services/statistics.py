@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, ShiftType, UserLevel, api_db, User
+from app.core.database import Mission, ShiftType, UserLevel, api_db, User, FactoryMap
 from datetime import datetime, timedelta
 from app.env import TIMEZONE_OFFSET
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
@@ -92,21 +92,6 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
         "device__workshop__id": workshop_id,
     }
 
-    # missions = (
-    #     await Mission.objects.select_related(
-    #         ["device__workshop","worker__at_device"]
-    #     )
-    #     .exclude_fields(
-    #         [
-    #             "device__workshop__map",
-    #             "device__workshop__related_devices",
-    #             "device__workshop__image",
-    #         ]
-    #     )
-    #     .filter(**params)
-    #     .order_by("-repair_end_date__gte")
-    #     .all()
-    # )
 
     abnormal_missions = await api_db.fetch_all(
         f"""
@@ -284,7 +269,7 @@ async def get_emergency_missions(workshop_id: int) -> List[MissionDto]:
     missions = (
         await Mission.objects
         .select_related(["worker", "device", "device__workshop"])
-        .exclude_fields(["device__workshop__map", "device__workshop__related_devices", "device__workshop__image"])
+        .exclude_fields(FactoryMap.heavy_fields("device__workshop"))
         .filter(
             is_done=False,
             is_emergency=True,

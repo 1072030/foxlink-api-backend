@@ -14,6 +14,7 @@ from app.core.database import (
     UserDeviceLevel,
     WhitelistDevice,
     WorkerStatusEnum,
+    FactoryMap,
     api_db,
     transaction
 )
@@ -57,11 +58,7 @@ async def get_mission_by_id(
             select_fields
         )
         .exclude_fields(
-            [
-                "device__workshop__map",
-                "device__workshop__related_devices",
-                "device__workshop__image",
-            ]
+           FactoryMap.heavy_fields("device__workshop")
         )
         .filter(id=id)
         .get_or_none()
@@ -616,7 +613,9 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         Device.objects
         .filter(
             id=rescue_position
-        ).select_related("workshop")
+        )
+        .select_related("workshop")
+        .exclude_fields(FactoryMap.heavy_fields("workshop"))
         .get_or_none()
     )
 

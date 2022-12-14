@@ -25,7 +25,12 @@ def get_device_id(project_name: str, line: Optional[int], device_name: str) -> s
     return f"{project_name}-{line}-{device_name}"
 
 async def get_workers_from_whitelist_devices(device_id: str):
-    whitelist_device = await WhitelistDevice.objects.select_related(['workers']).filter(device=device_id).get_or_none()
+    whitelist_device = (
+        await WhitelistDevice.objects
+        .select_related(['workers'])
+        .filter(device=device_id)
+        .get_or_none()
+    )
 
     if whitelist_device is None:
         return []
