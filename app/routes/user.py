@@ -167,7 +167,7 @@ async def get_off_work(
     await user.update()
 
     await AuditLogHeader.objects.create(
-        user=user,
+        user=user.badge,
         table_name="users",
         action=AuditActionEnum.USER_LOGOUT.value,
         description=reason.value,

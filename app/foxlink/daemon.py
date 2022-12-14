@@ -119,6 +119,9 @@ if __name__ == "__main__":
             .select_related(
                 ["device", "worker", "device__workshop", "worker__at_device", "events"]
             )
+            .exclude_fields(
+                ["device__workshop__map","device__workshop__image","device__workshop__related_devices"]
+            )
             .all()
         )
         # RUBY: related device workshop
