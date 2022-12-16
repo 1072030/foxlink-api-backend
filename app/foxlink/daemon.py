@@ -75,7 +75,9 @@ if __name__ == "__main__":
     import traceback
 
     logger = logging.getLogger(f"foxlink(daemon)")
-    logger.addHandler(logging.FileHandler('logs/foxlink(daemon).log', mode="w"))
+    logger.addHandler(
+        logging.FileHandler('logs/foxlink(daemon).log', mode="w")
+    )
     logger.handlers[-1].setFormatter(CustomFormatter(LOG_FORMAT_FILE))
     if (DEBUG):
         logger.handlers[-1].setLevel(logging.DEBUG)
@@ -109,15 +111,19 @@ if __name__ == "__main__":
     @ transaction
     @ show_duration
     async def send_mission_notification_routine():
-        mission = (
+        missions = (
             await Mission.objects
             .filter(
                 repair_end_date__isnull=True,
                 notify_recv_date__isnull=True,
-                is_done=False
+                is_done=False,
+                worker__isnull=False
             )
             .select_related(
-                ["device", "worker", "device__workshop", "worker__at_device", "events"]
+                [
+                    "device", "worker", "device__workshop",
+                    "worker__at_device", "events"
+                ]
             )
             .exclude_fields(
                 FactoryMap.heavy_fields("device__workshop")
@@ -126,10 +132,7 @@ if __name__ == "__main__":
         )
         # RUBY: related device workshop
 
-        for m in mission:
-            if m.worker is None:
-                continue
-
+        async def driver(m: Mission):
             if m.device.is_rescue == False:
                 await mqtt_client.publish(
                     f"foxlink/users/{m.worker.current_UUID}/missions",
@@ -192,6 +195,10 @@ if __name__ == "__main__":
                     retain=True
                 )
 
+        await asyncio.gather(
+            *[driver(m) for m in missions]
+        )
+
         return True
 
     # done
@@ -208,10 +215,7 @@ if __name__ == "__main__":
                 worker__isnull=False
             )
             .select_related(
-                ["device"]
-            )
-            .select_related(
-                ["worker", "events", "worker__shift"]
+                ["device", "worker", "worker__shift"]
             )
             .all()
         )
@@ -219,12 +223,12 @@ if __name__ == "__main__":
         # prefetch current_shift
         current_shift = await get_current_shift_type()
 
-        for mission in working_missions:
+        async def driver(mission):
             worker_shift = ShiftType(mission.worker.shift.id)
 
             # shift swap required
             if current_shift == worker_shift:
-                continue
+                return
 
             # cancel mission
             await mission.update(
@@ -234,6 +238,7 @@ if __name__ == "__main__":
             )
 
             if not mission.device.is_rescue:
+                mission_events = await MissionEvent.objects.filter(mission=mission.id).all()
 
                 # replicate mission of the new shift
                 replicate_mission = await Mission.objects.create(
@@ -245,48 +250,61 @@ if __name__ == "__main__":
                 )
 
                 # replicate mission events for the new mission
-                for e in mission.events:
-                    replicate_event = MissionEvent(
-                        event_id=e.event_id,
-                        host=e.host,
-                        table_name=e.table_name,
-                        category=e.category,
-                        message=e.message,
-                        event_beg_date=e.event_beg_date,
-                        event_end_date=e.event_end_date
-                    )
-                    await replicate_mission.events.add(replicate_event)
 
-            # update worker status
-            await mission.worker.update(
-                status=WorkerStatusEnum.idle.value,
-                finish_event_date=get_ntz_now()
+                await asyncio.gather(
+                    *[
+                        replicate_mission.events.add(
+                            MissionEvent(
+                                event_id=e.event_id,
+                                host=e.host,
+                                table_name=e.table_name,
+                                category=e.category,
+                                message=e.message,
+                                event_beg_date=e.event_beg_date,
+                                event_end_date=e.event_end_date
+                            )
+                        ) for e in mission_events
+                    ]
+                )
+
+            await asyncio.gather(
+                # update worker status
+                mission.worker.update(
+                    status=WorkerStatusEnum.idle.value,
+                    finish_event_date=get_ntz_now()
+                ),
+
+                # create audit log
+                AuditLogHeader.objects.create(
+                    action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
+                    table_name="missions",
+                    description=f"員工換班，維修時長: {get_ntz_now() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
+                    user=mission.worker.badge,
+                    record_pk=mission.id,
+                ),
+
+                # send mission finish message
+                mqtt_client.publish(
+                    f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+                    {
+                        "mission_id": mission.id,
+                        "badge": mission.worker.badge,
+                        # RUBY: set worker badge
+                        "mission_state": "overtime-duty",
+                        "description": "finish",
+                        "timestamp": get_ntz_now()
+                    },
+                    qos=2,
+                    retain=True
+                )
             )
 
-            # create audit log
-
-            await AuditLogHeader.objects.create(
-                action=AuditActionEnum.MISSION_USER_DUTY_SHIFT.value,
-                table_name="missions",
-                description=f"員工換班，維修時長: {get_ntz_now() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
-                user=mission.worker.badge,
-                record_pk=mission.id,
-            )
-
-            # send mission finish message
-            await mqtt_client.publish(
-                f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
-                {
-                    "mission_id": mission.id,
-                    "badge": mission.worker.badge,
-                    # RUBY: set worker badge
-                    "mission_state": "overtime-duty",
-                    "description": "finish",
-                    "timestamp": get_ntz_now()
-                },
-                qos=2,
-                retain=True
-            )
+        await asyncio.gather(
+            *[
+                driver(mission) for mission in working_missions
+            ]
+        )
+        return
 
     @ transaction
     @ show_duration
@@ -798,32 +816,38 @@ if __name__ == "__main__":
                     .count()
                 ) == 0
             ):
+                mission = (
+                    await Mission.objects
+                    .filter(id=event.mission.id)
+                    .select_related("worker")
+                    .get()
+                )
                 emitter = AsyncEmitter()
                 emitter.add(
-                    event.mission.update(
+                    mission.update(
                         is_done=True,
                         is_done_cure=True
                     ),
                     AuditLogHeader.objects.create(
                         table_name="missions",
                         action=AuditActionEnum.MISSION_CURED.value,
-                        record_pk=str(event.mission.id),
+                        record_pk=str(mission.id),
                         user=None,
                     )
                 )
-                if event.mission.worker:
+                if mission.worker:
                     emitter.add(
-                        event.mission.worker.update(
+                        mission.worker.update(
                             status=WorkerStatusEnum.idle.value,
                             finish_event_date=get_ntz_now()
                         ),
                         mqtt_client.publish(
-                            f"foxlink/users/{event.mission.worker.current_UUID}/missions/stop-notify",
+                            f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                             {
-                                "mission_id": event.mission.id,
-                                "badge": event.mission.worker.badge,
+                                "mission_id": mission.id,
+                                "badge": mission.worker.badge,
                                 # RUBY: set worker badge
-                                "mission_state": "stop-notify" if not event.mission.notify_recv_date else "return-home-page",
+                                "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
                                 "description": "finish",
                                 "timestamp": get_ntz_now()
                             },
@@ -834,15 +858,77 @@ if __name__ == "__main__":
                     )
                 await emitter.emit()
                 return True
+
         return False
+
+    # async def update_complete_events(events):
+    #     mission_id = events[0].mission.id
+
+    #     async def driver(event: MissionEvent):
+    #         e = await get_incomplete_event_from_table(
+    #             event.host,
+    #             event.table_name,
+    #             event.event_id
+    #         )
+    #         if e and e.end_time is not None:
+    #             await event.update(event_end_date=e.end_time)
+    #             return 1
+    #         return 0
+
+    #     # check if all events have completed
+    #     if (sum(await asyncio.gather(*[driver(event)for event in events])) == len(events)):
+    #         mission = (
+    #             await Mission.objects
+    #             .filter(id=mission_id)
+    #             .select_related("worker")
+    #             .get()
+    #         )
+    #         emitter = AsyncEmitter()
+    #         emitter.add(
+    #             mission.update(
+    #                 is_done=True,
+    #                 is_done_cure=True
+    #             ),
+    #             AuditLogHeader.objects.create(
+    #                 table_name="missions",
+    #                 action=AuditActionEnum.MISSION_CURED.value,
+    #                 record_pk=str(mission.id),
+    #                 user=None,
+    #             )
+    #         )
+    #         if mission.worker:
+    #             emitter.add(
+    #                 mission.worker.update(
+    #                     status=WorkerStatusEnum.idle.value,
+    #                     finish_event_date=get_ntz_now()
+    #                 ),
+    #                 mqtt_client.publish(
+    #                     f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+    #                     {
+    #                         "mission_id": mission.id,
+    #                         "badge": mission.worker.badge,
+    #                         # RUBY: set worker badge
+    #                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
+    #                         "description": "finish",
+    #                         "timestamp": get_ntz_now()
+    #                     },
+    #                     qos=2,
+    #                     retain=True
+    #                 )
+    #                 # RUBY: mqtt auto-close mission
+    #             )
+    #         await emitter.emit()
+    #         return True
+    #     return False
 
     @ transaction
     @ show_duration
     async def update_complete_events_handler():
         """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
+        # TODO: can further optimize
         incomplete_mission_events = (
             await MissionEvent.objects
-            .select_related(["mission", "mission__worker"])
+            .select_related("mission")
             .filter(
                 event_end_date__isnull=True,
                 mission__is_done=False,
@@ -855,6 +941,8 @@ if __name__ == "__main__":
             update_complete_events(event)
             for event in incomplete_mission_events
         ])
+
+        return
 
     ######### sync event ########
 
@@ -974,7 +1062,7 @@ if __name__ == "__main__":
             query=stmt
         )
         return [
-            FoxlinkEvent.from_raw_event(x,table_name)
+            FoxlinkEvent.from_raw_event(x, table_name)
             for x in rows
         ]
 
@@ -994,7 +1082,7 @@ if __name__ == "__main__":
             # type: ignore
             row: list = await foxlink_dbs[host].fetch_one(query=stmt, values={"id": id})
 
-            return FoxlinkEvent.from_raw_event(row,table_name)
+            return FoxlinkEvent.from_raw_event(row, table_name)
         except:
             return None
 

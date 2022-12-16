@@ -4,7 +4,7 @@ from app.services.auth import get_manager_active_user
 from fastapi import APIRouter, HTTPException
 from app.core.database import Shift, User
 from app.models.schema import ShiftDto
-from app.env import LOGGER_NAME
+from app.log import LOGGER_NAME
 from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/shift")

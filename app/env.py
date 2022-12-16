@@ -1,8 +1,11 @@
 import logging
 import os
 import pytz
+import time
+from app.log import logging
+from dotenv import load_dotenv
 from typing import List, TypeVar, Optional, Type
-from app.log import LOGGER_NAME
+
 from ast import literal_eval
 
 T = TypeVar("T")
@@ -27,8 +30,14 @@ def get_env(key: str, dtype: Type[T], default: Optional[T] = None) -> T:
         else:
             return dtype(val)  # type: ignore
 
+logger = logging.getLogger('environ')
 
-logger = logging.getLogger(LOGGER_NAME)
+# Debug mode
+DEBUG = get_env("DEBUG", bool, False)
+
+if(DEBUG):
+    load_dotenv("/app/.env",override=True)
+    logger.warn("ENTER DEBUG MODE, LOADING /app/.env VARIABLES....")
 
 TIMEZONE_OFFSET = 8
 WEEK_START = 1  # the week should start on Sunday or Monday or even else.
@@ -101,8 +110,6 @@ PWD_SCHEMA = get_env("PWD_SCHEMA", str, "sha256_crypt")
 PWD_SALT = get_env("PWD_SALT", str, "F0XL1NKPWDHaSH")
 
 
-# Debug mode
-DEBUG = get_env("DEBUG", bool, False)
 
 # 時區
 TZ = pytz.timezone("Asia/Taipei")

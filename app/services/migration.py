@@ -14,6 +14,9 @@ from app.foxlink.utils import assemble_device_id
 from app.services.mission import _cancel_mission
 from app.services.user import get_password_hash
 from app.utils.utils import AsyncEmitter
+from app.env import (
+    DATABASE_NAME
+)
 from app.core.database import (
     User,
     Device,
@@ -36,7 +39,7 @@ data_converter = data_convert()
 @transaction
 async def set_start_position_df():
     raw_data_worker_info = await api_db.fetch_all(f"""
-        SELECT u.badge,u.workshop,u.shift,d.process,d.project,d.device_name FROM testing_api.users u
+        SELECT u.badge,u.workshop,u.shift,d.process,d.project,d.device_name FROM {DATABASE_NAME}.users u
         INNER JOIN user_device_levels udl on udl.user=u.badge
         INNER JOIN devices d on d.id=udl.device 
         WHERE udl.`level` !=0 and u.`level` =1
@@ -124,7 +127,7 @@ async def fn_worker_start_position(df_w, df_m):  # 輸入車間機台座標資�
 
 
 @transaction
-async def import_devices(excel_file: UploadFile) -> Tuple[List[str], pd.DataFrame]:
+async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str], pd.DataFrame]:
 
     frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
 

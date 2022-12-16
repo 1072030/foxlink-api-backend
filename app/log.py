@@ -1,4 +1,3 @@
-from pydantic import BaseModel
 import logging
 
 grey = '\x1b[38;21m'

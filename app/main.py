@@ -5,7 +5,6 @@ import asyncio
 import multiprocessing as mp
 from fastapi import FastAPI
 from app.env import MQTT_BROKER, MQTT_PORT, PY_ENV
-from logging.config import dictConfig
 from app.routes import (
     health,
     migration,
@@ -27,6 +26,7 @@ from app.foxlink.db import foxlink_dbs
 
 # dictConfig(LogConfig().dict())
 logger = logging.getLogger(LOGGER_NAME)
+logger.propagate = False
 
 app = FastAPI(title="Foxlink API Backend", version="0.0.1")
 

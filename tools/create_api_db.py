@@ -44,7 +44,7 @@ try:
     #     f"mysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}")
     # metadata.create_all(engine)
 
-    system("rm -rf /code/app/alembic/versions/* 2> /dev/null")
+    system("rm -rf /app/app/alembic/versions/* 2> /dev/null")
     system("alembic revision --autogenerate -m 'initialize'")
     system("alembic upgrade head")
 except Exception as e:

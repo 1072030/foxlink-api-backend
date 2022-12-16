@@ -29,9 +29,9 @@ class MQTT_Client:
         - port: MQTT broker port
         - client_id: MQTT client ID
         """
-        self.mqtt_client.connect_async(self.broker, port=self.port, keepalive=30)
+        self.mqtt_client.connect(self.broker, port=self.port, keepalive=30)
         self.mqtt_client.loop_start()
-        # await self.wait_status(True)
+        logger.info(f"Initialize successful: Broker(@{self.broker}:{self.port})")
 
     async def check_status(self, desire):
         while not self.status() == desire:

@@ -11,7 +11,7 @@ from app.core.database import (
     WorkerStatusEnum
 )
 import asyncio
-from app.env import LOGGER_NAME
+from app.log import LOGGER_NAME
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 
 from app.services.statistics import (

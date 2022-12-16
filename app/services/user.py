@@ -132,28 +132,27 @@ async def get_worker_mission_history(badge: str) -> List[MissionDto]:
     return [MissionDto.from_mission(x) for x in missions]
 
 
-async def get_user_working_mission(badge: str) -> Optional[Mission]:
-    worker = await User.objects.filter(badge=badge).get_or_none()
-
-    if worker is None:
-        raise HTTPException(
-            status_code=404, detail="the user with this id is not found"
-        )
-
+async def get_user_working_mission(worker: User) -> Optional[Mission]:
     try:
-        mission = await Mission.objects.select_related("device").filter(
-            and_(
-                # left: user still working on a mission, right: user is not accept a mission yet.
-                or_(
-                    and_(repair_beg_date__isnull=False,
-                         repair_end_date__isnull=True),
-                    and_(repair_beg_date__isnull=True,
-                         repair_end_date__isnull=True),
-                ),
-                worker__badge=badge,
-                is_done=False,
+        mission = (
+            await Mission.objects
+            .filter(
+                and_(
+                    # left: user still working on a mission, right: user is not accept a mission yet.
+                    or_(
+                        and_(repair_beg_date__isnull=False,
+                             repair_end_date__isnull=True),
+                        and_(repair_beg_date__isnull=True,
+                             repair_end_date__isnull=True),
+                    ),
+                    worker__badge=worker.badge,
+                    is_done=False
+                )
             )
-        ).order_by("-id").first()
+            .select_related("device")
+            .order_by("-id")
+            .first()
+        )
         return mission
     except NoMatch:
         return None
@@ -162,7 +161,7 @@ async def get_user_working_mission(badge: str) -> Optional[Mission]:
 async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(worker__badge=username)
-        .select_related(["device", "device__workshop","events"])
+        .select_related(["device", "device__workshop", "events"])
         .exclude_fields(
             FactoryMap.heavy_fields("device__workshop")
         )
@@ -171,7 +170,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
         .all()
     )
     return [MissionDto.from_mission(x) for x in missions]
-    
+
 
 async def get_subordinates_users_by_badge(current_badge: str):
     the_user = await User.objects.filter(badge=current_badge).get_or_none()
@@ -203,7 +202,7 @@ async def get_subordinates_users_by_badge(current_badge: str):
 
     workers = (
         await User.objects
-        .select_related(["at_device","workshop"])
+        .select_related(["at_device", "workshop"])
         .exclude_fields(FactoryMap.heavy_fields("workshop"))
         .filter(badge__in=all_subsordinates)
         .all()
@@ -221,15 +220,24 @@ async def get_user_all_level_subordinates_by_badge(badge: str):
 
 
 async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
-    
-    workshop_entity = await FactoryMap.objects.fields(["id","name"]).filter(name=workshop_name).get_or_none()
-    
-    if(not workshop_entity):
-        raise HTTPException(404,f"unknown workshop: {workshop_name}")
+
+    workshop_entity = (
+        await FactoryMap.objects
+        .fields(["id", "name"])
+        .filter(name=workshop_name)
+        .get_or_none()
+    )
+
+    if (not workshop_entity):
+        raise HTTPException(404, f"unknown workshop: {workshop_name}")
 
     device_entities = {
-        device.id : device
-        for device in  await Device.objects.filter(workshop=workshop_entity.id).all()
+        device.id: device
+        for device in (
+            await Device.objects
+            .filter(workshop=workshop_entity.id)
+            .all()
+        )
     }
 
     day_overview: List[UserOverviewOut] = []
@@ -286,7 +294,6 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
                 night_overview.append(overview)
 
     return DayAndNightUserOverview(day_shift=day_overview, night_shift=night_overview)
-
 
 
 async def get_user_summary(badge: str) -> Optional[WorkerSummary]:
@@ -430,22 +437,18 @@ async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     if worker is None:
         return None
 
-    shift, shift_start, shift_end = await get_current_shift_details()
-
-    total_start_count = worker.shift_start_count
-
     item = WorkerStatusDto(
         worker_id=worker.badge,
         worker_name=worker.username,
         status=worker.status,
         finish_event_date=worker.finish_event_date,
-        total_dispatches=total_start_count,
+        total_dispatches=worker.shift_start_count,
     )
 
     item.at_device = worker.at_device.id if worker.at_device is not None else None
     item.at_device_cname = worker.at_device.device_cname if worker.at_device is not None else None
 
-    mission = await get_user_working_mission(worker.badge)
+    mission = await get_user_working_mission(worker)
 
     if worker.status in [WorkerStatusEnum.working.value, WorkerStatusEnum.moving.value, WorkerStatusEnum.notice.value] and mission is not None:
         item.mission_duration = mission.mission_duration.total_seconds()  # type: ignore

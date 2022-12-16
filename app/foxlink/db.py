@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Optional,Dict,Tuple,List
+from typing import Optional, Dict, Tuple, List
 from databases import Database
 from app.env import (
     FOXLINK_EVENT_DB_NAME,
@@ -14,24 +14,24 @@ from app.env import (
     FOXLINK_DEVICE_DB_PWD,
 )
 
+
 class FoxlinkDatabasePool:
     def __init__(self):
-        print(f"mysql+aiomysql://{FOXLINK_EVENT_DB_USER}:{FOXLINK_EVENT_DB_PWD}@{FOXLINK_EVENT_DB_HOSTS[0]}/{FOXLINK_EVENT_DB_NAME}")
-        self.event_dbs: Dict[str,Database] = {
+        self.event_dbs: Dict[str, Database] = {
             host: Database(
                 f"mysql+aiomysql://{FOXLINK_EVENT_DB_USER}:{FOXLINK_EVENT_DB_PWD}@{host}/{FOXLINK_EVENT_DB_NAME}",
                 min_size=5,
                 max_size=20,
             )
             for host in FOXLINK_EVENT_DB_HOSTS
-        }   
+        }
         self.device_db = Database(
             f"mysql+aiomysql://{FOXLINK_DEVICE_DB_USER}:{FOXLINK_DEVICE_DB_PWD}@{FOXLINK_DEVICE_DB_HOST}/{FOXLINK_DEVICE_DB_NAME}",
             min_size=5,
             max_size=20,
         )
 
-    def __getitem__(self,key):
+    def __getitem__(self, key):
         return self.event_dbs[key]
 
     async def get_device_cnames(self, workshop_name: str):
@@ -81,12 +81,12 @@ class FoxlinkDatabasePool:
 
         if device_infos == {}:
             return None
-            
+
         return device_infos
 
-    async def get_device_cname(self, workshop:str, project: str, line: str, device: str):
+    async def get_device_cname(self, workshop: str, project: str, line: str, device: str):
 
-        full_cnames: List[str,str] = await self.device_db.fetch_all(
+        full_cnames: List[str, str] = await self.device_db.fetch_all(
             f"SELECT device_ename, device_cname FROM `{FOXLINK_DEVICE_DB_NAME}`.`dev_func`"
         )
 
@@ -103,8 +103,8 @@ class FoxlinkDatabasePool:
         """
 
         project_names = await self.device_db.fetch_one(
-            query = query,
-            values = {
+            query=query,
+            values={
                 "workshop": workshop,
                 "project": project+"%",
                 "line": line,
@@ -113,13 +113,18 @@ class FoxlinkDatabasePool:
         )
         try:
             ename_split = project_names["dev_func"].split(",")
-            cname_list = ", ".join([full_cnames[ename] for ename in ename_split])
+            cname_list = ", ".join(
+                [
+                    full_cnames[ename]
+                    for ename in ename_split
+                ]
+            )
         except:
-            cname_list = "無法解析裝置中文名稱"    
-            
+            cname_list = "無法解析裝置中文名稱"
+
         return cname_list
 
-    async def get_db_tables(self,host:str) -> Tuple[List[str],str]:
+    async def get_db_tables(self, host: str) -> Tuple[List[str], str]:
         r = await self.event_dbs[host].fetch_all(
             "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME LIKE :table_name",
             {
@@ -133,22 +138,31 @@ class FoxlinkDatabasePool:
         )
 
     async def get_all_db_tables(self) -> List[List[str]]:
-        get_table_names_routines = [self.get_db_tables(host) for host in self.event_dbs.keys()]
+        get_table_names_routines = [
+            self.get_db_tables(host) 
+            for host in self.event_dbs.keys()
+        ]
         return await asyncio.gather(*get_table_names_routines)
 
     async def connect(self):
         db_connect_routines = [db.connect() for db in self.event_dbs.values()]
         await asyncio.gather(*db_connect_routines)
-        
+
         try:
             await self.device_db.connect()
         except:
             logging.warning("cannot connect to foxlink device DB.")
 
     async def disconnect(self):
-        db_disconnect_routines = [db.disconnect() for db in self.event_dbs.values()]
-        await asyncio.gather(*db_disconnect_routines,self.device_db.disconnect())
-        
+        db_disconnect_routines = [
+            db.disconnect()
+            for db in self.event_dbs.values()
+        ]
+        await asyncio.gather(
+            *db_disconnect_routines,
+            self.device_db.disconnect()
+        )
+
         if self.device_db.is_connected:
             await self.device_db.disconnect()
 
