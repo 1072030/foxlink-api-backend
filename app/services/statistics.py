@@ -1,8 +1,8 @@
 import logging
 from typing import List, Optional
 from pydantic import BaseModel
-from app.core.database import Mission, ShiftType, UserLevel, api_db, User, FactoryMap
-from datetime import datetime, timedelta
+from app.core.database import Mission, ShiftType, UserLevel, api_db, User, FactoryMap, Shift
+from datetime import date, datetime, timedelta
 from app.env import TIMEZONE_OFFSET
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 from app.log import LOGGER_NAME
@@ -33,7 +33,7 @@ class AbnormalDeviceInfo(BaseModel):
     device_id: str
     device_cname: Optional[str]
     message: Optional[str]
-    category: int
+    category: Optional[str]
     duration: int
     top_great_assignees: Optional[List[UserInfoWithDuration]]
 
@@ -42,8 +42,8 @@ class AbnormalMissionInfo(BaseModel):
     mission_id: str
     device_id: str
     device_cname: Optional[str]
-    category: int
-    message: Optional[str]
+    categories: str
+    messages: Optional[str]
     duration: int
     created_date: datetime
 
@@ -53,6 +53,27 @@ UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') 
 
 LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_beg_date) BETWEEN '20:00' AND '23:59') OR (TIME(event_beg_date) BETWEEN '00:00' AND '07:40'))"
 LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_beg_date) BETWEEN '07:40' AND '20:00')"
+
+
+async def match_time_interval(shift_type: ShiftType, column=None, default="1"):
+    if (shift_type):
+        shift = await Shift.objects.get_or_none(id=shift_type.value)
+        shift.shift_beg_time = (
+            datetime.combine(date.today(), shift.shift_beg_time)
+            - timedelta(hours=TIMEZONE_OFFSET)
+        ).time()
+
+        shift.shift_end_time = (
+            datetime.combine(date.today(), shift.shift_end_time)
+            - timedelta(hours=TIMEZONE_OFFSET)
+        ).time()
+
+        if (shift and column):
+            if (shift.shift_beg_time > shift.shift_end_time):
+                return f"((TIME({column}) BETWEEN '{shift.shift_beg_time}' AND '23:59') OR (TIME({column}) BETWEEN '00:00' AND '{shift.shift_end_time}'))"
+            else:
+                return f"(TIME({column}) BETWEEN '{shift.shift_beg_time}' AND '{shift.shift_end_time}')"
+    return default
 
 
 async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10):
@@ -81,38 +102,42 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
 
 async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10) -> List[AbnormalMissionInfo]:
     """統計當月異常任務，根據處理時間由高排序到低。"""
-    china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
-    china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
-
-    params = {
-        "created_date__gte": china_tz_start_date,
-        "created_date__lte": china_tz_end_date,
-        "is_done": True,
-        "device__is_rescue": False,
-        "device__workshop__id": workshop_id,
-    }
-
 
     abnormal_missions = await api_db.fetch_all(
         f"""
-        SELECT t1.mission_id, t1.device_id, t1.device_cname, max(t1.category) as category, max(t1.message) as message, max(t1.duration) as duration, t1.created_date FROM (
-            SELECT mission as mission_id, m.device as device_id, d.device_cname, category, message, TIMESTAMPDIFF(SECOND, event_beg_date, event_end_date) as duration, m.created_date
-            FROM mission_events
-            INNER JOIN missions m ON m.id = mission
-            INNER JOIN devices d ON d.id = m.device 
-            WHERE 
-                event_end_date IS NOT NULL
-                AND d.is_rescue = FALSE
-                AND (event_beg_date BETWEEN :start_date AND :end_date)
-                AND d.workshop = :workshop_id
-                {LOCAL_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (LOCAL_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
-        ) t1
-        GROUP BY (t1.mission_id)
-        ORDER BY duration DESC
-        LIMIT :limit;
+            SELECT 
+            r.mission_id, r.device_id, r.device_cname, 
+            GROUP_CONCAT(DISTINCT  r.event_category SEPARATOR ', ') as categories,
+            GROUP_CONCAT(DISTINCT  r.event_message SEPARATOR ', ')  as messages,
+            r.duration as duration, 
+            r.created_date 
+            FROM (
+                SELECT
+                    m.id as mission_id, m.created_date as created_date,
+                    d.id as device_id, d.device_cname as device_cname,
+                    e.category as event_category, e.message as event_message, 
+                    TIMESTAMPDIFF(SECOND, m.repair_beg_date, m.repair_end_date) as duration 
+                FROM missions as m
+                INNER JOIN devices as d ON d.id = m.device
+                INNER JOIN mission_events as e ON e.mission = m.id 
+                WHERE 
+                    e.event_end_date  IS NULL AND
+                    m.repair_end_date IS NOT NULL AND
+                    d.is_rescue = FALSE AND 
+                    d.workshop = :workshop_id AND
+                    (m.repair_end_date BETWEEN :start_date AND :end_date) AND
+                    {await match_time_interval(shift,"repair_end_date")}
+            ) as r
+            GROUP BY (r.mission_id)
+            ORDER BY duration DESC
+            LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": china_tz_start_date,
-            "end_date": china_tz_end_date, "limit": limit},
+        {
+            "workshop_id": workshop_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": limit
+        },
     )
 
     return abnormal_missions  # type: ignore
