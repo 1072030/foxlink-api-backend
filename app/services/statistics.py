@@ -32,9 +32,11 @@ class EmergencyMissionInfo(BaseModel):
 class AbnormalDeviceInfo(BaseModel):
     device_id: str
     device_cname: Optional[str]
-    message: Optional[str]
-    category: Optional[str]
-    duration: int
+    category: str
+    messages: Optional[str]
+    mission_ids: Optional[str]
+    event_ids: Optional[str]
+    avg_duration: int
     top_great_assignees: Optional[List[UserInfoWithDuration]]
 
 
@@ -145,53 +147,68 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
 
 async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10):
     """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
-    china_tz_start_date = start_date + timedelta(hours=TIMEZONE_OFFSET)
-    china_tz_end_date = end_date + timedelta(hours=TIMEZONE_OFFSET)
-
     abnormal_devices: List[AbnormalDeviceInfo] = await api_db.fetch_all(
         f"""
-        SELECT device as device_id, d.device_cname,  max(message) as message, max(category) as category, max(TIMESTAMPDIFF(SECOND, event_beg_date, event_end_date)) as duration
-        FROM mission_events
-        INNER JOIN missions m ON m.id = mission
-        INNER JOIN devices d ON d.id = m.device 
-        WHERE 
-            event_beg_date IS NOT NULL
-            AND event_end_date IS NOT NULL
-            AND (event_beg_date BETWEEN :start_date AND :end_date)
-            AND d.workshop = :workshop_id
-            {LOCAL_NIGHT_SHIFT_FILTER if shift == ShiftType.night else (LOCAL_DAY_SHIFT_FILTER if shift == ShiftType.day else "" )}
-        GROUP BY device
-        ORDER BY duration DESC
-        LIMIT :limit;
+            SELECT 
+                d.id as device_id, 
+                d.device_cname as device_cname,
+                e.category as category,
+                GROUP_CONCAT(DISTINCT e.message) as messages,
+                GROUP_CONCAT(DISTINCT m.id) as mission_ids,
+                GROUP_CONCAT(DISTINCT e.id) as event_ids,
+                AVG(TIMESTAMPDIFF(SECOND, DATE_SUB(e.event_beg_date , INTERVAL {TIMEZONE_OFFSET} hour), m.repair_end_date)) as avg_duration
+            FROM mission_events as e 
+            INNER JOIN missions as m ON m.id = mission
+            INNER JOIN devices as d ON d.id = m.device 
+            WHERE 
+                e.event_beg_date IS NOT NULL AND 
+                m.repair_end_date IS NOT NULL AND
+                d.workshop = :workshop_id AND
+                (event_beg_date BETWEEN :start_date AND :end_date) AND
+                {await match_time_interval(shift,"repair_end_date")}
+            GROUP BY d.id, e.category 
+            ORDER BY avg_duration DESC
+            LIMIT :limit;
         """,
-        {"workshop_id": workshop_id, "start_date": china_tz_start_date,
-            "end_date": china_tz_end_date, "limit": limit},
+        {
+            "workshop_id": workshop_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": limit
+        },
     )  # type: ignore
 
-    abnormal_devices = [AbnormalDeviceInfo(
-        **m) for m in abnormal_devices]  # type: ignore
+    abnormal_devices = [
+        AbnormalDeviceInfo(**m)
+        for m in abnormal_devices
+    ]  # type: ignore
 
-    for m in abnormal_devices:
+    for device in abnormal_devices:
         # fetch top 3 assignees that deal with device out-of-order issue most quickly
         top_assignees_in_mission = await api_db.fetch_all(
             """
-            SELECT t1.badge, t1.username, min(t1.duration) as duration FROM (
-                SELECT u.badge, u.username, TIMESTAMPDIFF(SECOND, me.event_beg_date, me.event_end_date) as duration
-                FROM mission_events me
-                LEFT OUTER JOIN missions_users mu ON mu.mission = me.mission
-                INNER JOIN missions m ON m.id = me.mission
-                INNER JOIN users u ON u.badge = mu.user
-                WHERE device = :device_id AND category = :category AND event_end_date IS NOT NULL
-                ORDER BY duration ASC
-            ) t1
-            GROUP BY t1.badge
-            ORDER BY duration
-            LIMIT 3;
+                SELECT r.badge, r.username, min(r.duration) as duration FROM (
+                    SELECT 
+                        u.badge,
+                        u.username,
+                        TIMESTAMPDIFF(SECOND, m.repair_beg_date, m.repair_end_date) as duration
+                    FROM mission_events as e
+                    INNER JOIN missions as m ON m.id = e.mission
+                    INNER JOIN users as u ON u.badge = m.worker
+                    WHERE
+                        m.id IN :missions
+                    ORDER BY duration ASC
+                ) r
+                GROUP BY r.badge
+                ORDER BY duration
+                LIMIT 3;
             """,
-            {"device_id": m.device_id, "category": m.category},
+            {
+                "missions": device.mission_ids.split(',')
+            },
         )
 
-        m.top_great_assignees = [
+        device.top_great_assignees = [
             UserInfoWithDuration(
                 badge=x["badge"], username=x["username"], duration=x["duration"]
             )
