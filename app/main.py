@@ -16,7 +16,8 @@ from app.routes import (
     log,
     device,
     workshop,
-    shift
+    shift,
+    system
 )
 from app.core.database import api_db, Shift, ShiftType, ShiftInterval
 from app.mqtt import mqtt_client
@@ -54,6 +55,7 @@ app.add_middleware(
 
 # Adding routers
 app.include_router(health.router)
+app.include_router(system.router)
 app.include_router(user.router)
 app.include_router(auth.router)
 app.include_router(mission.router)
