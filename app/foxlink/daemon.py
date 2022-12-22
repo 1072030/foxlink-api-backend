@@ -108,7 +108,7 @@ if __name__ == "__main__":
             msg = f"{device_id} device is not in the map {factory_map.name}"
             raise ValueError(msg)
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def send_mission_notification_routine():
         missions = (
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
     # done
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def mission_shift_routine():
         # filter out non-rescue missions that're in process but hasn't completed
@@ -306,7 +306,7 @@ if __name__ == "__main__":
         )
         return
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def move_idle_workers_to_rescue_device():
         # find idle workers that're not at rescue devices and request them to return.
@@ -394,7 +394,7 @@ if __name__ == "__main__":
 
     # done
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def mission_dispatch():
         """處理任務派工給員工的過程"""
@@ -686,7 +686,7 @@ if __name__ == "__main__":
     ######### mission overtime  ########
     # half-done
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def check_mission_working_duration_overtime():
         """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級但是不取消任務"""
@@ -747,7 +747,7 @@ if __name__ == "__main__":
 
     # done
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def check_mission_assign_duration_overtime():
         """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級並且取消任務"""
@@ -921,7 +921,7 @@ if __name__ == "__main__":
     #         return True
     #     return False
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def update_complete_events_handler():
         """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
@@ -1027,7 +1027,7 @@ if __name__ == "__main__":
             mission_event.event_id if mission_event else 0
         )
 
-    @ transaction
+    @transaction()
     @ show_duration
     async def sync_events_from_foxlink_handler():
         db_table_pairs = await foxlink_dbs.get_all_db_tables()

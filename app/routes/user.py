@@ -167,7 +167,7 @@ async def change_password(
     )
 
 
-@transaction
+@transaction()
 @router.post("/get-off-work", tags=["users"])
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user(True))

@@ -33,7 +33,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@transaction
+@transaction()
 @router.post("/token", response_model=Token, responses={401: {"description": "Invalid username/password"}})
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)

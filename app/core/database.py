@@ -47,22 +47,23 @@ def get_ntz_min():
     return datetime.fromisoformat("1990-01-01 00:00:00")
 
 
-def transaction(func):
-    async def wrapper(*args, **_args):
-        _transaction = (api_db.transaction(isolation="serializable"))
-        result = None
-        try:
-            await _transaction.start()
-            result = await func(*args, **_args)
-        except Exception as e:
-            # traceback.print_exc()
-            print(f"error in transaction: {repr(e)}")
-            await _transaction.rollback()
-            raise e
-        else:
-            await _transaction.commit()
-            return result
-    return wrapper
+def transaction(force=False):
+    def decor(func):
+        async def wrapper(*args, **_args):
+            _transaction = (api_db.transaction(isolation="serializable",force_rollback=force))
+            result = None
+            try:
+                await _transaction.start()
+                result = await func(*args, **_args)
+            except Exception as e:
+                print(f"error in transaction: {repr(e)}")
+                await _transaction.rollback()
+                raise e
+            else:
+                await _transaction.commit()
+                return result
+        return wrapper
+    return decor
 
 
 def transaction_with_logger(logger):

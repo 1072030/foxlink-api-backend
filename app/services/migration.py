@@ -1,5 +1,6 @@
 
 import math
+import random
 import pandas as pd
 import traceback
 import asyncio
@@ -36,7 +37,6 @@ from app.core.database import (
 data_converter = data_convert()
 
 
-@transaction
 async def set_start_position_df():
     raw_data_worker_info = await api_db.fetch_all(f"""
         SELECT u.badge,u.workshop,u.shift,d.process,d.project,d.device_name FROM {DATABASE_NAME}.users u
@@ -61,9 +61,8 @@ async def set_start_position_df():
         else:
             await worker.update(start_position=start_position)
 
- # 建立員工開班位置；只要資料表有變更 "員工專職表" 或是 "Layout座標表" 都需要重新計算一次
 
-
+# 建立員工開班位置；只要資料表有變更 "員工專職表" 或是 "Layout座標表" 都需要重新計算一次
 async def fn_worker_start_position(df_w, df_m):  # 輸入車間機台座標資料表，生成簡易移動距離矩陣
     df_worker_start_position = pd.DataFrame()  # 建立空白資料表存取計算結果
     df_m_depot = df_m[df_m["project"] ==
@@ -126,7 +125,7 @@ async def fn_worker_start_position(df_w, df_m):  # 輸入車間機台座標資�
     # print(set(test_workerinfo["parameter"]["shift"].dropna()))
 
 
-@transaction
+@transaction(force=True)
 async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str], pd.DataFrame]:
 
     frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
@@ -243,6 +242,22 @@ async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str],
 
         current_all_device_ids += current_workshop_device_ids
 
+        if(
+        (
+            await Mission.objects
+            .exclude(
+                device__in=current_workshop_device_ids
+            )
+            .filter(
+                is_done=False,
+                worker__isnull=False
+            )
+            .count() 
+        ) > 0
+        ):
+            raise Exception("trying to remove device that are still working by or assigned to a worker.")
+
+
         # update soft settings of devices
         if (len(update_device_bulk[workshop]) > 0):
             await Device.objects.bulk_update(
@@ -298,7 +313,7 @@ async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str],
     await Device.objects.exclude(id__in=current_all_device_ids).delete(each=True)
 
     await set_start_position_df()
-
+    
     return frame["id"].unique().tolist(), params
 
 
@@ -318,7 +333,7 @@ async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> 
     return data["parameter"]
 
 
-@transaction
+@transaction()
 async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) -> pd.DataFrame:
 
     raw_excel: bytes = await worker_file.read()

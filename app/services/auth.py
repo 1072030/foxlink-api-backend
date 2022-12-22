@@ -59,26 +59,29 @@ async def authenticate_user(badge: str, password: str):
 
 def get_current_user(light_user=False):
     async def driver(token: str = Depends(oauth2_scheme)):
+        expired = False
         try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            badge: str = payload.get("sub")
-            decode_UUID: str = payload.get("UUID")
-
-            if badge is None:
-                raise HTTPException(403, '无法验证凭据')
+            payload = jwt.decode(
+                token,
+                JWT_SECRET,
+                algorithms=["HS256"]
+            )
         except ExpiredSignatureError:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], options={
-                "verify_exp": False, "verify_signature": False})
-            badge: str = payload.get("sub")
-            decode_UUID: str = payload.get("UUID")
-            user = await get_worker_by_badge(badge)
+            payload = jwt.decode(
+                token, 
+                JWT_SECRET, 
+                algorithms=['HS256'], 
+                options={
+                    "verify_exp": False,
+                    "verify_signature": False
+                }
+            )
+            expired= True
 
-            if decode_UUID == user.current_UUID:
-                user = await user.update(current_UUID="0")
+        badge: str = payload.get("sub")
+        decode_UUID: str = payload.get("UUID")
 
-            raise HTTPException(403, '准证已过期')
-
-        except:
+        if badge is None:
             raise HTTPException(403, '无法验证凭据')
 
         if light_user:
@@ -89,10 +92,15 @@ def get_current_user(light_user=False):
         if user is None:
             raise HTTPException(403, '无法验证凭据')
 
-        if user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
+        if expired and decode_UUID == user.current_UUID:
+            await user.update(current_UUID="0")
+            raise HTTPException(403, '准证已过期')
+
+        elif user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
             raise HTTPException(403, '登录另一台设备，请登出')
 
         return user
+
 
     return driver
 

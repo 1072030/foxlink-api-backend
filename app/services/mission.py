@@ -97,7 +97,7 @@ async def click_mission_by_id(mission_id: int, worker: User):
 
 
 ######## REFACTORED ########
-@transaction
+@transaction()
 async def start_mission(mission, worker):
     if not isinstance(mission, Mission):
         mission = await get_mission_by_id(mission)
@@ -166,7 +166,7 @@ async def _start_mission(mission, worker):
     )
 
 
-@transaction
+@transaction()
 async def accept_mission(mission, worker):
     if not isinstance(mission, Mission):
         mission = await get_mission_by_id(mission)
@@ -215,7 +215,7 @@ async def _accept_mission(mission, worker):
     )
 
 
-@ transaction
+@transaction()
 async def reject_mission(mission, worker):
 
     if not isinstance(mission, Mission):
@@ -307,7 +307,7 @@ async def _reject_mission(mission, worker):
         )
 
 
-@ transaction
+@transaction()
 async def finish_mission(mission, worker):
 
     if not isinstance(mission, Mission):
@@ -359,7 +359,7 @@ async def _finish_mission(mission, worker):
     )
 
 
-@ transaction
+@transaction()
 async def delete_mission_by_id(mission, worker):
     if not isinstance(mission, Mission):
         mission = await get_mission_by_id(mission)
@@ -389,7 +389,7 @@ async def _delete_mission(mission, worker):
     )
 
 
-@ transaction
+@transaction()
 async def cancel_mission(mission, worker):
     if not isinstance(mission, Mission):
         mission = await get_mission_by_id(mission)
@@ -450,7 +450,7 @@ async def _cancel_mission(mission, worker):
     await emitter.emit()
 
 
-@ transaction
+@transaction()
 async def assign_mission(mission, worker):
     if (not isinstance(mission, Mission)):
         mission = await get_mission_by_id(mission)
@@ -537,7 +537,7 @@ async def _assign_mission(mission: Mission, worker: User):
         )
 
 
-@ transaction
+@transaction()
 async def request_assistance(mission_id: int, worker: User):
     mission = await get_mission_by_id(mission_id)
 
@@ -605,7 +605,7 @@ async def request_assistance(mission_id: int, worker: User):
         )
 
 
-@ transaction
+@transaction()
 async def set_mission_by_rescue_position(worker: User, rescue_position: str):
 
     # fetch position
