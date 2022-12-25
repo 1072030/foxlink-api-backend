@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import List, Optional
 from pydantic import BaseModel
 from app.core.database import Mission, ShiftType, UserLevel, api_db, User, FactoryMap, Shift
@@ -275,30 +276,31 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
     return [WorkerMissionStats(**m) for m in query]
 
 
-async def get_login_users_percentage_by_recent_24_hours(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> float:
+async def get_login_users_percentage(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> float:
     """取得最近 24 小時登入系統員工的百分比"""
-    total_user_count = await User.objects.filter(
-        level=UserLevel.maintainer.value
-    ).count()
+    query = {
+        "level":UserLevel.maintainer.value,
+    }
+    if shift:
+        query["shift"]= shift.value
+
+    full_days = math.floor((end_date - start_date).total_seconds()/(60*60*24))
+
+    total_user_count = await User.objects.filter(**query).count() * full_days
 
     if total_user_count == 0:
         return 0.0
-
-    utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
-        "m.created_date", "a.created_date")
-    utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
-        "m.created_date", "a.created_date")
 
     result = await api_db.fetch_all(
         f"""
         SELECT count(DISTINCT user) FROM `audit_log_headers` a
         INNER JOIN users u ON a.user = u.badge
         WHERE 
-            action='USER_LOGIN'
-            AND u.level = 1
-            AND (a.created_date BETWEEN :start_date AND :end_date)
-            {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
-            AND u.workshop = :workshop_id;
+            action='USER_LOGIN' AND
+            u.level = {UserLevel.maintainer.value} AND 
+            (a.created_date BETWEEN :start_date AND :end_date) AND
+            {await match_time_interval(shift,"a.created_date")} AND
+            u.workshop = :workshop_id;
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )

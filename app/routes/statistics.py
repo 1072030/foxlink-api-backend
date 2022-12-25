@@ -20,7 +20,7 @@ from app.services.statistics import (
     AbnormalMissionInfo,
     get_top_abnormal_missions,
     get_top_most_crashed_devices,
-    get_login_users_percentage_by_recent_24_hours,
+    get_login_users_percentage,
     get_top_most_accept_mission_employees,
     get_top_most_reject_mission_employees,
     get_top_abnormal_devices,
@@ -71,7 +71,7 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
     top_crashed_devices = await get_top_most_crashed_devices(workshop_id, start_date, end_date, shift, 10)
     top_abnormal_devices = await get_top_abnormal_devices(workshop_id, start_date, end_date, shift, 10)
     top_abnormal_missions = await get_top_abnormal_missions(workshop_id, start_date, end_date, shift, 10)
-    login_users_percentage = await get_login_users_percentage_by_recent_24_hours(workshop_id, start_date, end_date, shift)
+    login_users_percentage = await get_login_users_percentage(workshop_id, start_date, end_date, shift)
     top_mission_accept_employees = await get_top_most_accept_mission_employees(workshop_id, start_date, end_date, shift, 10)
     top_mission_reject_employees = await get_top_most_reject_mission_employees(workshop_id, start_date, end_date, shift, 3)
     emergency_missions = await get_emergency_missions(workshop_id)
