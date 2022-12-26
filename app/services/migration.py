@@ -543,7 +543,12 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) ->
         )
     )
 
-    remove_worker_entities = await query.select_related("assigned_missions").all()
+    remove_worker_entities = (
+        await query
+        .select_related("assigned_missions")
+        .filter(assigned_missions__is_done=False)
+        .all()
+    )
 
     emitter = AsyncEmitter()
     for worker in remove_worker_entities:

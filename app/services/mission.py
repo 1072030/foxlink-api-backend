@@ -248,21 +248,18 @@ async def _reject_mission(mission, worker):
 
     shift_reject_count = worker.shift_reject_count + 1
 
-    await mission.update(
-        notify_send_date=None,
-        notify_recv_date=None,
-        accept_recv_date=None,
-        repair_beg_date=None,
-        repair_end_date=None
-    )
-
     await asyncio.gather(        
         worker.rejected_missions.add(
             mission
         ),
-        worker.assigned_missions.remove(
-            mission
-        ),
+        mission.update(
+            worker=None,
+            notify_send_date=None,
+            notify_recv_date=None,
+            accept_recv_date=None,
+            repair_beg_date=None,
+            repair_end_date=None
+        )
     )
 
     await asyncio.gather(
