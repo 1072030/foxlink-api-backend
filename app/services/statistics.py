@@ -233,7 +233,7 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
         FROM `audit_log_headers`
         INNER JOIN users u ON u.badge = audit_log_headers.`user`
         WHERE 
-            action='MISSION_ACCEPTED'
+            action='MISSION_STARTED'
             AND (audit_log_headers.created_date BETWEEN :start_date AND :end_date)
             AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
