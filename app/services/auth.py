@@ -82,7 +82,7 @@ def get_current_user(light_user=False):
         decode_UUID: str = payload.get("UUID")
 
         if badge is None:
-            raise HTTPException(403, '无法验证凭据')
+            raise HTTPException(403, detail='无法验证凭据')
 
         if light_user:
             user = await get_worker_by_badge(badge, [])
@@ -90,14 +90,17 @@ def get_current_user(light_user=False):
             user = await get_worker_by_badge(badge)
 
         if user is None:
-            raise HTTPException(403, '无法验证凭据')
+            raise HTTPException(403, detail='无法验证凭据')
 
         if expired and decode_UUID == user.current_UUID:
             await user.update(current_UUID="0")
-            raise HTTPException(403, '准证已过期')
+            raise HTTPException(403, detail='准证已过期')
+
+        if user.current_UUID != decode_UUID and user.current_UUID is '0':
+            raise HTTPException(403, detail='系统重启，请重新登入')
 
         elif user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:
-            raise HTTPException(403, '登录另一台设备，请登出')
+            raise HTTPException(403, detail='登录另一台设备，请登出')
 
         return user
 
