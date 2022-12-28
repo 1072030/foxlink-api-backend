@@ -96,7 +96,7 @@ def get_current_user(light_user=False):
             await user.update(current_UUID="0")
             raise HTTPException(403, detail='准证已过期')
 
-        if user.current_UUID != decode_UUID and user.current_UUID is '0':
+        elif user.current_UUID != decode_UUID and user.current_UUID == '0':
             raise HTTPException(403, detail='系统重启，请重新登入')
 
         elif user.current_UUID != decode_UUID and user.level == UserLevel.maintainer.value:

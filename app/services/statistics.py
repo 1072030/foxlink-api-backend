@@ -165,7 +165,7 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
                 e.event_beg_date IS NOT NULL AND 
                 m.repair_end_date IS NOT NULL AND
                 d.workshop = :workshop_id AND
-                (event_beg_date BETWEEN :start_date AND :end_date) AND
+                (event_beg_date BETWEEN :event_start_date AND :event_end_date) AND
                 {await match_time_interval(shift,"repair_end_date")}
             GROUP BY d.id, e.category 
             ORDER BY avg_duration DESC
@@ -173,8 +173,8 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
         """,
         {
             "workshop_id": workshop_id,
-            "start_date": start_date,
-            "end_date": end_date,
+            "event_start_date": start_date + timedelta(hours=8),
+            "event_end_date": end_date+ timedelta(hours=8),
             "limit": limit
         },
     )  # type: ignore
