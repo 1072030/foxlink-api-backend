@@ -167,11 +167,15 @@ async def change_password(
     )
 
 
-@transaction()
 @router.post("/get-off-work", tags=["users"])
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user(True))
 ):
+    return await logout_routine(reason,to_change_status,user)
+
+
+@transaction()
+async def logout_routine(reason,to_change_status,user):
     if user.status != WorkerStatusEnum.idle.value and user.level == UserLevel.maintainer.value:
         raise HTTPException(400, '您不得登出除了闲置状态')
 

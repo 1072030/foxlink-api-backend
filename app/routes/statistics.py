@@ -63,10 +63,25 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
     if not await FactoryMap.objects.filter(name=workshop_name).exists():
         raise HTTPException(404, "workshop_name is not existed")
 
-    shift = ShiftType.day if is_night_shift == False else (
-        ShiftType.night if is_night_shift == True else None)
+    shift = (
+        ShiftType.day 
+        if is_night_shift == False else 
+        (
+            ShiftType.night 
+            if is_night_shift == True else 
+            None
+        )
+    )
 
-    workshop_id = (await FactoryMap.objects.filter(name=workshop_name).exclude_fields(['map', 'image', 'related_devices']).get()).id
+    workshop_id = (
+        (
+            await FactoryMap.objects
+            .filter(name=workshop_name)
+            .exclude_fields(FactoryMap.heavy_fields())
+            .get()
+        )
+        .id
+    )
 
     top_crashed_devices = await get_top_most_crashed_devices(workshop_id, start_date, end_date, shift, 10)
     top_abnormal_devices = await get_top_abnormal_devices(workshop_id, start_date, end_date, shift, 10)
