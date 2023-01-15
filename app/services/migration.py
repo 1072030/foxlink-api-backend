@@ -350,7 +350,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) ->
     update_worker_bulk: List[User] = []
     create_user_device_levels_bulk: List[UserDeviceLevel] = []
     update_user_device_levels_bulk: List[UserDeviceLevel] = []
-
+    
     # fetch occuring workshop related entities
     for workshop in factory_worker_info['workshop'].unique():
         # build entity matching

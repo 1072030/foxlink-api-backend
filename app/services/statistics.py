@@ -50,31 +50,42 @@ class AbnormalMissionInfo(BaseModel):
     duration: int
     created_date: datetime
 
-
+# class getLoginUsersInfo(BaseModel):
+#     getLoginUsersPercentage:List[str]
+#     allEmployees:List[str]
 UTC_NIGHT_SHIFT_FILTER = "AND (TIME(m.created_date) BETWEEN '12:00' AND '23:40') # 夜班 in UTC"
 UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') OR (TIME(m.created_date) BETWEEN '00:00' AND '12:00')) # 白班 in UTC"
 
 LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_beg_date) BETWEEN '20:00' AND '23:59') OR (TIME(event_beg_date) BETWEEN '00:00' AND '07:40'))"
 LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_beg_date) BETWEEN '07:40' AND '20:00')"
-
-
 async def match_time_interval(shift_type: ShiftType, column=None, default="1"):
     if (shift_type):
+        # get_or_none() :与get使用方法相同。区别是找不到结果时不会报错
         shift = await Shift.objects.get_or_none(id=shift_type.value)
+        # 時間 -8
+        #shift.shift_beg_time=07:40:00
         shift.shift_beg_time = (
             datetime.combine(date.today(), shift.shift_beg_time)
             - timedelta(hours=TIMEZONE_OFFSET)
-        ).time()
+        ).time() 
+        #-8 => 23:40:00
 
+        #shift.shift_end_time=19:40:00
         shift.shift_end_time = (
             datetime.combine(date.today(), shift.shift_end_time)
             - timedelta(hours=TIMEZONE_OFFSET)
-        ).time()
-
+        ).time() 
+         #-8 => 11:40:00
+        # column = a.create_date 
+        # 日班的話: 假設選取日期 12月30日 ～ 12月30日
+        # 現實時間     7:40 - 19:40 
+        # 傳入後端時間 23:40 - 11:40
         if (shift and column):
-            if (shift.shift_beg_time > shift.shift_end_time):
+            if (shift.shift_beg_time > shift.shift_end_time): 
+                 #TIME函數 只取得時間
+                 #日班
                 return f"((TIME({column}) BETWEEN '{shift.shift_beg_time}' AND '23:59') OR (TIME({column}) BETWEEN '00:00' AND '{shift.shift_end_time}'))"
-            else:
+            else:#夜班
                 return f"(TIME({column}) BETWEEN '{shift.shift_beg_time}' AND '{shift.shift_end_time}')"
     return default
 
@@ -105,7 +116,9 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
 
 async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10) -> List[AbnormalMissionInfo]:
     """統計當月異常任務，根據處理時間由高排序到低。"""
-
+    start_date = start_date-timedelta(days=1) 
+    start_date = start_date.replace(hour=23,minute=40)
+    end_date = end_date.replace(hour=23,minute=40)
     abnormal_missions = await api_db.fetch_all(
         f"""
             SELECT 
@@ -148,6 +161,9 @@ async def get_top_abnormal_missions(workshop_id: int, start_date: datetime, end_
 
 async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit=10):
     """根據歷史並依照設備的 Category 統計設備異常情形，並將員工對此異常情形由處理時間由低排序到高，取前三名。"""
+    start_date = start_date-timedelta(days=1) 
+    start_date = start_date.replace(hour=23,minute=40)
+    end_date = end_date.replace(hour=23,minute=40)
     abnormal_devices: List[AbnormalDeviceInfo] = await api_db.fetch_all(
         f"""
             SELECT 
@@ -276,37 +292,49 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
     return [WorkerMissionStats(**m) for m in query]
 
 
-async def get_login_users_percentage(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> float:
+async def get_login_users_percentage(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> List[str]:
     """取得最近 24 小時登入系統員工的百分比"""
     query = {
         "level":UserLevel.maintainer.value,
     }
     if shift:
         query["shift"]= shift.value
-
-    full_days = math.floor((end_date - start_date).total_seconds()/(60*60*24))
-
+    # 實際回傳資料庫第一天需要減一
+    start_date = start_date-timedelta(days=1) 
+    full_days = round((end_date - start_date).total_seconds()/(60*60*24))
+    # 搜尋符合條件的人數總數 * 天數
+    if full_days == 0:
+        full_days+=1
+    #取得全部員工有分別日夜班    
     total_user_count = await User.objects.filter(**query).count() * full_days
-
     if total_user_count == 0:
         return 0.0
-
+    # 設定起始時間與結束時間
+    start_date = start_date.replace(hour=23,minute=40)
+    end_date = end_date.replace(hour=23,minute=40)
+    # 從log中選取登入人數 加入 users a.user欄位 連接 u.badge欄位
+    # Where action是登入 還有等級是maintainer
+    # log中的建立時間代表上線時間 a.create_date 在你選中的兩個"日期"內
+    # 日班夜班的區間
+    # log中的workshop欄位 要對應到 workshop_id欄位
     result = await api_db.fetch_all(
         f"""
-        SELECT count(DISTINCT user) FROM `audit_log_headers` a
+        SELECT DISTINCT u.badge,u.username,u.current_UUID,u.shift FROM `audit_log_headers` a
         INNER JOIN users u ON a.user = u.badge
         WHERE 
             action='USER_LOGIN' AND
             u.level = {UserLevel.maintainer.value} AND 
             (a.created_date BETWEEN :start_date AND :end_date) AND
-            {await match_time_interval(shift,"a.created_date")} AND
+            {await match_time_interval(shift,"a.created_date")} AND 
             u.workshop = :workshop_id;
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )
-
-    return round(result[0][0] / total_user_count, 3)
-
+    return [{
+        "percentage":round(result.__len__() / total_user_count, 3),
+        "login_users":result
+    }]
+            
 
 async def get_emergency_missions(workshop_id: int) -> List[MissionDto]:
     """取得當下緊急任務列表"""
