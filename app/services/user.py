@@ -265,6 +265,8 @@ async def get_users_overview(workshop_name: str) -> DayAndNightUserOverview:
 
             if u.superior is not None:
                 overview.superior = u.superior.username
+            else:
+                overview.superior = u.username
 
             device_levels = (
                 await UserDeviceLevel.objects

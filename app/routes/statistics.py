@@ -46,7 +46,7 @@ class Stats(BaseModel):
     devices_stats: DeviceStats
     top_most_reject_mission_employees: List[WorkerMissionStats]
     top_most_accept_mission_employees: List[WorkerMissionStats]
-    login_users_percentage_this_week: float
+    login_users_percentage_this_week: List[Any]
 
 
 @router.get("/", response_model=Stats, tags=["statistics"])
