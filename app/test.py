@@ -98,11 +98,9 @@ async def main(username="admin", password="foxlink", client_id=""):
 
             if not DISABLE_STARTUP_RESCUE_MISSION and not user.start_position == None:
                 # give rescue missiong if condition match
-                emitter.add(
-                    set_mission_by_rescue_position(
-                        user,
-                        user.start_position.id
-                    )
+                await set_mission_by_rescue_position(
+                    user,
+                    user.start_position.id
                 )
             else:
                 changes.status = WorkerStatusEnum.idle.value

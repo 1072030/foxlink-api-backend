@@ -333,7 +333,7 @@ async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> 
     return data["parameter"]
 
 
-@transaction()
+@transaction(force=True)
 async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) -> pd.DataFrame:
 
     raw_excel: bytes = await worker_file.read()

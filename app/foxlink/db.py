@@ -20,15 +20,15 @@ class FoxlinkDatabasePool:
         self.event_dbs: Dict[str, Database] = {
             host: Database(
                 f"mysql+aiomysql://{FOXLINK_EVENT_DB_USER}:{FOXLINK_EVENT_DB_PWD}@{host}/{FOXLINK_EVENT_DB_NAME}",
-                min_size=5,
-                max_size=20,
+                min_size=3,
+                max_size=5
             )
             for host in FOXLINK_EVENT_DB_HOSTS
         }
         self.device_db = Database(
             f"mysql+aiomysql://{FOXLINK_DEVICE_DB_USER}:{FOXLINK_DEVICE_DB_PWD}@{FOXLINK_DEVICE_DB_HOST}/{FOXLINK_DEVICE_DB_NAME}",
-            min_size=5,
-            max_size=20,
+            min_size=3,
+            max_size=5
         )
 
     def __getitem__(self, key):
@@ -139,7 +139,7 @@ class FoxlinkDatabasePool:
 
     async def get_all_db_tables(self) -> List[List[str]]:
         get_table_names_routines = [
-            self.get_db_tables(host) 
+            self.get_db_tables(host)
             for host in self.event_dbs.keys()
         ]
         return await asyncio.gather(*get_table_names_routines)

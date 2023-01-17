@@ -25,7 +25,7 @@ from app.env import (
 
 DATABASE_URI = f"mysql+aiomysql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-api_db = databases.Database(DATABASE_URI, min_size=3, max_size=5)
+api_db = databases.Database(DATABASE_URI, min_size=3, max_size=5, pool_recycle=180)
 
 metadata = MetaData()
 
@@ -50,20 +50,37 @@ def get_ntz_min():
 def transaction(force=False):
     def decor(func):
         async def wrapper(*args, **_args):
-            _transaction = (api_db.transaction(isolation="serializable",force_rollback=force))
-            result = None
             try:
-                await _transaction.start()
-                result = await func(*args, **_args)
+                async with api_db.transaction(isolation="serializable",force_rollback=force):
+                    return await func(*args, **_args)
             except Exception as e:
                 print(f"error in transaction: {repr(e)}")
-                await _transaction.rollback()
                 raise e
-            else:
-                await _transaction.commit()
-                return result
+
         return wrapper
     return decor
+
+# def transaction(force=False):
+#     def decor(func):
+#         async def wrapper(*args, **_args):
+#             try:
+#                 _transaction = await api_db.transaction(isolation="serializable",force_rollback=force)
+#                 result = None
+#                 try:
+#                     await _transaction.start()
+#                     result = await func(*args, **_args)
+#                 except Exception as e:
+#                     await _transaction.rollback()
+#                     raise e
+#                 else:
+#                     await _transaction.commit()
+#                     return result
+#             except Exception as e:
+#                 print(f"error in transaction: {repr(e)}")
+#                 raise e
+
+#         return wrapper
+#     return decor
 
 
 def transaction_with_logger(logger):
@@ -188,8 +205,8 @@ class FactoryMap(ormar.Model):
     @staticmethod
     def heavy_fields(represent="") -> List["str"]:
         return [
-            field if len(represent)== 0 else f"{represent}__{field}"
-            for field in ["map","related_devices","image"]
+            field if len(represent) == 0 else f"{represent}__{field}"
+            for field in ["map", "related_devices", "image"]
         ]
 
 
@@ -247,7 +264,7 @@ class Device(ormar.Model):
     x_axis: float = ormar.Float(nullable=False)
     y_axis: float = ormar.Float(nullable=False)
     is_rescue: bool = ormar.Boolean(default=False)
-    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True,nullable=False)
+    workshop: FactoryMap = ormar.ForeignKey(FactoryMap, index=True, nullable=False)
     sop_link: str = ormar.String(max_length=128, nullable=True)
     created_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
     updated_date: datetime = ormar.DateTime(default=get_ntz_now, timezone=True)
@@ -303,8 +320,8 @@ class Mission(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True, index=True)
     name: str = ormar.String(max_length=100, nullable=False)
-    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE",nullable=False)
-    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="assigned_missions",nullable=True)
+    device: Device = ormar.ForeignKey(Device, ondelete="CASCADE", nullable=False)
+    worker: User = ormar.ForeignKey(User, ondelete="SET NULL", related_name="assigned_missions", nullable=True)
     rejections: Optional[List[User]] = ormar.ManyToMany(User, related_name="rejected_missions")
     description: str = ormar.String(max_length=256, nullable=False)
 
@@ -414,22 +431,24 @@ class WhitelistDevice(ormar.Model):
 MissionEvent.update_forward_refs()
 User.update_forward_refs()
 
-def unset_nullables(obj,model):
-    if( isinstance(obj,model) ):
+
+def unset_nullables(obj, model):
+    if (isinstance(obj, model)):
         obj = model(
             **{
-                k:v
-                for k,v in obj.dict().items()
+                k: v
+                for k, v in obj.dict().items()
                 if (
                     k in model.__fields__ and (
-                        k == obj.pk_column.name or 
+                        k == obj.pk_column.name or
                         model.__fields__[k].required
                     )
-                    
+
                 )
             }
         )
     return obj
+
 
 @pre_update([User, Device, FactoryMap, Mission, MissionEvent, UserDeviceLevel, WhitelistDevice])
 async def before_update(sender, instance, **kwargs):
