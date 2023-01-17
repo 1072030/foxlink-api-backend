@@ -15,7 +15,6 @@ from app.core.database import (
     api_db,
     transaction
 )
-from app.services.mission import set_mission_by_rescue_position
 from app.services.user import (
     check_user_begin_shift,
     get_user_summary,
@@ -121,6 +120,8 @@ async def get_user_himself_info(user: User = Depends(get_current_user())):
     )
 
 # RUBY: add api check worker-summary
+
+
 @router.get("/worker-summary", response_model=WorkerSummary, tags=["users"])
 async def get_worker_summary(user: User = Depends(get_current_user())):
     return await get_user_summary(user.badge)
@@ -171,11 +172,11 @@ async def change_password(
 async def get_off_work(
     reason: LogoutReasonEnum, to_change_status: bool = True, user: User = Depends(get_current_user(True))
 ):
-    return await logout_routine(reason,to_change_status,user)
+    return await logout_routine(reason, to_change_status, user)
 
 
 @transaction()
-async def logout_routine(reason,to_change_status,user):
+async def logout_routine(reason, to_change_status, user):
     if user.status != WorkerStatusEnum.idle.value and user.level == UserLevel.maintainer.value:
         raise HTTPException(400, '您不得登出除了闲置状态')
 

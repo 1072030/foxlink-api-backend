@@ -656,21 +656,20 @@ if __name__ == "__main__":
                         selected_worker
                     )
                 )
-
                 # assign mission
-                await asyncio.gather(
-                    assign_mission(
-                        mission,
-                        selected_worker
-                    ),
-
-                    AuditLogHeader.objects.create(
-                        table_name="missions",
-                        record_pk=mission.id,
-                        action=AuditActionEnum.MISSION_ASSIGNED.value,
-                        user=selected_worker
-                    )
+                await assign_mission(
+                    mission,
+                    selected_worker
                 )
+
+                await AuditLogHeader.objects.create(
+                    table_name="missions",
+                    record_pk=mission.id,
+                    action=AuditActionEnum.MISSION_ASSIGNED.value,
+                    user=selected_worker
+                )
+                
+
 
                 # exclude this worker from further dispatch process.
                 exclude_workers.add(selected_worker)
@@ -1107,7 +1106,7 @@ if __name__ == "__main__":
                 logger.error(f"{e}")
                 logger.error(f"Cannot connect to the databases and servers")
                 logger.error(f"Reconnect in 5 seconds...")
-                await asyncio.wait(5)
+                await asyncio.sleep(5)
             else:
                 logger.info("All Connections Created.")
                 break
@@ -1167,13 +1166,20 @@ if __name__ == "__main__":
 
                 if (end_time - beg_time < MAIN_ROUTINE_MIN_RUNTIME):
                     await asyncio.sleep(max(MAIN_ROUTINE_MIN_RUNTIME - (end_time - beg_time), 0))
-
+            except InterfaceError as e:
+                logger.error(f'Connection error occur in general routines: {repr(e)}')
+                traceback.print_exc()
+                logger.error(f'Waiting 3 seconds to restart...')
+                await asyncio.sleep(3)
+                continue
             except Exception as e:
-                logger.error(
-                    f'Unknown excpetion occur in general routines: {repr(e)}')
+                logger.error(f'Unknown excpetion occur in general routines: {repr(e)}')
                 traceback.print_exc()
                 logger.error(f'Waiting 5 seconds to restart...')
                 await asyncio.sleep(5)
+                continue
+            else:
+                continue
 
     async def notify_routine():
         global _terminate
@@ -1184,8 +1190,7 @@ if __name__ == "__main__":
                 await asyncio.sleep(1)
 
             except Exception as e:
-                logger.error(
-                    f'Unknown excpetion in notify routines: {repr(e)}')
+                logger.error(f'Unknown excpetion in notify routines: {repr(e)}')
                 traceback.print_exc()
                 logger.error(f'Waiting 5 seconds to restart...')
                 await asyncio.sleep(5)
@@ -1200,13 +1205,17 @@ if __name__ == "__main__":
         logger.info("Daemon Initilialized.")
 
         ###################################################
+
         # connect to services
         await connect_services()
-        # main loop
-        await asyncio.gather(
-            general_routine()
-            # ,notify_routine()
-        )
+        try:
+            # main loop
+            await asyncio.gather(
+                general_routine()
+                # ,notify_routine()
+            )
+        except Exception as e:
+            logger.error(f"Exception Caught at main:{e}")
         # disconnect to services
         await disconnect_services()
         ###################################################

@@ -39,7 +39,7 @@ RUN apt-get install bmon -y
 COPY requirements.txt /app/
 
 # install dependencies
-RUN pip install -r requirements.txt
+RUN pip install --no-deps -r requirements.txt
 
 
 COPY prestart.sh /app/
