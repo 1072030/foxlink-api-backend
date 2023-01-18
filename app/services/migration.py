@@ -125,8 +125,8 @@ async def fn_worker_start_position(df_w, df_m):  # 輸入車間機台座標資�
     # print(set(test_workerinfo["parameter"]["shift"].dropna()))
 
 
-@transaction(force=True)
-async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str], pd.DataFrame]:
+@transaction(callback=True)
+async def import_devices(excel_file: UploadFile, user: User, handler=[]) -> Tuple[List[str], pd.DataFrame]:
 
     frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
 
@@ -242,21 +242,20 @@ async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str],
 
         current_all_device_ids += current_workshop_device_ids
 
-        if(
-        (
-            await Mission.objects
-            .exclude(
+        if (
+            (
+                await Mission.objects
+                .exclude(
                 device__in=current_workshop_device_ids
-            )
-            .filter(
+                )
+                .filter(
                 is_done=False,
                 worker__isnull=False
-            )
-            .count() 
-        ) > 0
+                )
+                .count()
+            ) > 0
         ):
             raise Exception("trying to remove device that are still working by or assigned to a worker.")
-
 
         # update soft settings of devices
         if (len(update_device_bulk[workshop]) > 0):
@@ -281,7 +280,7 @@ async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str],
             )
             .all()
         ):
-            emitter.add(_cancel_mission(mission, user))
+            emitter.add(_cancel_mission(mission, user, handler=handler))
     await emitter.emit()
 
     emitter = AsyncEmitter()
@@ -313,7 +312,7 @@ async def import_devices(excel_file: UploadFile, user: User) -> Tuple[List[str],
     await Device.objects.exclude(id__in=current_all_device_ids).delete(each=True)
 
     await set_start_position_df()
-    
+
     return frame["id"].unique().tolist(), params
 
 
@@ -333,7 +332,7 @@ async def calcuate_factory_layout_matrix(workshop: str, frame: pd.DataFrame) -> 
     return data["parameter"]
 
 
-@transaction(force=True)
+@transaction()
 async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) -> pd.DataFrame:
 
     raw_excel: bytes = await worker_file.read()
@@ -350,7 +349,7 @@ async def import_factory_worker_infos(workshop: str, worker_file: UploadFile) ->
     update_worker_bulk: List[User] = []
     create_user_device_levels_bulk: List[UserDeviceLevel] = []
     update_user_device_levels_bulk: List[UserDeviceLevel] = []
-    
+
     # fetch occuring workshop related entities
     for workshop in factory_worker_info['workshop'].unique():
         # build entity matching

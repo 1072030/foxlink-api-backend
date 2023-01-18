@@ -108,9 +108,9 @@ if __name__ == "__main__":
             msg = f"{device_id} device is not in the map {factory_map.name}"
             raise ValueError(msg)
 
-    @transaction()
+    @transaction(callback=True)
     @ show_duration
-    async def send_mission_notification_routine():
+    async def send_mission_notification_routine(handler=[]):
         missions = (
             await Mission.objects
             .filter(
@@ -134,65 +134,69 @@ if __name__ == "__main__":
 
         async def driver(m: Mission):
             if m.device.is_rescue == False:
-                await mqtt_client.publish(
-                    f"foxlink/users/{m.worker.current_UUID}/missions",
-                    {
-                        "type": "new",
-                        "mission_id": m.id,
-                        "worker_now_position": m.worker.at_device.id,
-                        "badge": m.worker.badge,
-                        # RUBY: set worker now position and badge
-                        "create_date": m.created_date,
-                        "device": {
-                            "device_id": m.device.id,
-                            "device_name": m.device.device_name,
-                            "device_cname": m.device.device_cname,
-                            "workshop": m.device.workshop.name,
-                            "project": m.device.project,
-                            "process": m.device.process,
-                            "line": m.device.line,
+                handler.append(
+                    mqtt_client.publish(
+                        f"foxlink/users/{m.worker.current_UUID}/missions",
+                        {
+                            "type": "new",
+                            "mission_id": m.id,
+                            "worker_now_position": m.worker.at_device.id,
+                            "badge": m.worker.badge,
+                            # RUBY: set worker now position and badge
+                            "create_date": m.created_date,
+                            "device": {
+                                "device_id": m.device.id,
+                                "device_name": m.device.device_name,
+                                "device_cname": m.device.device_cname,
+                                "workshop": m.device.workshop.name,
+                                "project": m.device.project,
+                                "process": m.device.process,
+                                "line": m.device.line,
+                            },
+                            "name": m.name,
+                            "description": m.description,
+                            "notify_receive_date": None,
+                            "notify_send_date": m.notify_send_date,
+                            "events": [
+                                MissionEventOut.from_missionevent(e).dict()
+                                for e in m.events
+                            ],
+                            "timestamp": get_ntz_now()
                         },
-                        "name": m.name,
-                        "description": m.description,
-                        "notify_receive_date": None,
-                        "notify_send_date": m.notify_send_date,
-                        "events": [
-                            MissionEventOut.from_missionevent(e).dict()
-                            for e in m.events
-                        ],
-                        "timestamp": get_ntz_now()
-                    },
-                    qos=2,
-                    retain=True
+                        qos=2,
+                        retain=True
+                    )
                 )
             else:
-                await mqtt_client.publish(
-                    f"foxlink/users/{m.worker.current_UUID}/move-rescue-station",
-                    {
-                        "type": "rescue",
-                        "mission_id": m.id,
-                        "worker_now_position": m.worker.at_device.id,
-                        "badge": m.worker.badge,
-                        # RUBY: set worker now position and badge
-                        "create_date": m.created_date,
-                        "device": {
-                            "device_id": m.device.id,
-                            "device_name": m.device.device_name,
-                            "device_cname": m.device.device_cname,
-                            "workshop": m.device.workshop.name,
-                            "project": m.device.project,
-                            "process": m.device.process,
-                            "line": m.device.line,
+                handler.append(
+                    mqtt_client.publish(
+                        f"foxlink/users/{m.worker.current_UUID}/move-rescue-station",
+                        {
+                            "type": "rescue",
+                            "mission_id": m.id,
+                            "worker_now_position": m.worker.at_device.id,
+                            "badge": m.worker.badge,
+                            # RUBY: set worker now position and badge
+                            "create_date": m.created_date,
+                            "device": {
+                                "device_id": m.device.id,
+                                "device_name": m.device.device_name,
+                                "device_cname": m.device.device_cname,
+                                "workshop": m.device.workshop.name,
+                                "project": m.device.project,
+                                "process": m.device.process,
+                                "line": m.device.line,
+                            },
+                            "name": m.name,
+                            "description": m.description,
+                            "notify_receive_date": None,
+                            "notify_send_date": m.notify_send_date,
+                            "events": [],
+                            "timestamp": get_ntz_now()
                         },
-                        "name": m.name,
-                        "description": m.description,
-                        "notify_receive_date": None,
-                        "notify_send_date": m.notify_send_date,
-                        "events": [],
-                        "timestamp": get_ntz_now()
-                    },
-                    qos=2,
-                    retain=True
+                        qos=2,
+                        retain=True
+                    )
                 )
 
         await asyncio.gather(
@@ -203,9 +207,9 @@ if __name__ == "__main__":
 
     # done
 
-    @transaction()
+    @transaction(callback=True)
     @ show_duration
-    async def mission_shift_routine():
+    async def mission_shift_routine(handler=[]):
         # filter out non-rescue missions that're in process but hasn't completed
         working_missions = (
             await Mission.objects
@@ -281,9 +285,10 @@ if __name__ == "__main__":
                     description=f"員工換班，維修時長: {get_ntz_now() - mission.repair_beg_date if mission.repair_beg_date is not None else 0}",
                     user=mission.worker.badge,
                     record_pk=mission.id,
-                ),
-
-                # send mission finish message
+                )
+            )
+            # send mission finish message
+            handler.append(
                 mqtt_client.publish(
                     f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                     {
@@ -306,9 +311,9 @@ if __name__ == "__main__":
         )
         return
 
-    @transaction()
+    @transaction(callback=True)
     @ show_duration
-    async def move_idle_workers_to_rescue_device():
+    async def move_idle_workers_to_rescue_device(handler=[]):
         # find idle workers that're not at rescue devices and request them to return.
         workshop_rescue_entity_dict: Dict[
             int, Tuple[FactoryMap, List[Device]]
@@ -390,13 +395,13 @@ if __name__ == "__main__":
 
             # select the best rescue station based on the the user's current device location
             selected_rescue_station = dispatch.move_to_rescue(rescue_distances)
-            await set_mission_by_rescue_position(worker, selected_rescue_station)
+            await set_mission_by_rescue_position(worker, selected_rescue_station, handler=handler)
 
     # done
 
-    @transaction()
+    @transaction(callback=True)
     @ show_duration
-    async def mission_dispatch():
+    async def mission_dispatch(handler=[]):
         """處理任務派工給員工的過程"""
 
         # 取得所有未指派的任務
@@ -637,11 +642,13 @@ if __name__ == "__main__":
                     await mission.update(is_lonely=True)
                     mission_is_lonely = MissionDto.from_mission(mission).dict()
                     mission_is_lonely["timestamp"] = get_ntz_now()
-                    await mqtt_client.publish(
-                        f"foxlink/{workshop.name}/no-available-worker",
-                        mission_is_lonely,
-                        qos=2,
-                        retain=True
+                    handler.append(
+                        mqtt_client.publish(
+                            f"foxlink/{workshop.name}/no-available-worker",
+                            mission_is_lonely,
+                            qos=2,
+                            retain=True
+                        )
                     )
 
             else:
@@ -659,7 +666,8 @@ if __name__ == "__main__":
                 # assign mission
                 await assign_mission(
                     mission,
-                    selected_worker
+                    selected_worker,
+                    handler=handler
                 )
 
                 await AuditLogHeader.objects.create(
@@ -668,8 +676,6 @@ if __name__ == "__main__":
                     action=AuditActionEnum.MISSION_ASSIGNED.value,
                     user=selected_worker
                 )
-                
-
 
                 # exclude this worker from further dispatch process.
                 exclude_workers.add(selected_worker)
@@ -679,15 +685,14 @@ if __name__ == "__main__":
                 if (assigned_mission_counter == 50):
                     break
 
-        logger.info(
-            f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
+        logger.info(f"This dispatch cycle successfully assigned {assigned_mission_counter} missions!")
 
     ######### mission overtime  ########
     # half-done
 
-    @transaction()
-    @ show_duration
-    async def check_mission_working_duration_overtime():
+    @transaction(callback=True)
+    @show_duration
+    async def check_mission_working_duration_overtime(handler=[]):
         """檢查任務持續時間，如果超過一定時間，則發出通知給員工上級但是不取消任務"""
         working_missions = (
             await Mission.objects
@@ -727,18 +732,20 @@ if __name__ == "__main__":
                             user=mission.worker.badge,
                         )
 
-                        await mqtt_client.publish(
-                            f"foxlink/users/{superior.badge}/mission-overtime",
-                            {
-                                "mission_id": mission.id,
-                                "mission_name": mission.name,
-                                "worker_id": mission.worker.badge,
-                                "worker_name": mission.worker.username,
-                                "duration": mission_duration_seconds,
-                                "timestamp": get_ntz_now()
-                            },
-                            qos=2,
-                            retain=True
+                        handler.append(
+                            mqtt_client.publish(
+                                f"foxlink/users/{superior.badge}/mission-overtime",
+                                {
+                                    "mission_id": mission.id,
+                                    "mission_name": mission.name,
+                                    "worker_id": mission.worker.badge,
+                                    "worker_name": mission.worker.username,
+                                    "duration": mission_duration_seconds,
+                                    "timestamp": get_ntz_now()
+                                },
+                                qos=2,
+                                retain=True
+                            )
                         )
                         await mission.update(overtime_level=i + 1)
 
@@ -746,9 +753,9 @@ if __name__ == "__main__":
 
     # done
 
-    @transaction()
+    @transaction(callback=True)
     @ show_duration
-    async def check_mission_assign_duration_overtime():
+    async def check_mission_assign_duration_overtime(handler=[]):
         """檢查任務assign給worker後到他真正接受任務時間，如果超過一定時間，則發出通知給員工上級並且取消任務"""
 
         assign_mission_check = (
@@ -767,21 +774,23 @@ if __name__ == "__main__":
             if mission.assign_duration.total_seconds() / 60 >= MISSION_ASSIGN_OT_MINUTES:
                 # TODO: missing notify supervisor
 
-                await mqtt_client.publish(
-                    f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
-                    {
-                        "mission_id": mission.id,
-                        "badge": mission.worker.badge,
-                        # RUBY: set worker badge
-                        "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
-                        "description": "over-time-no-action",
-                        "timestamp": get_ntz_now()
-                    },
-                    qos=2,
-                    retain=True
+                handler.append(
+                    mqtt_client.publish(
+                        f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+                        {
+                            "mission_id": mission.id,
+                            "badge": mission.worker.badge,
+                            # RUBY: set worker badge
+                            "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
+                            "description": "over-time-no-action",
+                            "timestamp": get_ntz_now()
+                        },
+                        qos=2,
+                        retain=True
+                    )
                 )
 
-                await reject_mission(mission.id, mission.worker)
+                await reject_mission(mission.id, mission.worker, handler=handler)
 
                 await AuditLogHeader.objects.create(
                     action=AuditActionEnum.MISSION_ACCEPT_OVERTIME.value,
@@ -792,7 +801,7 @@ if __name__ == "__main__":
 
     ######### events completed  ########
 
-    async def update_complete_events(event: MissionEvent):
+    async def update_complete_events(event: MissionEvent, handler=[]):
         e = await get_incomplete_event_from_table(
             event.host,
             event.table_name,
@@ -839,7 +848,9 @@ if __name__ == "__main__":
                         mission.worker.update(
                             status=WorkerStatusEnum.idle.value,
                             finish_event_date=get_ntz_now()
-                        ),
+                        )
+                    )
+                    handler.append(
                         mqtt_client.publish(
                             f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                             {
@@ -920,9 +931,9 @@ if __name__ == "__main__":
     #         return True
     #     return False
 
-    @transaction()
+    @transaction(callback=True)
     @ show_duration
-    async def update_complete_events_handler():
+    async def update_complete_events_handler(handler=[]):
         """檢查目前尚未完成的任務，同時向正崴資料庫抓取最新的故障狀況，如完成則更新狀態"""
         # TODO: can further optimize
         incomplete_mission_events = (
@@ -937,7 +948,7 @@ if __name__ == "__main__":
         )
 
         await asyncio.gather(*[
-            update_complete_events(event)
+            update_complete_events(event, handler=handler)
             for event in incomplete_mission_events
         ])
 

@@ -38,8 +38,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return await login_routine(form_data)
 
 
-@transaction()
-async def login_routine(form_data):
+@transaction(callback=True)
+async def login_routine(form_data, handler=[]):
     user = await authenticate_user(form_data.username, form_data.password)
 
     if user.status == WorkerStatusEnum.working.value:
@@ -102,7 +102,8 @@ async def login_routine(form_data):
                 # give rescue missiong if condition match
                 await set_mission_by_rescue_position(
                     user,
-                    user.start_position.id
+                    user.start_position.id,
+                    handler=handler
                 )
             else:
                 changes.status = WorkerStatusEnum.idle.value

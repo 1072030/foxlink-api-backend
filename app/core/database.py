@@ -3,6 +3,7 @@ import ormar
 import uuid
 import traceback
 import sqlalchemy
+import asyncio
 from datetime import date, timedelta, datetime, time
 from typing import Optional, List, ForwardRef
 from enum import Enum
@@ -47,12 +48,25 @@ def get_ntz_min():
     return datetime.fromisoformat("1990-01-01 00:00:00")
 
 
-def transaction(force=False):
+def transaction(callback=False):
     def decor(func):
         async def wrapper(*args, **_args):
             try:
-                async with api_db.transaction(isolation="serializable",force_rollback=force):
-                    return await func(*args, **_args)
+                result = None
+                if (callback):
+                    root = not "handler" in _args
+                    if (root):
+                        _args["handler"] = []
+                    async with api_db.transaction(isolation="serializable"):
+                        result = await func(*args, **_args)
+                    if (root and len(_args["handler"]) > 0):
+                        await asyncio.gather(*_args["handler"])
+
+                else:
+                    async with api_db.transaction(isolation="serializable"):
+                        result = await func(*args, **_args)
+                return result
+
             except Exception as e:
                 print(f"error in transaction: {repr(e)}")
                 raise e

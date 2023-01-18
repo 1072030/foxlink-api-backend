@@ -348,7 +348,7 @@ class Transaction:
         Called when exiting `async with database.transaction()`
         """
         if exc_type is not None or self._force_rollback:
-            if exc_type == OperationalError and exc_value and exc_value.args[0] == 2013:
+            if exc_type == OperationalError and exc_value:
                 await self.rollback(skip=True)
                 raise exc_value
             else:
@@ -396,7 +396,11 @@ class Transaction:
         async with self._connection._transaction_lock:
             assert self._connection._transaction_stack[-1] is self
             self._connection._transaction_stack.pop()
-            await self._transaction.commit()
+            try:
+                await self._transaction.commit()
+            except OperationalError as e:
+                await self._connection.__aexit__()
+                raise e
             await self._connection.__aexit__()
 
     async def rollback(self,skip=False) -> None:
@@ -404,7 +408,11 @@ class Transaction:
             assert self._connection._transaction_stack[-1] is self
             self._connection._transaction_stack.pop()
             if not skip:
-                await self._transaction.rollback()
+                try:
+                    await self._transaction.rollback()
+                except OperationalError as e:
+                    await self._connection.__aexit__()
+                    raise e
             await self._connection.__aexit__()
 
 

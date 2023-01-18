@@ -58,7 +58,7 @@ async def get_mission_by_id(
             select_fields
         )
         .exclude_fields(
-           FactoryMap.heavy_fields("device__workshop")
+            FactoryMap.heavy_fields("device__workshop")
         )
         .filter(id=id)
         .get_or_none()
@@ -67,7 +67,8 @@ async def get_mission_by_id(
     return mission
 
 
-async def update_mission_by_id(id: int, dto: MissionUpdate):
+@transaction(callback=True)
+async def update_mission_by_id(id: int, dto: MissionUpdate, handler=[]):
     mission = await get_mission_by_id(id)
     if mission is None:
         raise HTTPException(
@@ -83,7 +84,7 @@ async def update_mission_by_id(id: int, dto: MissionUpdate):
 
     if dto.worker is not None:
         await mission.update(worker=None)  # type: ignore
-        await assign_mission(id, dto.worker)
+        await assign_mission(id, dto.worker, handler=handler)
 
 
 async def click_mission_by_id(mission_id: int, worker: User):
@@ -215,8 +216,8 @@ async def _accept_mission(mission, worker):
     )
 
 
-@transaction()
-async def reject_mission(mission, worker):
+@transaction(callback=True)
+async def reject_mission(mission, worker, handler=[]):
 
     if not isinstance(mission, Mission):
         mission = await get_mission_by_id(mission)
@@ -224,10 +225,10 @@ async def reject_mission(mission, worker):
     if not isinstance(worker, User):
         worker = await get_worker_by_badge(worker)
 
-    await _reject_mission(mission, worker)
+    await _reject_mission(mission, worker, handler=handler)
 
 
-async def _reject_mission(mission, worker):
+async def _reject_mission(mission, worker, handler=[]):
     if mission is None:
         raise HTTPException(
             200, "未找到您要求开始的任务")
@@ -248,12 +249,11 @@ async def _reject_mission(mission, worker):
 
     shift_reject_count = worker.shift_reject_count + 1
 
-    await asyncio.gather(        
+    await asyncio.gather(
         worker.rejected_missions.add(
             mission
         ),
         mission.update(
-            worker=None,
             notify_send_date=None,
             notify_recv_date=None,
             accept_recv_date=None,
@@ -261,6 +261,9 @@ async def _reject_mission(mission, worker):
             repair_end_date=None
         )
     )
+
+    _worker = mission.worker
+    await _worker.assigned_missions.remove(mission)
 
     await asyncio.gather(
         worker.update(
@@ -277,30 +280,34 @@ async def _reject_mission(mission, worker):
     )
 
     if mission_reject_count >= MISSION_REJECT_AMOUT_NOTIFY:  # type: ignore
-        await mqtt_client.publish(
-            f"foxlink/{mission.device.workshop.name}/mission/rejected",
-            {
-                "id": mission.id,
-                "worker": worker.username,
-                "rejected_count": mission_reject_count,
-                "timestamp": get_ntz_now()
-            },
-            qos=2,
-            retain=True,
+        handler.append(
+            mqtt_client.publish(
+                f"foxlink/{mission.device.workshop.name}/mission/rejected",
+                {
+                    "id": mission.id,
+                    "worker": worker.username,
+                    "rejected_count": mission_reject_count,
+                    "timestamp": get_ntz_now()
+                },
+                qos=2,
+                retain=True,
+            )
         )
 
     if shift_reject_count >= WORKER_REJECT_AMOUNT_NOTIFY:  # type: ignore
 
-        await mqtt_client.publish(
-            f"foxlink/users/{worker.superior.badge}/subordinate-rejected",
-            {
-                "subordinate_id": worker.badge,
-                "subordinate_name": worker.username,
-                "total_rejected_count": worker.shift_reject_count,
-                "timestamp": get_ntz_now()
-            },
-            qos=2,
-            retain=True,
+        handler.append(
+            mqtt_client.publish(
+                f"foxlink/users/{worker.superior.badge}/subordinate-rejected",
+                {
+                    "subordinate_id": worker.badge,
+                    "subordinate_name": worker.username,
+                    "total_rejected_count": worker.shift_reject_count,
+                    "timestamp": get_ntz_now()
+                },
+                qos=2,
+                retain=True,
+            )
         )
 
 
@@ -386,18 +393,18 @@ async def _delete_mission(mission, worker):
     )
 
 
-@transaction()
-async def cancel_mission(mission, worker):
+@transaction(callback=True)
+async def cancel_mission(mission, worker, handler=[]):
     if not isinstance(mission, Mission):
         mission = await get_mission_by_id(mission)
 
     if not isinstance(worker, User):
         worker = await get_worker_by_badge(worker)
 
-    await _cancel_mission(mission, worker)
+    await _cancel_mission(mission, worker, handler=handler)
 
 
-async def _cancel_mission(mission, worker):
+async def _cancel_mission(mission, worker, handler=[]):
     emitter = AsyncEmitter()
 
     if mission is None:
@@ -415,7 +422,9 @@ async def _cancel_mission(mission, worker):
             mission.worker.update(
                 finish_event_date=get_ntz_now(),
                 status=WorkerStatusEnum.idle.value,
-            ),
+            )
+        )
+        handler.append(
             mqtt_client.publish(
                 f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
                 {
@@ -447,18 +456,18 @@ async def _cancel_mission(mission, worker):
     await emitter.emit()
 
 
-@transaction()
-async def assign_mission(mission, worker):
+@transaction(callback=True)
+async def assign_mission(mission, worker, handler=[]):
     if (not isinstance(mission, Mission)):
         mission = await get_mission_by_id(mission)
 
     if (not isinstance(worker, Model)):
         worker = await get_worker_by_badge(worker)
 
-    await _assign_mission(mission, worker)
+    await _assign_mission(mission, worker, handler=handler)
 
 
-async def _assign_mission(mission: Mission, worker: User):
+async def _assign_mission(mission: Mission, worker: User, handler=[]):
     if mission is None:
         raise HTTPException(
             status_code=404, detail="the mission you requested is not found")
@@ -500,42 +509,44 @@ async def _assign_mission(mission: Mission, worker: User):
     )
 
     if not mission.device.is_rescue:
-        await mqtt_client.publish(
-            f"foxlink/users/{worker.current_UUID}/missions",
-            {
-                "type": "new",
-                "mission_id": mission.id,
-                "badge": worker.badge,
-                # RUBY: set worker badge
-                "worker_now_position": worker.at_device,
-                "create_date": mission.created_date,
-                "device": {
-                    "device_id": mission.device.id,
-                    "device_name": mission.device.device_name,
-                    "device_cname": mission.device.device_cname,
-                    "workshop": mission.device.workshop.name,
-                    "project": mission.device.project,
-                    "process": mission.device.process,
-                    "line": mission.device.line,
-                },
-                "name": mission.name,
-                "description": mission.description,
-                "events": [
-                    MissionEventOut.from_missionevent(e).dict()
-                    for e in mission.events
-                ],
-                "notify_receive_date": mission.notify_recv_date,
-                "notify_send_date": mission.notify_send_date,
-                "timestamp": get_ntz_now()
+        handler.append(
+            mqtt_client.publish(
+                f"foxlink/users/{worker.current_UUID}/missions",
+                {
+                    "type": "new",
+                    "mission_id": mission.id,
+                    "badge": worker.badge,
+                    # RUBY: set worker badge
+                    "worker_now_position": worker.at_device,
+                    "create_date": mission.created_date,
+                    "device": {
+                        "device_id": mission.device.id,
+                        "device_name": mission.device.device_name,
+                        "device_cname": mission.device.device_cname,
+                        "workshop": mission.device.workshop.name,
+                        "project": mission.device.project,
+                        "process": mission.device.process,
+                        "line": mission.device.line,
+                    },
+                    "name": mission.name,
+                    "description": mission.description,
+                    "events": [
+                        MissionEventOut.from_missionevent(e).dict()
+                        for e in mission.events
+                    ],
+                    "notify_receive_date": mission.notify_recv_date,
+                    "notify_send_date": mission.notify_send_date,
+                    "timestamp": get_ntz_now()
 
-            },
-            qos=2,
-            retain=True
+                },
+                qos=2,
+                retain=True
+            )
         )
 
 
-@transaction()
-async def request_assistance(mission_id: int, worker: User):
+@transaction(callback=True)
+async def request_assistance(mission_id: int, worker: User, handler=[]):
     mission = await get_mission_by_id(mission_id)
 
     if mission is None:
@@ -565,35 +576,37 @@ async def request_assistance(mission_id: int, worker: User):
     )
 
     try:
-        await mqtt_client.publish(
-            f"foxlink/users/{worker.superior.badge}/missions",
-            {
-                "type": "new",
-                "mission_id": mission.id,
-                "worker_now_position": worker.at_device,
-                "create_date": mission.created_date,
-                "device": {
-                    "device_id": mission.device.id,
-                    "device_name": mission.device.device_name,
-                    "device_cname": mission.device.device_cname,
-                    "workshop": mission.device.workshop.name,
-                    "project": mission.device.project,
-                    "process": mission.device.process,
-                    "line": mission.device.line,
-                },
-                "name": mission.name,
-                "description": mission.description,
-                "events": [
-                    MissionEventOut.from_missionevent(e).dict()
-                    for e in mission.events
-                ],
-                "notify_receive_date": mission.notify_recv_date,
-                "notify_send_date": mission.notify_send_date,
-                "timestamp": get_ntz_now()
+        handler.append(
+            mqtt_client.publish(
+                f"foxlink/users/{worker.superior.badge}/missions",
+                {
+                    "type": "new",
+                    "mission_id": mission.id,
+                    "worker_now_position": worker.at_device,
+                    "create_date": mission.created_date,
+                    "device": {
+                        "device_id": mission.device.id,
+                        "device_name": mission.device.device_name,
+                        "device_cname": mission.device.device_cname,
+                        "workshop": mission.device.workshop.name,
+                        "project": mission.device.project,
+                        "process": mission.device.process,
+                        "line": mission.device.line,
+                    },
+                    "name": mission.name,
+                    "description": mission.description,
+                    "events": [
+                        MissionEventOut.from_missionevent(e).dict()
+                        for e in mission.events
+                    ],
+                    "notify_receive_date": mission.notify_recv_date,
+                    "notify_send_date": mission.notify_send_date,
+                    "timestamp": get_ntz_now()
 
-            },
-            qos=2,
-            retain=True
+                },
+                qos=2,
+                retain=True
+            )
         )
 
     except Exception as e:
@@ -602,8 +615,8 @@ async def request_assistance(mission_id: int, worker: User):
         )
 
 
-@transaction()
-async def set_mission_by_rescue_position(worker: User, rescue_position: str):
+@transaction(callback=True)
+async def set_mission_by_rescue_position(worker: User, rescue_position: str, handler=[]):
 
     # fetch position
     rescue_position = await(
@@ -644,31 +657,33 @@ async def set_mission_by_rescue_position(worker: User, rescue_position: str):
         )
     )
 
-    await mqtt_client.publish(
-        f"foxlink/users/{worker.current_UUID}/move-rescue-station",
-        {
-            "type": "rescue",
-            "mission_id": mission.id,
-            "badge": worker.badge,
-            # RUBY: set worker badge
-            "worker_now_position": worker.at_device,
-            "create_date": mission.created_date,
-            "device": {
-                "device_id": rescue_position.id,
-                "device_name": rescue_position.device_name,
-                "device_cname": rescue_position.device_cname,
-                "workshop": rescue_position.workshop.name,
-                "project": rescue_position.project,
-                "process": rescue_position.process,
-                "line": rescue_position.line,
+    handler.append(
+        mqtt_client.publish(
+            f"foxlink/users/{worker.current_UUID}/move-rescue-station",
+            {
+                "type": "rescue",
+                "mission_id": mission.id,
+                "badge": worker.badge,
+                # RUBY: set worker badge
+                "worker_now_position": worker.at_device,
+                "create_date": mission.created_date,
+                "device": {
+                    "device_id": rescue_position.id,
+                    "device_name": rescue_position.device_name,
+                    "device_cname": rescue_position.device_cname,
+                    "workshop": rescue_position.workshop.name,
+                    "project": rescue_position.project,
+                    "process": rescue_position.process,
+                    "line": rescue_position.line,
+                },
+                "name": mission.name,
+                "description": mission.description,
+                "events": [],
+                "notify_receive_date": mission.notify_recv_date,
+                "notify_send_date": mission.notify_send_date,
+                "timestamp": get_ntz_now()
             },
-            "name": mission.name,
-            "description": mission.description,
-            "events": [],
-            "notify_receive_date": mission.notify_recv_date,
-            "notify_send_date": mission.notify_send_date,
-            "timestamp": get_ntz_now()
-        },
-        qos=2,
-        retain=True
+            qos=2,
+            retain=True
+        )
     )
