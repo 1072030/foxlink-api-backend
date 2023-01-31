@@ -414,8 +414,6 @@ if __name__ == "__main__":
             .select_related(
                 [
                     "device",
-                    "worker",
-                    "worker__at_device",
                     "device__workshop",
                     "rejections",
                     "events"
@@ -425,7 +423,8 @@ if __name__ == "__main__":
                 FactoryMap.heavy_fields("device__workshop")
             )
             .filter(
-                device__is_rescue=False
+                device__is_rescue=False,
+                events__event_end_date__isnull=True
             )
             .all()
         )
