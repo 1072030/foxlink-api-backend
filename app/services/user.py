@@ -160,6 +160,7 @@ async def get_worker_mission_history(username: str) -> List[MissionDto]:
     missions = (
         await Mission.objects.filter(worker__badge=username)
         .select_related(["device", "device__workshop", "events"])
+        .filter(events__event_end_date__isnull=True)
         .exclude_fields(
             FactoryMap.heavy_fields("device__workshop")
         )

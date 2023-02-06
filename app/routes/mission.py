@@ -62,6 +62,7 @@ async def get_missions_by_query(
         "device__workshop__name": workshop_name,
         "repair_beg_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
+        "events__event_end_date__isnull":True
     }
 
     params = {k: v for k, v in params.items() if v is not None}
@@ -101,7 +102,7 @@ async def get_missions_by_worker(
     is_emergency: Optional[bool] = None,
     is_rescue: Optional[bool] = None,
     start_date: Optional[datetime.datetime] = None,
-    end_date: Optional[datetime.datetime] = None,
+    end_date: Optional[datetime.datetime] = None
 ):
     params = {
         "created_date__gte": start_date,
@@ -111,6 +112,7 @@ async def get_missions_by_worker(
         "device__is_rescue": is_rescue,
         "repair_beg_date__isnull": not is_started if is_started is not None else None,
         "repair_end_date__isnull": not is_closed if is_closed is not None else None,
+        "events__event_end_date__isnull":True
     }
 
     params = {
@@ -144,7 +146,7 @@ async def get_current_mission(user: User = Depends(get_current_user())):
         await Mission.objects
         .select_related(["device", "worker", "device__workshop","worker__at_device","events"])
         .exclude_fields(FactoryMap.heavy_fields("device__workshop"))
-        .filter(worker=user.badge, is_done=False)
+        .filter(worker=user.badge, is_done=False, events__event_end_date__isnull=True)
         .get_or_none()
     )
     if mission:

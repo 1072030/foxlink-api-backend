@@ -60,7 +60,10 @@ async def get_mission_by_id(
         .exclude_fields(
             FactoryMap.heavy_fields("device__workshop")
         )
-        .filter(id=id)
+        .filter(
+            id=id,
+            events__event_end_date__isnull=True
+        )
         .get_or_none()
     )
 
