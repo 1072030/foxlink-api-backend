@@ -128,6 +128,9 @@ if __name__ == "__main__":
             .exclude_fields(
                 FactoryMap.heavy_fields("device__workshop")
             )
+            .filter(
+                events__event_end_date__isnull=True
+            )
             .all()
         )
         # RUBY: related device workshop
@@ -242,7 +245,7 @@ if __name__ == "__main__":
             )
 
             if not mission.device.is_rescue:
-                mission_events = await MissionEvent.objects.filter(mission=mission.id).all()
+                mission_events = await MissionEvent.objects.filter(mission=mission.id, event_end_date__isnull=True).all()
 
                 # replicate mission of the new shift
                 replicate_mission = await Mission.objects.create(
