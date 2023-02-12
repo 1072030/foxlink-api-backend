@@ -7,7 +7,6 @@ from datetime import date, datetime, timedelta
 from app.env import TIMEZONE_OFFSET
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 from app.log import LOGGER_NAME
-
 logger = logging.getLogger(LOGGER_NAME)
 
 
@@ -49,7 +48,9 @@ class AbnormalMissionInfo(BaseModel):
     messages: Optional[str]
     duration: int
     created_date: datetime
-
+class LoginUsersPercentage(BaseModel):
+    percentage:float
+    login_users:Optional[str]
 # class getLoginUsersInfo(BaseModel):
 #     getLoginUsersPercentage:List[str]
 #     allEmployees:List[str]
@@ -94,6 +95,9 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
     """
     取得當月最常故障的設備，不依照 Category 分類，排序則由次數由高排到低。
     """
+    start_date = start_date-timedelta(days=1) 
+    start_date = start_date.replace(hour=23,minute=40)
+    end_date = end_date.replace                                                                                                                                                                                                                     (hour=23,minute=40)
     query = await api_db.fetch_all(
         f"""
         SELECT m.device as device_id, d.device_cname, count(*) AS count FROM missions m
@@ -237,7 +241,9 @@ async def get_top_abnormal_devices(workshop_id: int, start_date: datetime, end_d
 
 async def get_top_most_accept_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常接受任務的員工"""
-
+    start_date = start_date-timedelta(days=1) 
+    start_date = start_date.replace(hour=23,minute=40)
+    end_date = end_date.replace(hour=23,minute=40)
     utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
         "m.created_date", "audit_log_headers.created_date")
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
@@ -266,6 +272,9 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
 
 async def get_top_most_reject_mission_employees(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType], limit: int) -> List[WorkerMissionStats]:
     """取得當月最常拒絕任務的員工"""
+    start_date = start_date-timedelta(days=1) 
+    start_date = start_date.replace(hour=23,minute=40)
+    end_date = end_date.replace(hour=23,minute=40)
     utc_night_filter = UTC_NIGHT_SHIFT_FILTER.replace(
         "m.created_date", "audit_log_headers.created_date")
     utc_day_filter = UTC_DAY_SHIFT_FILTER.replace(
@@ -292,7 +301,7 @@ async def get_top_most_reject_mission_employees(workshop_id: int, start_date: da
     return [WorkerMissionStats(**m) for m in query]
 
 
-async def get_login_users_percentage(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> List[str]:
+async def get_login_users_percentage(workshop_id: int, start_date: datetime, end_date: datetime, shift: Optional[ShiftType]) -> List[LoginUsersPercentage]:
     """取得最近 24 小時登入系統員工的百分比"""
     query = {
         "level":UserLevel.maintainer.value,
@@ -310,8 +319,8 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
     if total_user_count == 0:
         return 0.0
     # 設定起始時間與結束時間
-    start_date = start_date.replace(hour=23,minute=40)
-    end_date = end_date.replace(hour=23,minute=40)
+    start_date = start_date.replace(hour=23,minute=40,second=0)
+    end_date = end_date.replace(hour=23,minute=40,second=0)
     # 從log中選取登入人數 加入 users a.user欄位 連接 u.badge欄位
     # Where action是登入 還有等級是maintainer
     # log中的建立時間代表上線時間 a.create_date 在你選中的兩個"日期"內
@@ -330,6 +339,7 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )
+    
     return [{
         "percentage":round(result.__len__() / total_user_count, 3),
         "login_users":result

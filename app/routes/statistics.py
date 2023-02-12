@@ -46,8 +46,7 @@ class Stats(BaseModel):
     devices_stats: DeviceStats
     top_most_reject_mission_employees: List[WorkerMissionStats]
     top_most_accept_mission_employees: List[WorkerMissionStats]
-    login_users_percentage_this_week: List[Any]
-
+    login_users_percentage_this_week: Any
 
 @router.get("/", response_model=Stats, tags=["statistics"])
 async def get_overall_statistics(workshop_name: str, start_date: datetime.datetime, end_date: datetime.datetime, is_night_shift: Optional[bool] = None):
@@ -90,7 +89,6 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
     top_mission_accept_employees = await get_top_most_accept_mission_employees(workshop_id, start_date, end_date, shift, 10)
     top_mission_reject_employees = await get_top_most_reject_mission_employees(workshop_id, start_date, end_date, shift, 3)
     emergency_missions = await get_emergency_missions(workshop_id)
-
     return Stats(
         devices_stats=DeviceStats(
             most_frequent_crashed_devices=top_crashed_devices,
