@@ -89,7 +89,6 @@ async def get_overall_statistics(workshop_name: str, start_date: datetime.dateti
     top_mission_accept_employees = await get_top_most_accept_mission_employees(workshop_id, start_date, end_date, shift, 10)
     top_mission_reject_employees = await get_top_most_reject_mission_employees(workshop_id, start_date, end_date, shift, 3)
     emergency_missions = await get_emergency_missions(workshop_id)
-    print(login_users_percentage)
     return Stats(
         devices_stats=DeviceStats(
             most_frequent_crashed_devices=top_crashed_devices,

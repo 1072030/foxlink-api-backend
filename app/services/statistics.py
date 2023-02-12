@@ -7,7 +7,6 @@ from datetime import date, datetime, timedelta
 from app.env import TIMEZONE_OFFSET
 from app.models.schema import MissionDto, WorkerMissionStats, WorkerStatusDto
 from app.log import LOGGER_NAME
-from fastapi import HTTPException
 logger = logging.getLogger(LOGGER_NAME)
 
 
@@ -309,7 +308,6 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
     }
     if shift:
         query["shift"]= shift.value
-    print(query)
     # 實際回傳資料庫第一天需要減一
     start_date = start_date-timedelta(days=1) 
     full_days = round((end_date - start_date).total_seconds()/(60*60*24))
@@ -317,10 +315,7 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
     if full_days == 0:
         full_days+=1
     #取得全部員工有分別日夜班    
-    try:
-        total_user_count = await User.objects.filter(**query).count() * full_days
-    except:
-        raise HTTPException(404, "workshop_name is not existed")
+    total_user_count = await User.objects.filter(**query).count() * full_days
     if total_user_count == 0:
         return 0.0
     # 設定起始時間與結束時間
@@ -331,8 +326,6 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
     # log中的建立時間代表上線時間 a.create_date 在你選中的兩個"日期"內
     # 日班夜班的區間
     # log中的workshop欄位 要對應到 workshop_id欄位
-    print("start_date",start_date)
-    print("end_date",end_date)
     result = await api_db.fetch_all(
         f"""
         SELECT DISTINCT u.badge,u.username,u.current_UUID,u.shift FROM `audit_log_headers` a
@@ -346,7 +339,6 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )
-    print("result",result)
     
     return [{
         "percentage":round(result.__len__() / total_user_count, 3),
