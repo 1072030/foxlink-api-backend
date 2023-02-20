@@ -1,4 +1,5 @@
 import io
+import json,os
 import qrcode
 from qrcode.constants import ERROR_CORRECT_M
 from fastapi.exceptions import HTTPException
@@ -19,6 +20,10 @@ async def get_factory_map_by_id(factory_map_id: int):
     """
     return await FactoryMap.objects.filter(id=factory_map_id).get_or_none()
 
+def get_factory_file_name():
+    Readfile = open(os.getcwd()+'/filename.json','r',encoding="utf-8")
+    data = json.load(Readfile)
+    return data
 
 async def get_factory_map_by_name(factory_map_name: str):
     """藉由名稱取得車間資訊

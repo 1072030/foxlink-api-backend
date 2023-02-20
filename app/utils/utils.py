@@ -1,5 +1,6 @@
 import pytz
 import asyncio
+import os,json
 from pickle import TUPLE
 from typing import Tuple
 from fastapi import BackgroundTasks
@@ -14,6 +15,13 @@ from app.env import (
     DAY_SHIFT_END,
     TZ
 )
+def change_file_name(filename:str,position:str)->str:
+    Readfile = open(os.getcwd()+'/filename.json','r',encoding="utf-8")
+    data = json.load(Readfile)
+    data[position] = filename
+    Writefile = open(os.getcwd()+'/filename.json','w',encoding="utf-8")
+    json.dump(data,Writefile,ensure_ascii=False)
+    return data
 
 
 async def get_current_shift_details() -> Tuple[ShiftType, datetime, datetime]:

@@ -211,6 +211,7 @@ if __name__ == "__main__":
     @ show_duration
     async def mission_shift_routine(handler=[]):
         # filter out non-rescue missions that're in process but hasn't completed
+        # 這邊要新增過濾 超過兩天沒有執行的任務-> 自動完成
         working_missions = (
             await Mission.objects
             .filter(
@@ -231,6 +232,7 @@ if __name__ == "__main__":
             worker_shift = ShiftType(mission.worker.shift.id)
 
             # shift swap required
+            # 不需換班返回
             if current_shift == worker_shift:
                 return
 
@@ -807,21 +809,20 @@ if __name__ == "__main__":
             event.table_name,
             event.event_id
         )
-
+        # print(now,now-timedelta(minutes=10))
         if e is None:
             return False
-
         if e.end_time is not None:
             await event.update(event_end_date=e.end_time)
-            # check if all events have completed
+            # now = datetime.now(timezone.utc)
+            # # check if all events have completed
             if (
                 (
                     await MissionEvent.objects
                     .filter(
                         mission=event.mission.id,
-                        event_end_date__isnull=True
-                    )
-                    .count()
+                        event_end_date__isnull=True,
+                    ).count()
                 ) == 0
             ):
                 mission = (
@@ -868,6 +869,62 @@ if __name__ == "__main__":
                     )
                 await emitter.emit()
                 return True
+        # if event.created_date < (get_ntz_now()-timedelta(minutes=5)):
+        #     if (
+        #         (
+        #             #確實有找到此任務
+        #             await MissionEvent.objects
+        #             .filter(
+        #                 mission=event.mission.id,
+        #                 event_end_date__isnull=True,
+        #             ).count()
+        #         ) == 1
+        #     ):
+        #         mission = (
+        #             await Mission.objects
+        #             .filter(id=event.mission.id)
+        #             .select_related("worker")
+        #             .get()
+        #         )
+        #         emitter = AsyncEmitter()
+        #         emitter.add(
+        #             mission.update(
+        #                 is_done=True,
+        #                 is_done_cure=True
+        #             ),
+        #             AuditLogHeader.objects.create(
+        #                 table_name="missions",
+        #                 action=AuditActionEnum.MISSION_CURED.value,
+        #                 record_pk=str(mission.id),
+        #                 user=None,
+        #             )
+        #         )
+        #         if mission.worker:
+        #             emitter.add(
+        #                 mission.worker.update(
+        #                     status=WorkerStatusEnum.idle.value,
+        #                     finish_event_date=get_ntz_now()
+        #                 )
+        #             )
+        #             handler.append(
+        #                 mqtt_client.publish(
+        #                     f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+        #                     {
+        #                         "mission_id": mission.id,
+        #                         "badge": mission.worker.badge,
+        #                         # RUBY: set worker badge
+        #                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
+        #                         "description": "finish",
+        #                         "timestamp": get_ntz_now()
+        #                     },
+        #                     qos=2,
+        #                     retain=True
+        #                 )
+        #                 # RUBY: mqtt auto-close mission
+        #             )
+        #         await emitter.emit()
+        #         return True
+                
 
         return False
 
@@ -1161,7 +1218,7 @@ if __name__ == "__main__":
                 await check_mission_assign_duration_overtime()
 
                 await sync_events_from_foxlink_handler()
-
+                
                 if not DISABLE_FOXLINK_DISPATCH:
                     await mission_dispatch()
 
