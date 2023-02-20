@@ -129,7 +129,7 @@ async def fn_worker_start_position(df_w, df_m):  # 輸入車間機台座標資�
 async def import_devices(excel_file: UploadFile, user: User, handler=[]) -> Tuple[List[str], pd.DataFrame]:
 
     frame: pd.DataFrame = pd.read_excel(await excel_file.read(), sheet_name=0)
-
+    # 有重複的話去除
     workshops = frame["workshop"].drop_duplicates()
 
     create_device_bulk: Dict[str, List[Device]] = {}

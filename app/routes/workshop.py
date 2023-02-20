@@ -6,8 +6,9 @@ from ormar import NoMatch
 from app.core.database import FactoryMap, User, api_db
 from app.models.schema import DeviceStatus, DeviceStatusEnum
 from app.services.auth import get_current_user, get_manager_active_user
-from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status
+from app.services.workshop import create_workshop_device_qrcode, get_all_devices_status,get_factory_file_name
 from urllib.parse import quote
+from app.utils.utils import change_file_name
 
 
 router = APIRouter(prefix="/workshop")
@@ -22,6 +23,10 @@ async def get_workshop_info_by_query(
     query = {"id": workshop_id, "name": workshop_name}
     query = {k: v for k, v in query.items() if v is not None}
     return await FactoryMap.objects.filter(**query).exclude_fields(["image", "map"]).all()  # type: ignore
+
+@router.get("/filename", tags=["workshop"])
+def get_workshop_file_name():
+    return get_factory_file_name()
 
 
 @router.get("/list", tags=["workshop"], description="Get a list of all workshop's name")
@@ -73,7 +78,9 @@ async def upload_workshop_image(
     raw_image = await image.read()
 
     try:
-        await FactoryMap.objects.filter(name=workshop_name).update(image=raw_image)
+        temp = await FactoryMap.objects.filter(name=workshop_name).get()
+        await temp.update(image=raw_image)
+        change_file_name(image.filename,"images")
     except NoMatch:
         raise HTTPException(status_code=404, detail="the workshop is not found")
     except Exception as e:

@@ -13,7 +13,7 @@ from app.core.database import AuditActionEnum, User, AuditLogHeader
 from fastapi.exceptions import HTTPException
 from typing import List
 from foxlink_dispatch.dispatch import data_convert
-
+from app.utils.utils import change_file_name
 
 router = APIRouter(prefix="/migration")
 
@@ -33,6 +33,7 @@ async def import_devices_from_excel(
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
             user=user.badge,
         )
+        change_file_name(file.filename,"devices")
         return ImportDevicesOut(device_ids=device_ids, parameter=params.to_csv())
 
     except Exception as e:
@@ -74,7 +75,7 @@ async def import_factory_worker_infos_from_excel(
             action=AuditActionEnum.DATA_IMPORT_SUCCEEDED.value,
             user=user.badge,
         )
-
+        change_file_name(worker_file.filename,"worker")
         return Response(
             content=params.to_csv(),
             status_code=201,

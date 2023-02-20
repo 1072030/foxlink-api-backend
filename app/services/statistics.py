@@ -315,9 +315,9 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
     if full_days == 0:
         full_days+=1
     #取得全部員工有分別日夜班    
-    total_user_count = await User.objects.filter(**query).count() * full_days
-    if total_user_count == 0:
-        return 0.0
+    total_user_count = await User.objects.filter(**query).count() * full_days   
+    # if total_user_count == 0:
+    #     return 0.0
     # 設定起始時間與結束時間
     start_date = start_date.replace(hour=23,minute=40,second=0)
     end_date = end_date.replace(hour=23,minute=40,second=0)
@@ -339,9 +339,13 @@ async def get_login_users_percentage(workshop_id: int, start_date: datetime, end
         """,
         {"workshop_id": workshop_id, "start_date": start_date, "end_date": end_date},
     )
-    
+    percentage=0
+    if total_user_count != 0:
+        percentage = round(result.__len__() / total_user_count, 3)
+    else:
+        result=[]
     return [{
-        "percentage":round(result.__len__() / total_user_count, 3),
+        "percentage":percentage,
         "login_users":result
     }]
             

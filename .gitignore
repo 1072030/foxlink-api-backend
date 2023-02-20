@@ -113,7 +113,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+filename.json
 # Spyder project settings
 .spyderproject
 .spyproject
