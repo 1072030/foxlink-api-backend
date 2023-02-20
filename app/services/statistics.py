@@ -97,7 +97,7 @@ async def get_top_most_crashed_devices(workshop_id: int, start_date: datetime, e
     """
     start_date = start_date-timedelta(days=1) 
     start_date = start_date.replace(hour=23,minute=40)
-    end_date = end_date.replace                                                                                                                                                                                                                     (hour=23,minute=40)
+    end_date = end_date.replace(hour=23,minute=40)
     query = await api_db.fetch_all(
         f"""
         SELECT m.device as device_id, d.device_cname, count(*) AS count FROM missions m
