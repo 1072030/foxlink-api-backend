@@ -199,8 +199,8 @@
   - Frontend Broker Website: 140.118.127.134:8086
   - API Server Docs: http://140.118.127.134:80/docs
     - Default Account:
-      - username: foxlink
-      - password: aA946809
+      - username: admin
+      - password: foxlink
 - EasyConnect(VPN) Setting:
   - URL: https://dkvpn.foxlink.com.tw:4433
   - Username: cbgtw
