@@ -195,12 +195,12 @@
 
 # Related Infos
 - Server Settings:
-  - MQTT Broker Website: 140.118.157.9:18083
-  - Frontend Broker Website: 140.118.157.9:8083
-  - API Server Docs: http://140.118.157.9:8080/docs
+  - MQTT Broker Website: 140.118.127.134:18083
+  - Frontend Broker Website: 140.118.127.134:8086
+  - API Server Docs: http://140.118.127.134:8080/docs
     - Default Account:
-      - username: admin
-      - password: foxlink
+      - username: foxlink
+      - password: aA946809
 - EasyConnect(VPN) Setting:
   - URL: https://dkvpn.foxlink.com.tw:4433
   - Username: cbgtw
@@ -208,3 +208,24 @@
   - Server IP: 192.168.65.210
   - Server User:root
   - Server Ports: 80,3306,8083,18083,27010
+- Factory SSH Setting:
+  - Server IP: 192.168.65.210
+  - Username: ntust
+  - Password: aa946809
+  - Port:22
+- Device DataBase Setting:
+  - Server IP: 172.168.1.231 , 172.168.1.237
+  - Username: ntust
+  - Password: ntustpwd
+  - Port: 3306
+- Factory DataBase Settings:
+  - 第九車間
+    - Server IP: 172.168.1.180
+    - Username : root
+    - password: AqqhQ993VNto
+    - Port: 27000
+  - 第十車間
+    - Server IP : 172.168.1.180
+    - Username : root
+    - password: AqqhQ993VNto
+    - Port: 27001
