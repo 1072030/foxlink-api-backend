@@ -197,7 +197,7 @@
 - Server Settings:
   - MQTT Broker Website: 140.118.127.134:18083
   - Frontend Broker Website: 140.118.127.134:8086
-  - API Server Docs: http://140.118.127.134:8080/docs
+  - API Server Docs: http://140.118.127.134:80/docs
     - Default Account:
       - username: foxlink
       - password: aA946809
