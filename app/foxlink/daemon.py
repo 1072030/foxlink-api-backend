@@ -802,14 +802,13 @@ if __name__ == "__main__":
                 )
 
     ######### events completed  ########
-
+    
     async def update_complete_events(event: MissionEvent, handler=[]):
         e = await get_incomplete_event_from_table(
             event.host,
             event.table_name,
             event.event_id
         )
-        # print(now,now-timedelta(minutes=10))
         if e is None:
             return False
         if e.end_time is not None:
@@ -869,61 +868,64 @@ if __name__ == "__main__":
                     )
                 await emitter.emit()
                 return True
-        # if event.created_date < (get_ntz_now()-timedelta(minutes=5)):
-        #     if (
-        #         (
-        #             #確實有找到此任務
-        #             await MissionEvent.objects
-        #             .filter(
-        #                 mission=event.mission.id,
-        #                 event_end_date__isnull=True,
-        #             ).count()
-        #         ) == 1
-        #     ):
-        #         mission = (
-        #             await Mission.objects
-        #             .filter(id=event.mission.id)
-        #             .select_related("worker")
-        #             .get()
-        #         )
-        #         emitter = AsyncEmitter()
-        #         emitter.add(
-        #             mission.update(
-        #                 is_done=True,
-        #                 is_done_cure=True
-        #             ),
-        #             AuditLogHeader.objects.create(
-        #                 table_name="missions",
-        #                 action=AuditActionEnum.MISSION_CURED.value,
-        #                 record_pk=str(mission.id),
-        #                 user=None,
-        #             )
-        #         )
-        #         if mission.worker:
-        #             emitter.add(
-        #                 mission.worker.update(
-        #                     status=WorkerStatusEnum.idle.value,
-        #                     finish_event_date=get_ntz_now()
-        #                 )
-        #             )
-        #             handler.append(
-        #                 mqtt_client.publish(
-        #                     f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
-        #                     {
-        #                         "mission_id": mission.id,
-        #                         "badge": mission.worker.badge,
-        #                         # RUBY: set worker badge
-        #                         "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
-        #                         "description": "finish",
-        #                         "timestamp": get_ntz_now()
-        #                     },
-        #                     qos=2,
-        #                     retain=True
-        #                 )
-        #                 # RUBY: mqtt auto-close mission
-        #             )
-        #         await emitter.emit()
-        #         return True
+        # 前面判斷是否為自動修復，這邊判斷mission_event created_date是否超過兩天
+        # 如果超過兩天 認定為自動修復
+        if event.created_date < (get_ntz_now()-timedelta(days=2)):
+            if (
+                (
+                    #確實有找到此任務event
+                    await MissionEvent.objects
+                    .filter(
+                        mission=event.mission.id,
+                        event_end_date__isnull=True,
+                    )
+                    .count()
+                ) == 1
+            ):
+                mission = (
+                    await Mission.objects
+                    .filter(id=event.mission.id)
+                    .select_related("worker")
+                    .get()
+                )
+                emitter = AsyncEmitter()
+                emitter.add(
+                    mission.update(
+                        is_done=True,
+                        is_done_cure=True
+                    ),
+                    AuditLogHeader.objects.create(
+                        table_name="missions",
+                        action=AuditActionEnum.MISSION_CURED.value,
+                        record_pk=str(mission.id),
+                        user=None,
+                    )
+                )
+                if mission.worker:
+                    emitter.add(
+                        mission.worker.update(
+                            status=WorkerStatusEnum.idle.value,
+                            finish_event_date=get_ntz_now()
+                        )
+                    )
+                    handler.append(
+                        mqtt_client.publish(
+                            f"foxlink/users/{mission.worker.current_UUID}/missions/stop-notify",
+                            {
+                                "mission_id": mission.id,
+                                "badge": mission.worker.badge,
+                                # RUBY: set worker badge
+                                "mission_state": "stop-notify" if not mission.notify_recv_date else "return-home-page",
+                                "description": "finish",
+                                "timestamp": get_ntz_now()
+                            },
+                            qos=2,
+                            retain=True
+                        )
+                        # RUBY: mqtt auto-close mission
+                    )
+                await emitter.emit()
+                return True
                 
 
         return False
