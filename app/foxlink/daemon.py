@@ -870,7 +870,7 @@ if __name__ == "__main__":
                 return True
         # 前面判斷是否為自動修復，這邊判斷mission_event created_date是否超過兩天
         # 如果超過兩天 認定為自動修復
-        if event.created_date < (get_ntz_now()-timedelta(days=2)):
+        if event.created_date < (get_ntz_now()-timedelta(days=1)):
             if (
                 (
                     #確實有找到此任務event

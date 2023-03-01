@@ -325,6 +325,10 @@ async def finish_mission(mission, worker):
 
 async def _finish_mission(mission, worker):
     if mission is None:
+        worker.update(
+            status=WorkerStatusEnum.idle.value,
+            finish_event_date=get_ntz_now()
+        ),
         raise HTTPException(
             404, "the mission you request to start is not found")
 
