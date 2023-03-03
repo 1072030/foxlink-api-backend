@@ -72,7 +72,7 @@ async def login_routine(form_data, handler=[]):
 
     if (user.level == UserLevel.maintainer.value):
         if not user.at_device:
-            changes.at_device = await Device.objects.filter(workshop=user.workshop, is_resuce=True).first()
+            changes.at_device = await Device.objects.filter(workshop=user.workshop, is_rescue=True).first()
 
         if await check_user_begin_shift(user):
             rescue_missions = (
