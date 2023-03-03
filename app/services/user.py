@@ -437,13 +437,30 @@ async def is_worker_in_device_whitelist(badge: str, device_id: str) -> bool:
 async def get_worker_status(worker: User) -> Optional[WorkerStatusDto]:
     if worker is None:
         return None
-
+    shift_time=(get_ntz_now().replace(hour=23,minute=40))
+    if shift_time >= get_ntz_now().replace(hour=23,minute=41):
+        shift_time=shift_time+timedelta(days=1)
+    print(shift_time)
+    day_filter = f"BETWEEN '{(shift_time-timedelta(days=1))}' AND '{shift_time}'"
+    total_mission_count =await api_db.fetch_all(
+        f"""
+        SELECT count(DISTINCT record_pk) AS count
+        FROM `audit_log_headers`
+        INNER JOIN missions m ON m.id = audit_log_headers.`record_pk`
+        WHERE 
+            action='MISSION_STARTED'
+            AND audit_log_headers.user = :badge
+            AND audit_log_headers.created_date {(day_filter)}
+            AND m.name != "前往救援站"
+        """,
+        {"badge":worker.badge}
+    )
     item = WorkerStatusDto(
         worker_id=worker.badge,
         worker_name=worker.username,
         status=worker.status,
         finish_event_date=worker.finish_event_date,
-        total_dispatches=worker.shift_start_count,
+        total_dispatches=total_mission_count[0][0],
     )
 
     item.at_device = worker.at_device.id if worker.at_device is not None else None

@@ -54,8 +54,8 @@ class LoginUsersPercentage(BaseModel):
 # class getLoginUsersInfo(BaseModel):
 #     getLoginUsersPercentage:List[str]
 #     allEmployees:List[str]
-UTC_NIGHT_SHIFT_FILTER = "AND (TIME(m.created_date) BETWEEN '12:00' AND '23:40') # 夜班 in UTC"
-UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') OR (TIME(m.created_date) BETWEEN '00:00' AND '12:00')) # 白班 in UTC"
+UTC_NIGHT_SHIFT_FILTER = "AND (TIME(m.created_date) BETWEEN '11:40' AND '23:40') # 夜班 in UTC"
+UTC_DAY_SHIFT_FILTER = "AND ((TIME(m.created_date) BETWEEN '23:40' AND '23:59') OR (TIME(m.created_date) BETWEEN '00:00' AND '11:40')) # 白班 in UTC"
 
 LOCAL_NIGHT_SHIFT_FILTER = "AND ((TIME(event_beg_date) BETWEEN '20:00' AND '23:59') OR (TIME(event_beg_date) BETWEEN '00:00' AND '07:40'))"
 LOCAL_DAY_SHIFT_FILTER = "AND (TIME(event_beg_date) BETWEEN '07:40' AND '20:00')"
@@ -254,11 +254,13 @@ async def get_top_most_accept_mission_employees(workshop_id: int, start_date: da
         SELECT u.badge, u.username, count(DISTINCT record_pk) AS count
         FROM `audit_log_headers`
         INNER JOIN users u ON u.badge = audit_log_headers.`user`
+        INNER JOIN missions m ON m.id = audit_log_headers.`record_pk`
         WHERE 
             action='MISSION_STARTED'
             AND (audit_log_headers.created_date BETWEEN :start_date AND :end_date)
             AND u.workshop = :workshop_id
             {utc_night_filter if shift == ShiftType.night else (utc_day_filter if shift == ShiftType.day else "" )}
+            AND m.name != "前往救援站"
         GROUP BY u.badge
         ORDER BY count DESC
         LIMIT :limit;
